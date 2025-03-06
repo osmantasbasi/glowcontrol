@@ -1,4 +1,3 @@
-
 // WLED API service
 
 type WLEDState = {
@@ -118,18 +117,19 @@ class WLEDApi {
     }
   }
 
-  async setEffect(effectId: number, speed?: number, intensity?: number): Promise<void> {
+  async setSegmentColor(segmentId: number, r: number, g: number, b: number): Promise<void> {
     try {
       const payload: any = {
-        seg: [{ fx: effectId }],
+        seg: []
       };
       
-      if (speed !== undefined) {
-        payload.seg[0].sx = speed;
-      }
-      
-      if (intensity !== undefined) {
-        payload.seg[0].ix = intensity;
+      // Fill the array up to the segment we want to modify
+      for (let i = 0; i <= segmentId; i++) {
+        if (i === segmentId) {
+          payload.seg.push({ id: segmentId, col: [[r, g, b]] });
+        } else {
+          payload.seg.push(null); // Placeholder to keep array indexes aligned with segment IDs
+        }
       }
       
       const response = await fetch(`${this.baseUrl}/json/state`, {
@@ -140,11 +140,53 @@ class WLEDApi {
         body: JSON.stringify(payload),
       });
       
-      if (!response.ok) throw new Error('Failed to set effect');
+      if (!response.ok) throw new Error('Failed to set segment color');
       
       return;
     } catch (error) {
-      console.error('Error setting effect:', error);
+      console.error('Error setting segment color:', error);
+      throw error;
+    }
+  }
+
+  async setSegmentEffect(segmentId: number, effectId: number, speed?: number, intensity?: number): Promise<void> {
+    try {
+      const payload: any = {
+        seg: []
+      };
+      
+      // Fill the array up to the segment we want to modify
+      for (let i = 0; i <= segmentId; i++) {
+        if (i === segmentId) {
+          const segmentData: any = { id: segmentId, fx: effectId };
+          
+          if (speed !== undefined) {
+            segmentData.sx = speed;
+          }
+          
+          if (intensity !== undefined) {
+            segmentData.ix = intensity;
+          }
+          
+          payload.seg.push(segmentData);
+        } else {
+          payload.seg.push(null); // Placeholder to keep array indexes aligned with segment IDs
+        }
+      }
+      
+      const response = await fetch(`${this.baseUrl}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment effect');
+      
+      return;
+    } catch (error) {
+      console.error('Error setting segment effect:', error);
       throw error;
     }
   }

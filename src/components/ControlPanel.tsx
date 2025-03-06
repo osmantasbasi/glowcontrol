@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
@@ -6,9 +5,10 @@ import BrightnessSlider from './BrightnessSlider';
 import EffectSelector from './EffectSelector';
 import DeviceManager from './DeviceManager';
 import StripPreview from './StripPreview';
+import SegmentTriangles from './SegmentTriangles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Power, Layers, Settings } from 'lucide-react';
+import { Power, Layers, Settings, Triangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const ControlPanel: React.FC = () => {
@@ -16,7 +16,6 @@ const ControlPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('color');
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 255, b: 255});
   
-  // Update local state when device state changes
   useEffect(() => {
     if (deviceState) {
       setCurrentColor(deviceState.color);
@@ -25,7 +24,6 @@ const ControlPanel: React.FC = () => {
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
-    // Debounce the API call to avoid sending too many requests
     const timeoutId = setTimeout(() => {
       setColor(color.r, color.g, color.b);
     }, 50);
@@ -63,12 +61,10 @@ const ControlPanel: React.FC = () => {
         
         <div className="md:col-span-9">
           <div className="space-y-4">
-            {/* Preview Section */}
             {deviceInfo && deviceState && (
               <StripPreview className="animate-fade-in" />
             )}
             
-            {/* Main Controls */}
             <div className="glass-card overflow-hidden animate-fade-in">
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <div className="flex items-center justify-between p-4">
@@ -79,6 +75,10 @@ const ControlPanel: React.FC = () => {
                     <TabsTrigger value="effects" className="data-[state=active]:bg-white/10">
                       <Layers size={14} className="mr-1" />
                       Effects
+                    </TabsTrigger>
+                    <TabsTrigger value="segments" className="data-[state=active]:bg-white/10">
+                      <Triangle size={14} className="mr-1" />
+                      Segments
                     </TabsTrigger>
                     <TabsTrigger value="settings" className="data-[state=active]:bg-white/10">
                       <Settings size={14} className="mr-1" />
@@ -116,6 +116,13 @@ const ControlPanel: React.FC = () => {
                   className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
                 >
                   <EffectSelector />
+                </TabsContent>
+                
+                <TabsContent 
+                  value="segments" 
+                  className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+                >
+                  <SegmentTriangles />
                 </TabsContent>
                 
                 <TabsContent 

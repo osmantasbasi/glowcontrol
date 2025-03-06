@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
@@ -23,6 +22,8 @@ interface WLEDContextType {
   setBrightness: (brightness: number) => Promise<void>;
   setEffect: (effectId: number, speed?: number, intensity?: number) => Promise<void>;
   togglePower: (on?: boolean) => Promise<void>;
+  setSegmentColor: (segmentId: number, r: number, g: number, b: number) => Promise<void>;
+  setSegmentEffect: (segmentId: number, effectId: number, speed?: number, intensity?: number) => Promise<void>;
 }
 
 const WLEDContext = createContext<WLEDContextType | undefined>(undefined);
@@ -38,14 +39,12 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const [deviceInfo, setDeviceInfo] = useState<WLEDInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Load saved devices from localStorage on component mount
   useEffect(() => {
     const savedDevices = localStorage.getItem('wledDevices');
     if (savedDevices) {
       const parsedDevices = JSON.parse(savedDevices);
       setDevices(parsedDevices);
       
-      // Set the first device as active if available
       if (parsedDevices.length > 0) {
         const activeDeviceId = localStorage.getItem('activeWledDevice');
         if (activeDeviceId) {
@@ -62,12 +61,10 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // Save devices to localStorage when they change
   useEffect(() => {
     localStorage.setItem('wledDevices', JSON.stringify(devices));
   }, [devices]);
 
-  // Save active device to localStorage when it changes
   useEffect(() => {
     if (activeDevice) {
       localStorage.setItem('activeWledDevice', activeDevice.id);
@@ -75,7 +72,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   }, [activeDevice]);
 
   const addDevice = (name: string, ipAddress: string) => {
-    // Create a new device
     const newDevice: WLEDDevice = {
       id: Date.now().toString(),
       name,
@@ -83,10 +79,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       connected: false,
     };
     
-    // Add to devices list
     setDevices(prev => [...prev, newDevice]);
     
-    // If this is the first device, set it as active
     if (devices.length === 0) {
       handleSetActiveDevice(newDevice.id);
     }
@@ -97,7 +91,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const removeDevice = (id: string) => {
     setDevices(prev => prev.filter(device => device.id !== id));
     
-    // If the active device is removed, set the first available device as active
     if (activeDevice?.id === id) {
       const remainingDevices = devices.filter(device => device.id !== id);
       if (remainingDevices.length > 0) {
@@ -121,18 +114,14 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       setActiveDevice(device);
       
-      // Initialize WLED API with the device's IP address
       const api = initializeWledApi(device.ipAddress);
       
-      // Connect WebSocket
       api.connectWebSocket();
       
-      // Register for updates
       api.onUpdate((state) => {
         setDeviceState(state);
       });
       
-      // Fetch initial state and info
       const [state, info] = await Promise.all([
         api.getState(),
         api.getInfo(),
@@ -141,7 +130,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       setDeviceState(state);
       setDeviceInfo(info);
       
-      // Update device connection status
       setDevices(prev => 
         prev.map(d => 
           d.id === id ? { ...d, connected: true } : d
@@ -153,7 +141,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       console.error('Error connecting to device:', error);
       toast.error('Failed to connect to device');
       
-      // Mark device as disconnected
       setDevices(prev => 
         prev.map(d => 
           d.id === id ? { ...d, connected: false } : d
@@ -164,13 +151,11 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
-  // Color control
   const setColor = async (r: number, g: number, b: number) => {
     try {
       const api = getWledApi();
       await api.setColor(r, g, b);
       
-      // Update local state (WebSocket will update it as well, but this is faster for UI feedback)
       if (deviceState) {
         setDeviceState({
           ...deviceState,
@@ -183,13 +168,11 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
-  // Brightness control
   const setBrightness = async (brightness: number) => {
     try {
       const api = getWledApi();
       await api.setBrightness(brightness);
       
-      // Update local state
       if (deviceState) {
         setDeviceState({
           ...deviceState,
@@ -202,13 +185,11 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
-  // Effect control
   const setEffect = async (effectId: number, speed?: number, intensity?: number) => {
     try {
       const api = getWledApi();
       await api.setEffect(effectId, speed, intensity);
       
-      // Update local state
       if (deviceState) {
         setDeviceState({
           ...deviceState,
@@ -223,13 +204,11 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
-  // Power control
   const togglePower = async (on?: boolean) => {
     try {
       const api = getWledApi();
       await api.togglePower(on);
       
-      // WebSocket will update the state, but we'll update it here for immediate UI feedback
       if (deviceState) {
         const newState = on === undefined ? !deviceState.on : on;
         setDeviceState({
@@ -240,6 +219,26 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error toggling power:', error);
       toast.error('Failed to toggle power');
+    }
+  };
+
+  const setSegmentColor = async (segmentId: number, r: number, g: number, b: number) => {
+    try {
+      const api = getWledApi();
+      await api.setSegmentColor(segmentId, r, g, b);
+    } catch (error) {
+      console.error('Error setting segment color:', error);
+      toast.error('Failed to set segment color');
+    }
+  };
+
+  const setSegmentEffect = async (segmentId: number, effectId: number, speed?: number, intensity?: number) => {
+    try {
+      const api = getWledApi();
+      await api.setSegmentEffect(segmentId, effectId, speed, intensity);
+    } catch (error) {
+      console.error('Error setting segment effect:', error);
+      toast.error('Failed to set segment effect');
     }
   };
 
@@ -258,6 +257,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         setBrightness,
         setEffect,
         togglePower,
+        setSegmentColor,
+        setSegmentEffect,
       }}
     >
       {children}
