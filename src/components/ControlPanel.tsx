@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 
 const ControlPanel: React.FC = () => {
   const { deviceState, deviceInfo, togglePower, setColor, setBrightness } = useWLED();
-  const [activeTab, setActiveTab] = useState<string>('color');
+  const [activeTab, setActiveTab] = useState<string>('segments');
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 255, b: 255});
   
   useEffect(() => {
@@ -69,16 +69,16 @@ const ControlPanel: React.FC = () => {
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <div className="flex items-center justify-between p-4">
                   <TabsList className="glass">
+                    <TabsTrigger value="segments" className="data-[state=active]:bg-white/10">
+                      <Triangle size={14} className="mr-1" />
+                      Segments
+                    </TabsTrigger>
                     <TabsTrigger value="color" className="data-[state=active]:bg-white/10">
                       Color
                     </TabsTrigger>
                     <TabsTrigger value="effects" className="data-[state=active]:bg-white/10">
                       <Layers size={14} className="mr-1" />
                       Effects
-                    </TabsTrigger>
-                    <TabsTrigger value="segments" className="data-[state=active]:bg-white/10">
-                      <Triangle size={14} className="mr-1" />
-                      Segments
                     </TabsTrigger>
                     <TabsTrigger value="settings" className="data-[state=active]:bg-white/10">
                       <Settings size={14} className="mr-1" />
@@ -90,6 +90,13 @@ const ControlPanel: React.FC = () => {
                     {deviceInfo?.name || 'No device connected'}
                   </div>
                 </div>
+                
+                <TabsContent 
+                  value="segments" 
+                  className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+                >
+                  <SegmentTriangles className="mb-4" />
+                </TabsContent>
                 
                 <TabsContent 
                   value="color" 
@@ -116,13 +123,6 @@ const ControlPanel: React.FC = () => {
                   className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
                 >
                   <EffectSelector />
-                </TabsContent>
-                
-                <TabsContent 
-                  value="segments" 
-                  className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <SegmentTriangles />
                 </TabsContent>
                 
                 <TabsContent 

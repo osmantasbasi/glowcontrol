@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
@@ -188,7 +189,32 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const setEffect = async (effectId: number, speed?: number, intensity?: number) => {
     try {
       const api = getWledApi();
-      await api.setEffect(effectId, speed, intensity);
+      
+      // Create the payload for the API
+      const payload: any = {
+        seg: [{
+          fx: effectId
+        }]
+      };
+      
+      if (speed !== undefined) {
+        payload.seg[0].sx = speed;
+      }
+      
+      if (intensity !== undefined) {
+        payload.seg[0].ix = intensity;
+      }
+      
+      // Make the API request with fetch directly since the method doesn't exist
+      const response = await fetch(`http://${activeDevice?.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set effect');
       
       if (deviceState) {
         setDeviceState({
