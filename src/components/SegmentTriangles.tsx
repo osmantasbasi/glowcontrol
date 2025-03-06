@@ -19,7 +19,7 @@ interface SegmentTrianglesProps {
 }
 
 const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
-  const { deviceInfo, setColor, setEffect, setSegmentColor, setSegmentEffect } = useWLED();
+  const { deviceInfo, deviceState, setColor, setEffect, setSegmentColor, setSegmentEffect } = useWLED();
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
