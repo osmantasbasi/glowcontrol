@@ -27,7 +27,7 @@ const BrightnessSlider: React.FC<BrightnessSliderProps> = ({
       </div>
       
       <div className="flex items-center space-x-4">
-        <Sun size={16} className="text-white/70" />
+        <Sun size={16} className="text-cyan-300" />
         
         <Slider
           value={[value]}
@@ -38,7 +38,7 @@ const BrightnessSlider: React.FC<BrightnessSliderProps> = ({
           className="flex-1"
         />
         
-        <Sun size={20} className="text-white" />
+        <Sun size={20} className="text-cyan-300" />
       </div>
     </div>
   );
