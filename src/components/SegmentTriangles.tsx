@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ interface Segment {
   position: { x: number; y: number };
   rotation: number;
   leds: { start: number; end: number };
+  connectedTo?: number; // ID of segment this is connected to
 }
 
 interface SegmentTrianglesProps {
@@ -38,7 +39,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
+  const [startMousePosition, setStartMousePosition] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  
   const LEDS_PER_SEGMENT = 30; // Define a constant for LEDs per segment
+  const MAGNETIC_THRESHOLD = 30; // Distance in pixels for magnetic connection
 
   const calculateNextLedRange = (): { start: number; end: number } => {
     if (segments.length === 0) {
@@ -73,7 +78,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleRemoveSegment = (id: number) => {
-    setSegments(segments.filter(segment => segment.id !== id));
+    // Remove connections to this segment
+    const updatedSegments = segments.map(seg => {
+      if (seg.connectedTo === id) {
+        const { connectedTo, ...restSegment } = seg;
+        return restSegment;
+      }
+      return seg;
+    });
+
+    setSegments(updatedSegments.filter(segment => segment.id !== id));
     if (selectedSegment?.id === id) {
       setSelectedSegment(null);
     }
@@ -148,10 +162,67 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSelectedSegment({ ...selectedSegment, leds });
   };
 
+  // Get pixel distance between two segments for magnetic connection
+  const getDistanceBetweenSegments = (seg1: Segment, seg2: Segment): number => {
+    if (!containerRef.current) return Infinity;
+    
+    const container = containerRef.current.getBoundingClientRect();
+    
+    // Convert percentage positions to pixels
+    const seg1X = (seg1.position.x / 100) * container.width;
+    const seg1Y = (seg1.position.y / 100) * container.height;
+    const seg2X = (seg2.position.x / 100) * container.width;
+    const seg2Y = (seg2.position.y / 100) * container.height;
+    
+    // Calculate Euclidean distance
+    return Math.sqrt(Math.pow(seg1X - seg2X, 2) + Math.pow(seg1Y - seg2Y, 2));
+  };
+
+  // Check for magnetic connections
+  const checkMagneticConnection = (currentSegment: Segment) => {
+    let closestSegment: Segment | null = null;
+    let minDistance = MAGNETIC_THRESHOLD;
+    
+    // Find the closest segment within threshold
+    segments.forEach(segment => {
+      if (segment.id !== currentSegment.id) {
+        const distance = getDistanceBetweenSegments(currentSegment, segment);
+        
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestSegment = segment;
+        }
+      }
+    });
+    
+    return closestSegment;
+  };
+
+  // Handle magnetic connection
+  const connectSegments = (sourceId: number, targetId: number) => {
+    setSegments(segments.map(seg => {
+      if (seg.id === sourceId) {
+        return { ...seg, connectedTo: targetId };
+      }
+      return seg;
+    }));
+  };
+
   // Handle drag functionality
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
     e.dataTransfer.setData("segmentId", segment.id.toString());
     setDraggedSegment(segment);
+    
+    // If this segment is connected to another, break the connection
+    if (segment.connectedTo) {
+      setSegments(segments.map(seg => {
+        if (seg.id === segment.id) {
+          const { connectedTo, ...rest } = seg;
+          return rest;
+        }
+        return seg;
+      }));
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -174,11 +245,25 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const x = ((e.clientX - container.left) / container.width) * 100;
     const y = ((e.clientY - container.top) / container.height) * 100;
     
-    setSegments(segments.map(seg => 
+    // First update the position
+    const updatedSegments = segments.map(seg => 
       seg.id === segmentId 
         ? { ...seg, position: { x, y } } 
         : seg
-    ));
+    );
+    
+    setSegments(updatedSegments);
+    
+    // Check for magnetic connections
+    const droppedSegment = updatedSegments.find(seg => seg.id === segmentId);
+    if (droppedSegment) {
+      const closestSegment = checkMagneticConnection(droppedSegment);
+      
+      if (closestSegment) {
+        // Connect them
+        connectSegments(droppedSegment.id, closestSegment.id);
+      }
+    }
     
     setDraggedSegment(null);
   };
@@ -191,20 +276,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSelectedSegment(segment);
     setIsRotating(true);
     
-    const segmentElement = e.currentTarget.parentElement?.parentElement;
-    if (!segmentElement) return;
-    
-    const rect = segmentElement.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    // Calculate the initial angle
-    const initialAngle = Math.atan2(
-      e.clientY - centerY,
-      e.clientX - centerX
-    ) * (180 / Math.PI);
-    
-    setRotationStartAngle(initialAngle - segment.rotation);
+    // Record the starting mouse position
+    setStartMousePosition({ x: e.clientX, y: e.clientY });
     
     // Set up event listeners
     document.addEventListener('mousemove', handleRotateMove);
@@ -218,18 +291,19 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const triangleElements = document.querySelectorAll(`[data-segment-id="${selectedSegment.id}"]`);
     if (!triangleElements.length) return;
     
-    const triangleElement = triangleElements[0];
+    const triangleElement = triangleElements[0] as HTMLElement;
     const rect = triangleElement.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     
-    // Calculate the new angle
+    // Calculate the new angle based on the mouse position relative to center
     const angle = Math.atan2(
       e.clientY - centerY,
       e.clientX - centerX
     ) * (180 / Math.PI);
     
-    const newRotation = angle - rotationStartAngle;
+    // Apply rotation directly (no need for subtraction which was causing issues)
+    const newRotation = angle;
     
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
@@ -271,136 +345,179 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       )}
 
       <div 
+        ref={containerRef}
         className="relative h-[300px] border border-white/10 rounded-md bg-black/20 transition-colors"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {segments.map((segment) => (
-          <Popover key={segment.id}>
-            <PopoverTrigger asChild>
-              <div
-                data-segment-id={segment.id}
-                draggable={showControls}
-                onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
-                onClick={() => handleSegmentClick(segment)}
-                className={cn(
-                  "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
-                  selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10"
-                )}
-                style={{
-                  left: `${segment.position.x}%`,
-                  top: `${segment.position.y}%`,
-                  transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
-                }}
-              >
-                <div className="relative">
-                  <Triangle 
-                    size={40} 
-                    fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
-                    color="white"
-                    strokeWidth={1}
-                    className={cn(
-                      "drop-shadow-lg",
-                      // Visualization of the effect with animation classes
-                      segment.effect === 1 && "animate-pulse",
-                      segment.effect === 2 && "animate-fade-in",
-                      segment.effect === 3 && "animate-spin",
-                      segment.effect === 4 && "animate-bounce",
-                    )}
-                  />
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
-                    {segments.indexOf(segment) + 1}
-                  </div>
-                  
-                  {/* Rotation button - only show in segment edit mode */}
-                  {showControls && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onMouseDown={(e) => handleRotateStart(segment, e)}
-                      className="absolute -top-2 -right-2 h-5 w-5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/30 z-30"
-                    >
-                      <RotateCw size={10} className="text-white" />
-                    </Button>
+        {segments.map((segment) => {
+          // Determine position based on connections
+          let position = { ...segment.position };
+          let connectedSegment: Segment | undefined;
+          
+          if (segment.connectedTo) {
+            connectedSegment = segments.find(seg => seg.id === segment.connectedTo);
+            if (connectedSegment) {
+              // Apply the same position as the connected segment
+              position = { ...connectedSegment.position };
+            }
+          }
+          
+          return (
+            <Popover key={segment.id}>
+              <PopoverTrigger asChild>
+                <div
+                  data-segment-id={segment.id}
+                  draggable={showControls}
+                  onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
+                  onClick={() => handleSegmentClick(segment)}
+                  className={cn(
+                    "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
+                    segment.connectedTo ? "ring-1 ring-cyan-500/50" : "",
+                    selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10"
                   )}
-                </div>
-              </div>
-            </PopoverTrigger>
-            {showControls && (
-              <PopoverContent className="w-64 glass border-0 backdrop-blur-lg p-3">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 rounded-full hover:bg-white/10"
+                  style={{
+                    left: `${position.x}%`,
+                    top: `${position.y}%`,
+                    transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
+                  }}
+                >
+                  <div className="relative">
+                    <Triangle 
+                      size={40} 
+                      fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
+                      color="white"
+                      strokeWidth={1}
+                      className={cn(
+                        "drop-shadow-lg",
+                        // Visualization of the effect with animation classes
+                        segment.effect === 1 && "animate-pulse",
+                        segment.effect === 2 && "animate-fade-in",
+                        segment.effect === 3 && "animate-spin",
+                        segment.effect === 4 && "animate-bounce",
+                      )}
+                    />
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
+                      {segments.indexOf(segment) + 1}
+                    </div>
+                    
+                    {/* Rotation button - only show in segment edit mode */}
+                    {showControls && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onMouseDown={(e) => handleRotateStart(segment, e)}
+                        className="absolute -top-2 -right-2 h-5 w-5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/30 z-30"
                       >
-                        <RotateCw size={14} className="text-cyan-300" />
+                        <RotateCw size={10} className="text-white" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 rounded-full hover:bg-white/10"
-                      >
-                        <Move size={14} className="text-cyan-300" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleRemoveSegment(segment.id)}
-                        className="h-6 w-6 rounded-full hover:bg-white/10"
-                      >
-                        <Trash size={14} className="text-red-400" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">Color</h5>
-                    <ColorPicker 
-                      color={segment.color}
-                      onChange={handleColorChange}
-                      className="w-full"
-                    />
-                  </div>
-                  
-                  {deviceInfo?.effects && (
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/70">Effect</h5>
-                      <select
-                        value={segment.effect}
-                        onChange={(e) => handleEffectChange(parseInt(e.target.value))}
-                        className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                      >
-                        {deviceInfo.effects.map((effect, index) => (
-                          <option key={index} value={index}>
-                            {effect}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">LED Range ({segment.leds.start} - {segment.leds.end})</h5>
-                    <Slider
-                      value={[segment.leds.start, segment.leds.end]}
-                      min={0}
-                      max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
-                      step={1}
-                      onValueChange={handleLEDRangeChange}
-                      className="mt-2"
-                    />
+                    )}
                   </div>
                 </div>
-              </PopoverContent>
-            )}
-          </Popover>
-        ))}
+              </PopoverTrigger>
+              {showControls && (
+                <PopoverContent className="w-64 glass border-0 backdrop-blur-lg p-3">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 rounded-full hover:bg-white/10"
+                          onMouseDown={(e) => handleRotateStart(segment, e)}
+                        >
+                          <RotateCw size={14} className="text-cyan-300" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 rounded-full hover:bg-white/10"
+                        >
+                          <Move size={14} className="text-cyan-300" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleRemoveSegment(segment.id)}
+                          className="h-6 w-6 rounded-full hover:bg-white/10"
+                        >
+                          <Trash size={14} className="text-red-400" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h5 className="text-xs text-white/70">Color</h5>
+                      <ColorPicker 
+                        color={segment.color}
+                        onChange={handleColorChange}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    {deviceInfo?.effects && (
+                      <div className="space-y-2">
+                        <h5 className="text-xs text-white/70">Effect</h5>
+                        <select
+                          value={segment.effect}
+                          onChange={(e) => handleEffectChange(parseInt(e.target.value))}
+                          className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                        >
+                          {deviceInfo.effects.map((effect, index) => (
+                            <option key={index} value={index}>
+                              {effect}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                      <h5 className="text-xs text-white/70">LED Range ({segment.leds.start} - {segment.leds.end})</h5>
+                      <Slider
+                        value={[segment.leds.start, segment.leds.end]}
+                        min={0}
+                        max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                        step={1}
+                        onValueChange={handleLEDRangeChange}
+                        className="mt-2"
+                      />
+                    </div>
+                    
+                    {segment.connectedTo && (
+                      <div className="space-y-2">
+                        <h5 className="text-xs text-white/70">Connected To</h5>
+                        <div className="flex justify-between">
+                          <span className="text-xs">
+                            Segment #{segments.findIndex(s => s.id === segment.connectedTo) + 1}
+                          </span>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => {
+                              setSegments(segments.map(seg => {
+                                if (seg.id === segment.id) {
+                                  const { connectedTo, ...rest } = seg;
+                                  return rest;
+                                }
+                                return seg;
+                              }));
+                            }}
+                            className="h-5 text-xs hover:bg-white/10 text-red-400"
+                          >
+                            Disconnect
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              )}
+            </Popover>
+          );
+        })}
 
         {segments.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-white/40">
@@ -413,7 +530,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       
       {segments.length > 0 && showControls && (
         <div className="mt-4 text-xs text-white/50 italic">
-          Tip: Click triangles to edit, drag to reposition, use rotate button to change orientation
+          <p>Tip: Click triangles to edit, drag to reposition, use rotate button to change orientation</p>
+          <p className="mt-1">Drag triangles close to each other to connect them magnetically, disconnect from popover menu</p>
         </div>
       )}
     </div>

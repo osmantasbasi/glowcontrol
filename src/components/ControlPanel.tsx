@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
@@ -12,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Power, Layers, Settings, Triangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Define the Segment interface here to match what's in SegmentTriangles.tsx
 interface Segment {
   id: number;
   color: { r: number; g: number; b: number };
@@ -20,6 +18,7 @@ interface Segment {
   position: { x: number; y: number };
   rotation: number;
   leds: { start: number; end: number };
+  connectedTo?: number;
 }
 
 const ControlPanel: React.FC = () => {
@@ -27,7 +26,6 @@ const ControlPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('segments');
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 255, b: 255});
   
-  // Add state for segments and selected segment
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   
