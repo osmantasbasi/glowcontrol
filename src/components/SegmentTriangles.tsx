@@ -27,15 +27,37 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
   const [isRotating, setIsRotating] = useState(false);
+  const [rotationStartAngle, setRotationStartAngle] = useState(0);
+  const LEDS_PER_SEGMENT = 30; // Define a constant for LEDs per segment
+
+  const calculateNextLedRange = (): { start: number; end: number } => {
+    if (segments.length === 0) {
+      return { start: 0, end: LEDS_PER_SEGMENT - 1 };
+    }
+    
+    // Find the highest end LED from existing segments
+    const highestEnd = Math.max(...segments.map(seg => seg.leds.end));
+    const start = highestEnd + 1;
+    const end = start + LEDS_PER_SEGMENT - 1;
+    
+    // Make sure we don't exceed the device's LED count
+    const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
+    return { 
+      start: Math.min(start, maxLed), 
+      end: Math.min(end, maxLed) 
+    };
+  };
 
   const handleAddSegment = () => {
+    const ledRange = calculateNextLedRange();
+    
     const newSegment: Segment = {
       id: Date.now(),
       color: { r: 255, g: 0, b: 0 },
       effect: 0,
       position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 }, // Random position between 10-80%
       rotation: 0,
-      leds: { start: 0, end: deviceInfo?.ledCount ? deviceInfo?.ledCount - 1 : 30 }
+      leds: ledRange
     };
     setSegments([...segments, newSegment]);
   };
@@ -151,41 +173,65 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
     setDraggedSegment(null);
   };
 
-  // Handle rotation
+  // Improved rotation functionality
   const handleRotateStart = (segment: Segment, e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
+    
     setSelectedSegment(segment);
     setIsRotating(true);
     
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isRotating || !selectedSegment) return;
-      
-      const segmentRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      const centerX = segmentRect.left + segmentRect.width / 2;
-      const centerY = segmentRect.top + segmentRect.height / 2;
-      
-      const angle = Math.atan2(
-        moveEvent.clientY - centerY,
-        moveEvent.clientX - centerX
-      );
-      
-      const degrees = angle * (180 / Math.PI);
-      
-      setSegments(segments.map(seg => 
-        seg.id === selectedSegment.id 
-          ? { ...seg, rotation: degrees } 
-          : seg
-      ));
-    };
+    const segmentElement = e.currentTarget.parentElement?.parentElement;
+    if (!segmentElement) return;
     
-    const handleMouseUp = () => {
-      setIsRotating(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
+    const rect = segmentElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
     
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    // Calculate the initial angle
+    const initialAngle = Math.atan2(
+      e.clientY - centerY,
+      e.clientX - centerX
+    ) * (180 / Math.PI);
+    
+    setRotationStartAngle(initialAngle - segment.rotation);
+    
+    // Set up event listeners
+    document.addEventListener('mousemove', handleRotateMove);
+    document.addEventListener('mouseup', handleRotateEnd);
+  };
+
+  const handleRotateMove = (e: MouseEvent) => {
+    if (!isRotating || !selectedSegment) return;
+    
+    // Find the triangle element
+    const triangleElements = document.querySelectorAll(`[data-segment-id="${selectedSegment.id}"]`);
+    if (!triangleElements.length) return;
+    
+    const triangleElement = triangleElements[0];
+    const rect = triangleElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Calculate the new angle
+    const angle = Math.atan2(
+      e.clientY - centerY,
+      e.clientX - centerX
+    ) * (180 / Math.PI);
+    
+    const newRotation = angle - rotationStartAngle;
+    
+    setSegments(segments.map(seg => 
+      seg.id === selectedSegment.id 
+        ? { ...seg, rotation: newRotation } 
+        : seg
+    ));
+  };
+
+  const handleRotateEnd = () => {
+    setIsRotating(false);
+    document.removeEventListener('mousemove', handleRotateMove);
+    document.removeEventListener('mouseup', handleRotateEnd);
   };
 
   return (
@@ -213,11 +259,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
           <Popover key={segment.id}>
             <PopoverTrigger asChild>
               <div
+                data-segment-id={segment.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, segment)}
                 onClick={() => handleSegmentClick(segment)}
                 className={cn(
-                  "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10",
+                  "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
                   selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10"
                 )}
                 style={{
@@ -244,11 +291,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
                   <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
                     {segments.indexOf(segment) + 1}
                   </div>
+                  
+                  {/* Rotation button */}
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={(e) => handleRotateStart(segment, e)}
-                    className="absolute -top-2 -right-2 h-5 w-5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/30"
+                    onMouseDown={(e) => handleRotateStart(segment, e)}
+                    className="absolute -top-2 -right-2 h-5 w-5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/30 z-30"
                   >
                     <RotateCw size={10} className="text-white" />
                   </Button>
@@ -264,7 +313,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
                       variant="ghost" 
                       size="icon" 
                       className="h-6 w-6 rounded-full hover:bg-white/10"
-                      onClick={(e) => handleRotateStart(segment, e)}
+                      onMouseDown={(e) => handleRotateStart(segment, e)}
                     >
                       <RotateCw size={14} className="text-cyan-300" />
                     </Button>
@@ -317,7 +366,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
                   <Slider
                     value={[segment.leds.start, segment.leds.end]}
                     min={0}
-                    max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 100}
+                    max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
                     step={1}
                     onValueChange={handleLEDRangeChange}
                     className="mt-2"
