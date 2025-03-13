@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,12 +19,22 @@ interface Segment {
 
 interface SegmentTrianglesProps {
   className?: string;
+  segments: Segment[];
+  setSegments: React.Dispatch<React.SetStateAction<Segment[]>>;
+  selectedSegment: Segment | null;
+  setSelectedSegment: React.Dispatch<React.SetStateAction<Segment | null>>;
+  editMode?: 'segment' | 'color' | 'effect';
 }
 
-const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
+const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ 
+  className, 
+  segments, 
+  setSegments, 
+  selectedSegment, 
+  setSelectedSegment,
+  editMode = 'segment'
+}) => {
   const { deviceInfo, deviceState, setColor, setEffect, setSegmentColor, setSegmentEffect } = useWLED();
-  const [segments, setSegments] = useState<Segment[]>([]);
-  const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
@@ -226,6 +236,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
         ? { ...seg, rotation: newRotation } 
         : seg
     ));
+    
+    // Also update the selected segment
+    setSelectedSegment({
+      ...selectedSegment,
+      rotation: newRotation
+    });
   };
 
   const handleRotateEnd = () => {
@@ -234,20 +250,25 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
     document.removeEventListener('mouseup', handleRotateEnd);
   };
 
+  // Determine if we should show the controls (add button, etc.) based on the edit mode
+  const showControls = editMode === 'segment';
+
   return (
     <div className={cn("glass-card p-4", className)}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-md font-medium text-white/80">LED Segments</h3>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleAddSegment}
-          className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20"
-        >
-          <Plus size={16} className="text-cyan-300" />
-          <span className="sr-only">Add Segment</span>
-        </Button>
-      </div>
+      {showControls && (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-md font-medium text-white/80">LED Segments</h3>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleAddSegment}
+            className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20"
+          >
+            <Plus size={16} className="text-cyan-300" />
+            <span className="sr-only">Add Segment</span>
+          </Button>
+        </div>
+      )}
 
       <div 
         className="relative h-[300px] border border-white/10 rounded-md bg-black/20 transition-colors"
@@ -260,8 +281,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
             <PopoverTrigger asChild>
               <div
                 data-segment-id={segment.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, segment)}
+                draggable={showControls}
+                onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
                 onClick={() => handleSegmentClick(segment)}
                 className={cn(
                   "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
@@ -292,88 +313,92 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
                     {segments.indexOf(segment) + 1}
                   </div>
                   
-                  {/* Rotation button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onMouseDown={(e) => handleRotateStart(segment, e)}
-                    className="absolute -top-2 -right-2 h-5 w-5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/30 z-30"
-                  >
-                    <RotateCw size={10} className="text-white" />
-                  </Button>
+                  {/* Rotation button - only show in segment edit mode */}
+                  {showControls && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onMouseDown={(e) => handleRotateStart(segment, e)}
+                      className="absolute -top-2 -right-2 h-5 w-5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/30 z-30"
+                    >
+                      <RotateCw size={10} className="text-white" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </PopoverTrigger>
-            <PopoverContent className="w-64 glass border-0 backdrop-blur-lg p-3">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6 rounded-full hover:bg-white/10"
-                      onMouseDown={(e) => handleRotateStart(segment, e)}
-                    >
-                      <RotateCw size={14} className="text-cyan-300" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6 rounded-full hover:bg-white/10"
-                    >
-                      <Move size={14} className="text-cyan-300" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => handleRemoveSegment(segment.id)}
-                      className="h-6 w-6 rounded-full hover:bg-white/10"
-                    >
-                      <Trash size={14} className="text-red-400" />
-                    </Button>
+            {showControls && (
+              <PopoverContent className="w-64 glass border-0 backdrop-blur-lg p-3">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 rounded-full hover:bg-white/10"
+                        onMouseDown={(e) => handleRotateStart(segment, e)}
+                      >
+                        <RotateCw size={14} className="text-cyan-300" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 rounded-full hover:bg-white/10"
+                      >
+                        <Move size={14} className="text-cyan-300" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleRemoveSegment(segment.id)}
+                        className="h-6 w-6 rounded-full hover:bg-white/10"
+                      >
+                        <Trash size={14} className="text-red-400" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <h5 className="text-xs text-white/70">Color</h5>
-                  <ColorPicker 
-                    color={segment.color}
-                    onChange={handleColorChange}
-                    className="w-full"
-                  />
-                </div>
-                
-                {deviceInfo?.effects && (
+                  
                   <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">Effect</h5>
-                    <select
-                      value={segment.effect}
-                      onChange={(e) => handleEffectChange(parseInt(e.target.value))}
-                      className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                    >
-                      {deviceInfo.effects.map((effect, index) => (
-                        <option key={index} value={index}>
-                          {effect}
-                        </option>
-                      ))}
-                    </select>
+                    <h5 className="text-xs text-white/70">Color</h5>
+                    <ColorPicker 
+                      color={segment.color}
+                      onChange={handleColorChange}
+                      className="w-full"
+                    />
                   </div>
-                )}
-                
-                <div className="space-y-2">
-                  <h5 className="text-xs text-white/70">LED Range ({segment.leds.start} - {segment.leds.end})</h5>
-                  <Slider
-                    value={[segment.leds.start, segment.leds.end]}
-                    min={0}
-                    max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
-                    step={1}
-                    onValueChange={handleLEDRangeChange}
-                    className="mt-2"
-                  />
+                  
+                  {deviceInfo?.effects && (
+                    <div className="space-y-2">
+                      <h5 className="text-xs text-white/70">Effect</h5>
+                      <select
+                        value={segment.effect}
+                        onChange={(e) => handleEffectChange(parseInt(e.target.value))}
+                        className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                      >
+                        {deviceInfo.effects.map((effect, index) => (
+                          <option key={index} value={index}>
+                            {effect}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <h5 className="text-xs text-white/70">LED Range ({segment.leds.start} - {segment.leds.end})</h5>
+                    <Slider
+                      value={[segment.leds.start, segment.leds.end]}
+                      min={0}
+                      max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                      step={1}
+                      onValueChange={handleLEDRangeChange}
+                      className="mt-2"
+                    />
+                  </div>
                 </div>
-              </div>
-            </PopoverContent>
+              </PopoverContent>
+            )}
           </Popover>
         ))}
 
@@ -386,7 +411,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
         )}
       </div>
       
-      {segments.length > 0 && (
+      {segments.length > 0 && showControls && (
         <div className="mt-4 text-xs text-white/50 italic">
           Tip: Click triangles to edit, drag to reposition, use rotate button to change orientation
         </div>

@@ -8,19 +8,52 @@ import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, Triangle, Palette } from 'lucide-react';
+import SegmentTriangles from '@/components/SegmentTriangles';
+
+interface Segment {
+  id: number;
+  color: { r: number; g: number; b: number };
+  effect: number;
+  position: { x: number; y: number };
+  rotation: number;
+  leds: { start: number; end: number };
+}
 
 const SegmentEditor = () => {
-  const { deviceState, setColor, setEffect } = useWLED();
+  const { deviceState, deviceInfo, setColor, setEffect } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
+    
+    if (selectedSegment) {
+      setSegments(segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, color } 
+          : seg
+      ));
+    }
+    
     const timeoutId = setTimeout(() => {
       setColor(color.r, color.g, color.b);
     }, 50);
     
     return () => clearTimeout(timeoutId);
+  };
+
+  const handleEffectChange = (effectId: number) => {
+    if (selectedSegment) {
+      setSegments(segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, effect: effectId } 
+          : seg
+      ));
+      
+      setEffect(effectId);
+    }
   };
 
   return (
@@ -50,6 +83,12 @@ const SegmentEditor = () => {
           <div className="text-center text-sm text-white/70 mb-4">
             Select, drag, or rotate segments to position them
           </div>
+          <SegmentTriangles 
+            segments={segments}
+            setSegments={setSegments}
+            selectedSegment={selectedSegment}
+            setSelectedSegment={setSelectedSegment}
+          />
         </TabsContent>
         
         <TabsContent 
@@ -61,9 +100,18 @@ const SegmentEditor = () => {
           </div>
           <div className="flex flex-col items-center">
             <ColorPicker 
-              color={currentColor}
+              color={selectedSegment?.color || currentColor}
               onChange={handleColorChange} 
               className="w-full max-w-[300px]"
+            />
+          </div>
+          <div className="mt-4">
+            <SegmentTriangles 
+              segments={segments}
+              setSegments={setSegments}
+              selectedSegment={selectedSegment}
+              setSelectedSegment={setSelectedSegment}
+              editMode="color"
             />
           </div>
         </TabsContent>
@@ -75,7 +123,16 @@ const SegmentEditor = () => {
           <div className="text-center text-sm text-white/70 mb-4">
             Select segments above first, then choose an effect to apply
           </div>
-          <EffectSelector />
+          <EffectSelector onEffectSelect={handleEffectChange} />
+          <div className="mt-4">
+            <SegmentTriangles 
+              segments={segments}
+              setSegments={setSegments}
+              selectedSegment={selectedSegment}
+              setSelectedSegment={setSelectedSegment}
+              editMode="effect"
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
