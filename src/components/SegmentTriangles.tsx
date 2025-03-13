@@ -1,17 +1,20 @@
 
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Plus, Trash, Triangle, Move } from 'lucide-react';
+import { Plus, Trash, Triangle, Move, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
+import { Slider } from '@/components/ui/slider';
 
 interface Segment {
   id: number;
   color: { r: number; g: number; b: number };
   effect: number;
   position: { x: number; y: number };
+  rotation: number;
+  leds: { start: number; end: number };
 }
 
 interface SegmentTrianglesProps {
@@ -23,6 +26,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
 
   const handleAddSegment = () => {
     const newSegment: Segment = {
@@ -30,6 +34,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
       color: { r: 255, g: 0, b: 0 },
       effect: 0,
       position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 }, // Random position between 10-80%
+      rotation: 0,
+      leds: { start: 0, end: deviceInfo?.ledCount ? deviceInfo?.ledCount - 1 : 30 }
     };
     setSegments([...segments, newSegment]);
   };
@@ -94,6 +100,22 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
     }
   };
 
+  const handleLEDRangeChange = (values: number[]) => {
+    if (!selectedSegment || values.length !== 2) return;
+    
+    const leds = { start: values[0], end: values[1] };
+    
+    // Update local state
+    setSegments(segments.map(seg => 
+      seg.id === selectedSegment.id 
+        ? { ...seg, leds } 
+        : seg
+    ));
+    
+    // Update selected segment
+    setSelectedSegment({ ...selectedSegment, leds });
+  };
+
   // Handle drag functionality
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
     e.dataTransfer.setData("segmentId", segment.id.toString());
@@ -127,6 +149,43 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
     ));
     
     setDraggedSegment(null);
+  };
+
+  // Handle rotation
+  const handleRotateStart = (segment: Segment, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedSegment(segment);
+    setIsRotating(true);
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isRotating || !selectedSegment) return;
+      
+      const segmentRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const centerX = segmentRect.left + segmentRect.width / 2;
+      const centerY = segmentRect.top + segmentRect.height / 2;
+      
+      const angle = Math.atan2(
+        moveEvent.clientY - centerY,
+        moveEvent.clientX - centerX
+      );
+      
+      const degrees = angle * (180 / Math.PI);
+      
+      setSegments(segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, rotation: degrees } 
+          : seg
+      ));
+    };
+    
+    const handleMouseUp = () => {
+      setIsRotating(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   return (
@@ -164,7 +223,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
                 style={{
                   left: `${segment.position.x}%`,
                   top: `${segment.position.y}%`,
-                  transform: 'translate(-50%, -50%)',
+                  transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
                 }}
               >
                 <div className="relative">
@@ -173,11 +232,26 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
                     fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
                     color="white"
                     strokeWidth={1}
-                    className="drop-shadow-lg"
+                    className={cn(
+                      "drop-shadow-lg",
+                      // Visualization of the effect with animation classes
+                      segment.effect === 1 && "animate-pulse",
+                      segment.effect === 2 && "animate-fade-in",
+                      segment.effect === 3 && "animate-spin",
+                      segment.effect === 4 && "animate-bounce",
+                    )}
                   />
                   <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
                     {segments.indexOf(segment) + 1}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => handleRotateStart(segment, e)}
+                    className="absolute -top-2 -right-2 h-5 w-5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/30"
+                  >
+                    <RotateCw size={10} className="text-white" />
+                  </Button>
                 </div>
               </div>
             </PopoverTrigger>
@@ -186,6 +260,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
                 <div className="flex justify-between items-center">
                   <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
                   <div className="flex gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 rounded-full hover:bg-white/10"
+                      onClick={(e) => handleRotateStart(segment, e)}
+                    >
+                      <RotateCw size={14} className="text-cyan-300" />
+                    </Button>
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -229,6 +311,18 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
                     </select>
                   </div>
                 )}
+                
+                <div className="space-y-2">
+                  <h5 className="text-xs text-white/70">LED Range ({segment.leds.start} - {segment.leds.end})</h5>
+                  <Slider
+                    value={[segment.leds.start, segment.leds.end]}
+                    min={0}
+                    max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 100}
+                    step={1}
+                    onValueChange={handleLEDRangeChange}
+                    className="mt-2"
+                  />
+                </div>
               </div>
             </PopoverContent>
           </Popover>
@@ -245,7 +339,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ className }) => {
       
       {segments.length > 0 && (
         <div className="mt-4 text-xs text-white/50 italic">
-          Tip: Click triangles to edit, drag to reposition
+          Tip: Click triangles to edit, drag to reposition, use rotate button to change orientation
         </div>
       )}
     </div>
