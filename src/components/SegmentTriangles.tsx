@@ -163,7 +163,28 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
     e.stopPropagation(); // Prevent event from bubbling
     setSelectedSegment(segment);
+    
+    // Store the segment data including rotation
     e.dataTransfer.setData("segmentId", segment.id.toString());
+    e.dataTransfer.setData("segmentRotation", segment.rotation.toString());
+    
+    // Create a custom ghost image that includes the rotation
+    const ghostElement = document.createElement('div');
+    ghostElement.style.position = 'absolute';
+    ghostElement.style.top = '-1000px';
+    ghostElement.style.left = '-1000px';
+    ghostElement.innerHTML = `<svg width="40" height="40" viewBox="0 0 24 24" transform="rotate(${segment.rotation})">
+      <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.r},${segment.color.g},${segment.color.b})" stroke="rgba(0,0,0,0.5)" stroke-width="1" />
+    </svg>`;
+    document.body.appendChild(ghostElement);
+    
+    e.dataTransfer.setDragImage(ghostElement, 20, 20);
+    
+    // Clean up the ghost element after a short delay
+    setTimeout(() => {
+      document.body.removeChild(ghostElement);
+    }, 100);
+    
     setDraggedSegment(segment);
   };
 
@@ -183,11 +204,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     e.currentTarget.classList.remove('bg-cyan-500/10');
     
     const segmentId = parseInt(e.dataTransfer.getData("segmentId"));
+    // Get the rotation from dataTransfer
+    const rotation = parseFloat(e.dataTransfer.getData("segmentRotation")) || 0;
+    
     const container = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - container.left) / container.width) * 100;
     const y = ((e.clientY - container.top) / container.height) * 100;
     
-    // Update the position
+    // Update the position while preserving the rotation
     setSegments(segments.map(seg => 
       seg.id === segmentId 
         ? { ...seg, position: { x, y } } 
@@ -487,3 +511,4 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
+
