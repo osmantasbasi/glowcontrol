@@ -389,6 +389,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         const endX = (targetMidpoint.x / container.width) * 100;
         const endY = (targetMidpoint.y / container.height) * 100;
         
+        // Draw the connection line
         lines.push(
           <svg 
             key={`connection-${segment.id}-${targetSegment.id}`}
@@ -400,9 +401,43 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               y1={`${startY}%`}
               x2={`${endX}%`}
               y2={`${endY}%`}
-              stroke="black"
-              strokeWidth="3"
-              strokeOpacity="0.9"
+              stroke="cyan"
+              strokeWidth="2"
+              strokeDasharray="4 2"
+              strokeOpacity="0.8"
+            />
+          </svg>
+        );
+        
+        // Draw joining edges - for more visual indication of connection
+        const sourcePoint1 = sourceEdge.start;
+        const sourcePoint2 = sourceEdge.end;
+        const targetPoint1 = targetEdge.start;
+        const targetPoint2 = targetEdge.end;
+        
+        // Convert to percentages
+        const sp1x = (sourcePoint1.x / container.width) * 100;
+        const sp1y = (sourcePoint1.y / container.height) * 100;
+        const sp2x = (sourcePoint2.x / container.width) * 100;
+        const sp2y = (sourcePoint2.y / container.height) * 100;
+        const tp1x = (targetPoint1.x / container.width) * 100;
+        const tp1y = (targetPoint1.y / container.height) * 100;
+        const tp2x = (targetPoint2.x / container.width) * 100;
+        const tp2y = (targetPoint2.y / container.height) * 100;
+        
+        // Add joining polygon to visualize the connection as a solid shape
+        lines.push(
+          <svg 
+            key={`connection-shape-${segment.id}-${targetSegment.id}`}
+            className="absolute top-0 left-0 w-full h-full pointer-events-none"
+            style={{ zIndex: 4 }}
+          >
+            <polygon
+              points={`${sp1x}%,${sp1y}% ${sp2x}%,${sp2y}% ${tp2x}%,${tp2y}% ${tp1x}%,${tp1y}%`}
+              fill="rgba(0, 255, 255, 0.1)"
+              stroke="cyan"
+              strokeWidth="1"
+              strokeOpacity="0.5"
             />
           </svg>
         );
@@ -477,14 +512,30 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleRotateStart = (segment: Segment, e: React.MouseEvent) => {
+    // Stop the event from propagating to parent handlers
     e.stopPropagation();
     e.preventDefault();
     
     setSelectedSegment(segment);
     setIsRotating(true);
     
-    // Record the starting mouse position
-    setStartMousePosition({ x: e.clientX, y: e.clientY });
+    // Calculate the center of the triangle
+    const triangleElements = document.querySelectorAll(`[data-segment-id="${segment.id}"]`);
+    if (triangleElements.length) {
+      const triangleElement = triangleElements[0] as HTMLElement;
+      const rect = triangleElement.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      
+      // Calculate initial angle (in radians)
+      const initialAngle = Math.atan2(
+        e.clientY - centerY,
+        e.clientX - centerX
+      );
+      
+      setRotationStartAngle(initialAngle);
+      setStartMousePosition({ x: e.clientX, y: e.clientY });
+    }
     
     // Set up event listeners
     document.addEventListener('mousemove', handleRotateMove);
@@ -503,15 +554,23 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     
-    // Calculate the new angle based on the mouse position relative to center
-    const angle = Math.atan2(
+    // Calculate the current angle
+    const currentAngle = Math.atan2(
       e.clientY - centerY,
       e.clientX - centerX
-    ) * (180 / Math.PI);
+    );
     
-    // Add 90 degrees to align with our triangle orientation (pointing up by default)
-    const newRotation = angle + 90;
+    // Calculate the angle difference in degrees
+    const angleDiff = (currentAngle - rotationStartAngle) * (180 / Math.PI);
     
+    // Calculate new rotation by adding the difference to the current rotation
+    let newRotation = selectedSegment.rotation + angleDiff;
+    
+    // Normalize rotation angle to 0-360 degrees
+    newRotation = newRotation % 360;
+    if (newRotation < 0) newRotation += 360;
+    
+    // Update the rotation of the segment
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
         ? { ...seg, rotation: newRotation } 
@@ -523,6 +582,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       ...selectedSegment,
       rotation: newRotation
     });
+    
+    // Update the rotation start angle for the next move
+    setRotationStartAngle(currentAngle);
   };
 
   const handleRotateEnd = () => {
@@ -577,7 +639,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   onClick={() => handleSegmentClick(segment)}
                   className={cn(
                     "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
-                    segment.connectedTo ? "ring-1 ring-white/50" : "",
+                    segment.connectedTo ? "ring-1 ring-cyan-300" : "",
                     selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10"
                   )}
                   style={{
@@ -590,10 +652,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     <Triangle 
                       size={40} 
                       fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
-                      color="black"
-                      strokeWidth={2}
+                      color="rgba(0, 0, 0, 0.5)"
+                      strokeWidth={1}
                       className={cn(
-                        "drop-shadow-lg",
+                        "drop-shadow-lg transition-all",
                         // Visualization of the effect with animation classes
                         segment.effect === 1 && "animate-pulse",
                         segment.effect === 2 && "animate-fade-in",
@@ -610,9 +672,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         variant="ghost"
                         size="icon"
                         onMouseDown={(e) => handleRotateStart(segment, e)}
-                        className="absolute -top-2 -right-2 h-5 w-5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/30 z-30"
+                        className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent triggering parent onClick
+                        }}
                       >
-                        <RotateCw size={10} className="text-white" />
+                        <RotateCw size={12} className="text-white" />
                       </Button>
                     )}
                   </div>
@@ -719,6 +784,36 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         </div>
                       </div>
                     )}
+                    
+                    <div className="space-y-2">
+                      <h5 className="text-xs text-white/70">Rotation</h5>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs">{Math.round(segment.rotation)}°</span>
+                        <Slider
+                          value={[segment.rotation]}
+                          min={0}
+                          max={359}
+                          step={1}
+                          onValueChange={(values) => {
+                            if (values.length > 0) {
+                              const newRotation = values[0];
+                              setSegments(segments.map(seg => 
+                                seg.id === segment.id 
+                                  ? { ...seg, rotation: newRotation } 
+                                  : seg
+                              ));
+                              if (selectedSegment?.id === segment.id) {
+                                setSelectedSegment({
+                                  ...selectedSegment,
+                                  rotation: newRotation
+                                });
+                              }
+                            }
+                          }}
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </PopoverContent>
               )}
@@ -737,7 +832,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       
       {segments.length > 0 && showControls && (
         <div className="mt-4 text-xs text-white/50 italic">
-          <p>Tip: Click triangles to edit, drag to reposition, use rotate button to change orientation</p>
+          <p>Tip: Click triangles to edit, drag to reposition, use the <RotateCw size={10} className="inline" /> button to rotate</p>
           <p className="mt-1">Drag triangles near each other to connect their edges, disconnect from popover menu</p>
         </div>
       )}
