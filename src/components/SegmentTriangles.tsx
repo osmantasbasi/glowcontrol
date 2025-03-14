@@ -82,11 +82,20 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
   };
 
-  const handleSegmentClick = (segment: Segment) => {
+  const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent event from bubbling to container
     setSelectedSegment(segment);
     // Apply this segment's settings to the WLED device
     setColor(segment.color.r, segment.color.g, segment.color.b);
     setEffect(segment.effect);
+  };
+
+  // Handle click on container to deselect
+  const handleContainerClick = (e: React.MouseEvent) => {
+    // Only deselect if clicking directly on the container, not on its children
+    if (e.target === e.currentTarget) {
+      setSelectedSegment(null);
+    }
   };
 
   const handleColorChange = (color: { r: number; g: number; b: number }) => {
@@ -152,6 +161,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
+    e.stopPropagation(); // Prevent event from bubbling
+    setSelectedSegment(segment);
     e.dataTransfer.setData("segmentId", segment.id.toString());
     setDraggedSegment(segment);
   };
@@ -293,6 +304,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onClick={handleContainerClick}
       >
         {segments.map((segment) => (
           <Popover key={segment.id}>
@@ -301,7 +313,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 data-segment-id={segment.id}
                 draggable={showControls}
                 onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
-                onClick={() => handleSegmentClick(segment)}
+                onClick={(e) => handleSegmentClick(segment, e)}
                 className={cn(
                   "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
                   selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10"
@@ -335,11 +347,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      onMouseDown={(e) => handleRotateStart(segment, e)}
-                      className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
                       onClick={(e) => {
                         e.stopPropagation(); // Prevent triggering parent onClick
+                        handleRotateStart(segment, e);
                       }}
+                      className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
                     >
                       <RotateCw size={12} className="text-white" />
                     </Button>
@@ -357,7 +369,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         variant="ghost" 
                         size="icon" 
                         className="h-6 w-6 rounded-full hover:bg-white/10"
-                        onMouseDown={(e) => handleRotateStart(segment, e)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRotateStart(segment, e);
+                        }}
                       >
                         <RotateCw size={14} className="text-cyan-300" />
                       </Button>

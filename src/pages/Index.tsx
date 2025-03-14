@@ -56,6 +56,11 @@ const SegmentEditor = () => {
     }
   };
 
+  // Handle clicking outside triangles to deselect
+  const handleBackgroundClick = () => {
+    setSelectedSegment(null);
+  };
+
   return (
     <div className="glass-card overflow-hidden animate-fade-in mt-8">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
