@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw } from 'lucide-react';
@@ -15,8 +16,8 @@ interface Segment {
   rotation: number;
   leds: { start: number; end: number };
   connectedTo?: number; // ID of segment this is connected to
-  connectionPoint?: 'top' | 'left' | 'right'; // Which point of the triangle connects
-  connectedToPoint?: 'top' | 'left' | 'right'; // Which point of the target triangle
+  connectionPoint?: 'top' | 'left' | 'right'; // Which edge of the triangle connects
+  connectedToPoint?: 'top' | 'left' | 'right'; // Which edge of the target triangle
 }
 
 interface SegmentTrianglesProps {
@@ -46,10 +47,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const LEDS_PER_SEGMENT = 30; // Define a constant for LEDs per segment
   const MAGNETIC_THRESHOLD = 30; // Distance in pixels for magnetic connection
 
+  // Calculate the three points of a triangle based on its position and rotation
   const calculateTrianglePoints = (segment: Segment, containerWidth: number, containerHeight: number): {
     top: { x: number, y: number },
     left: { x: number, y: number },
-    right: { x: number, y: number }
+    right: { x: number, y: number },
+    edges: {
+      topEdge: { start: { x: number, y: number }, end: { x: number, y: number } },
+      leftEdge: { start: { x: number, y: number }, end: { x: number, y: number } },
+      rightEdge: { start: { x: number, y: number }, end: { x: number, y: number } }
+    }
   } => {
     const centerX = (segment.position.x / 100) * containerWidth;
     const centerY = (segment.position.y / 100) * containerHeight;
@@ -72,10 +79,67 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       return { x: rotatedX, y: rotatedY };
     };
     
+    const rotatedTop = rotatePoint(topPoint);
+    const rotatedLeft = rotatePoint(leftPoint);
+    const rotatedRight = rotatePoint(rightPoint);
+    
+    // Calculate edges (lines between points)
+    const edges = {
+      topEdge: { start: rotatedTop, end: rotatedRight },
+      leftEdge: { start: rotatedTop, end: rotatedLeft }, 
+      rightEdge: { start: rotatedLeft, end: rotatedRight }
+    };
+    
     return {
-      top: rotatePoint(topPoint),
-      left: rotatePoint(leftPoint),
-      right: rotatePoint(rightPoint)
+      top: rotatedTop,
+      left: rotatedLeft,
+      right: rotatedRight,
+      edges: edges
+    };
+  };
+
+  // Calculate the distance between a point and a line segment
+  const pointToLineDistance = (
+    point: { x: number, y: number },
+    lineStart: { x: number, y: number },
+    lineEnd: { x: number, y: number }
+  ): number => {
+    const A = point.x - lineStart.x;
+    const B = point.y - lineStart.y;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.y - lineStart.y;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    
+    if (lenSq !== 0) // to avoid division by 0
+      param = dot / lenSq;
+
+    let xx, yy;
+
+    if (param < 0) {
+      xx = lineStart.x;
+      yy = lineStart.y;
+    } else if (param > 1) {
+      xx = lineEnd.x;
+      yy = lineEnd.y;
+    } else {
+      xx = lineStart.x + param * C;
+      yy = lineStart.y + param * D;
+    }
+
+    const dx = point.x - xx;
+    const dy = point.y - yy;
+    
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // Calculate midpoint of a line segment
+  const getMidpoint = (p1: {x: number, y: number}, p2: {x: number, y: number}) => {
+    return {
+      x: (p1.x + p2.x) / 2,
+      y: (p1.y + p2.y) / 2
     };
   };
 
@@ -115,7 +179,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     // Remove connections to this segment
     const updatedSegments = segments.map(seg => {
       if (seg.connectedTo === id) {
-        const { connectedTo, ...restSegment } = seg;
+        const { connectedTo, connectionPoint, connectedToPoint, ...restSegment } = seg;
         return restSegment;
       }
       return seg;
@@ -196,81 +260,92 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSelectedSegment({ ...selectedSegment, leds });
   };
 
-  const getDistanceBetweenPoints = (
-    point1: { x: number, y: number }, 
-    point2: { x: number, y: number }
-  ): number => {
-    return Math.sqrt(Math.pow(point1.x - point2.x, 2) + Math.pow(point1.y - point2.y, 2));
-  };
-
-  const checkLegConnections = (currentSegment: Segment) => {
+  // Check if two triangles can connect along their edges
+  const checkEdgeConnections = (currentSegment: Segment) => {
     if (!containerRef.current) return null;
     
     const container = containerRef.current.getBoundingClientRect();
-    const currentPoints = calculateTrianglePoints(currentSegment, container.width, container.height);
+    const currentTriangle = calculateTrianglePoints(currentSegment, container.width, container.height);
     
     let bestConnection = {
       targetSegment: null as Segment | null,
-      sourcePoint: null as 'top' | 'left' | 'right' | null,
-      targetPoint: null as 'top' | 'left' | 'right' | null,
+      sourceEdge: null as 'topEdge' | 'leftEdge' | 'rightEdge' | null,
+      targetEdge: null as 'topEdge' | 'leftEdge' | 'rightEdge' | null,
+      sourceSide: null as 'top' | 'left' | 'right' | null,
+      targetSide: null as 'top' | 'left' | 'right' | null,
       distance: MAGNETIC_THRESHOLD
+    };
+    
+    // Map edges to their corresponding triangle sides
+    const edgeToSide = {
+      topEdge: 'top' as const,
+      leftEdge: 'left' as const,
+      rightEdge: 'right' as const
     };
     
     segments.forEach(targetSegment => {
       if (targetSegment.id === currentSegment.id) return;
       
-      const targetPoints = calculateTrianglePoints(targetSegment, container.width, container.height);
+      const targetTriangle = calculateTrianglePoints(targetSegment, container.width, container.height);
       
-      // Check all possible point combinations
-      const pointPairs = [
-        { source: 'top' as const, target: 'top' as const },
-        { source: 'top' as const, target: 'left' as const },
-        { source: 'top' as const, target: 'right' as const },
-        { source: 'left' as const, target: 'top' as const },
-        { source: 'left' as const, target: 'left' as const },
-        { source: 'left' as const, target: 'right' as const },
-        { source: 'right' as const, target: 'top' as const },
-        { source: 'right' as const, target: 'left' as const },
-        { source: 'right' as const, target: 'right' as const },
-      ];
+      // Check all possible edge combinations
+      const currentEdges = Object.entries(currentTriangle.edges) as [
+        'topEdge' | 'leftEdge' | 'rightEdge', 
+        { start: { x: number, y: number }, end: { x: number, y: number } }
+      ][];
       
-      pointPairs.forEach(({ source, target }) => {
-        const distance = getDistanceBetweenPoints(
-          currentPoints[source], 
-          targetPoints[target]
-        );
-        
-        if (distance < bestConnection.distance) {
-          bestConnection = {
-            targetSegment,
-            sourcePoint: source,
-            targetPoint: target,
-            distance
-          };
-        }
+      const targetEdges = Object.entries(targetTriangle.edges) as [
+        'topEdge' | 'leftEdge' | 'rightEdge', 
+        { start: { x: number, y: number }, end: { x: number, y: number } }
+      ][];
+      
+      currentEdges.forEach(([currentEdgeName, currentEdge]) => {
+        targetEdges.forEach(([targetEdgeName, targetEdge]) => {
+          // Calculate distance between edge midpoints
+          const currentMidpoint = getMidpoint(currentEdge.start, currentEdge.end);
+          const targetMidpoint = getMidpoint(targetEdge.start, targetEdge.end);
+          
+          const distance = Math.sqrt(
+            Math.pow(currentMidpoint.x - targetMidpoint.x, 2) + 
+            Math.pow(currentMidpoint.y - targetMidpoint.y, 2)
+          );
+          
+          if (distance < bestConnection.distance) {
+            bestConnection = {
+              targetSegment,
+              sourceEdge: currentEdgeName,
+              targetEdge: targetEdgeName,
+              sourceSide: edgeToSide[currentEdgeName],
+              targetSide: edgeToSide[targetEdgeName],
+              distance
+            };
+          }
+        });
       });
     });
     
     return bestConnection.targetSegment ? {
       segment: bestConnection.targetSegment,
-      sourcePoint: bestConnection.sourcePoint!,
-      targetPoint: bestConnection.targetPoint!
+      sourceEdge: bestConnection.sourceEdge!,
+      targetEdge: bestConnection.targetEdge!,
+      sourceSide: bestConnection.sourceSide!,
+      targetSide: bestConnection.targetSide!
     } : null;
   };
 
   const connectSegments = (
     sourceId: number, 
     targetId: number, 
-    sourcePoint: 'top' | 'left' | 'right',
-    targetPoint: 'top' | 'left' | 'right'
+    sourceSide: 'top' | 'left' | 'right',
+    targetSide: 'top' | 'left' | 'right'
   ) => {
     setSegments(segments.map(seg => {
       if (seg.id === sourceId) {
         return { 
           ...seg, 
           connectedTo: targetId,
-          connectionPoint: sourcePoint,
-          connectedToPoint: targetPoint
+          connectionPoint: sourceSide,
+          connectedToPoint: targetSide
         };
       }
       return seg;
@@ -288,20 +363,31 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         const targetSegment = segments.find(s => s.id === segment.connectedTo);
         if (!targetSegment) return;
         
-        const sourcePoints = calculateTrianglePoints(segment, container.width, container.height);
-        const targetPoints = calculateTrianglePoints(targetSegment, container.width, container.height);
+        const sourceTriangle = calculateTrianglePoints(segment, container.width, container.height);
+        const targetTriangle = calculateTrianglePoints(targetSegment, container.width, container.height);
         
-        const sourcePoint = segment.connectionPoint || 'top';
-        const targetPoint = segment.connectedToPoint || 'top';
+        const sourceSide = segment.connectionPoint || 'top';
+        const targetSide = segment.connectedToPoint || 'top';
         
-        const start = sourcePoints[sourcePoint];
-        const end = targetPoints[targetPoint];
+        // Map sides to edges
+        const sideToEdge = {
+          top: 'topEdge',
+          left: 'leftEdge',
+          right: 'rightEdge'
+        };
+        
+        const sourceEdge = sourceTriangle.edges[sideToEdge[sourceSide] as keyof typeof sourceTriangle.edges];
+        const targetEdge = targetTriangle.edges[sideToEdge[targetSide] as keyof typeof targetTriangle.edges];
+        
+        // Draw a line between the midpoints of the edges
+        const sourceMidpoint = getMidpoint(sourceEdge.start, sourceEdge.end);
+        const targetMidpoint = getMidpoint(targetEdge.start, targetEdge.end);
         
         // Convert absolute coordinates to percentages
-        const startX = (start.x / container.width) * 100;
-        const startY = (start.y / container.height) * 100;
-        const endX = (end.x / container.width) * 100;
-        const endY = (end.y / container.height) * 100;
+        const startX = (sourceMidpoint.x / container.width) * 100;
+        const startY = (sourceMidpoint.y / container.height) * 100;
+        const endX = (targetMidpoint.x / container.width) * 100;
+        const endY = (targetMidpoint.y / container.height) * 100;
         
         lines.push(
           <svg 
@@ -314,10 +400,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               y1={`${startY}%`}
               x2={`${endX}%`}
               y2={`${endY}%`}
-              stroke="cyan"
-              strokeWidth="2"
-              strokeDasharray="4"
-              strokeOpacity="0.7"
+              stroke="black"
+              strokeWidth="3"
+              strokeOpacity="0.9"
             />
           </svg>
         );
@@ -372,18 +457,18 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     setSegments(updatedSegments);
     
-    // Check for leg connections
+    // Check for edge connections
     const droppedSegment = updatedSegments.find(seg => seg.id === segmentId);
     if (droppedSegment) {
-      const connection = checkLegConnections(droppedSegment);
+      const connection = checkEdgeConnections(droppedSegment);
       
       if (connection) {
-        // Connect them by the legs
+        // Connect them by their edges
         connectSegments(
           droppedSegment.id, 
           connection.segment.id,
-          connection.sourcePoint,
-          connection.targetPoint
+          connection.sourceSide,
+          connection.targetSide
         );
       }
     }
@@ -424,8 +509,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       e.clientX - centerX
     ) * (180 / Math.PI);
     
-    // Apply rotation directly (no need for subtraction which was causing issues)
-    const newRotation = angle;
+    // Add 90 degrees to align with our triangle orientation (pointing up by default)
+    const newRotation = angle + 90;
     
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
@@ -480,10 +565,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           
           if (segment.connectedTo) {
             connectedSegment = segments.find(seg => seg.id === segment.connectedTo);
-            if (connectedSegment) {
-              // For leg connections, we don't change the position
-              // The connection is visualized with a line instead
-            }
           }
           
           return (
@@ -496,7 +577,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   onClick={() => handleSegmentClick(segment)}
                   className={cn(
                     "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
-                    segment.connectedTo ? "ring-1 ring-cyan-500/50" : "",
+                    segment.connectedTo ? "ring-1 ring-white/50" : "",
                     selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10"
                   )}
                   style={{
@@ -509,8 +590,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     <Triangle 
                       size={40} 
                       fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
-                      color="white"
-                      strokeWidth={1}
+                      color="black"
+                      strokeWidth={2}
                       className={cn(
                         "drop-shadow-lg",
                         // Visualization of the effect with animation classes
@@ -523,10 +604,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
                       {segments.indexOf(segment) + 1}
                     </div>
-                    
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-cyan-300 opacity-50 hover:opacity-100" />
-                    <div className="absolute bottom-0 left-0 transform -translate-x-1/2 translate-y-1/2 w-2 h-2 rounded-full bg-cyan-300 opacity-50 hover:opacity-100" />
-                    <div className="absolute bottom-0 right-0 transform translate-x-1/2 translate-y-1/2 w-2 h-2 rounded-full bg-cyan-300 opacity-50 hover:opacity-100" />
                     
                     {showControls && (
                       <Button
@@ -661,7 +738,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       {segments.length > 0 && showControls && (
         <div className="mt-4 text-xs text-white/50 italic">
           <p>Tip: Click triangles to edit, drag to reposition, use rotate button to change orientation</p>
-          <p className="mt-1">Drag triangles near each other to connect their legs, disconnect from popover menu</p>
+          <p className="mt-1">Drag triangles near each other to connect their edges, disconnect from popover menu</p>
         </div>
       )}
     </div>
