@@ -19,9 +19,6 @@ interface Segment {
   position: { x: number; y: number };
   rotation: number;
   leds: { start: number; end: number };
-  connectedTo?: number;
-  connectionPoint?: 'top' | 'left' | 'right';
-  connectedToPoint?: 'top' | 'left' | 'right';
 }
 
 const ControlPanel: React.FC = () => {
