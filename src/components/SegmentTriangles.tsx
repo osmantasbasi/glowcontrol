@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw } from 'lucide-react';
@@ -41,19 +40,17 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [startMousePosition, setStartMousePosition] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const LEDS_PER_SEGMENT = 30; // Define a constant for LEDs per segment
+  const LEDS_PER_SEGMENT = 30;
 
   const calculateNextLedRange = (): { start: number; end: number } => {
     if (segments.length === 0) {
       return { start: 0, end: LEDS_PER_SEGMENT - 1 };
     }
     
-    // Find the highest end LED from existing segments
     const highestEnd = Math.max(...segments.map(seg => seg.leds.end));
     const start = highestEnd + 1;
     const end = start + LEDS_PER_SEGMENT - 1;
     
-    // Make sure we don't exceed the device's LED count
     const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
     return { 
       start: Math.min(start, maxLed), 
@@ -68,7 +65,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       id: Date.now(),
       color: { r: 255, g: 0, b: 0 },
       effect: 0,
-      position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 }, // Random position between 10-80%
+      position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 },
       rotation: 0,
       leds: ledRange
     };
@@ -83,16 +80,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent event from bubbling to container
+    e.stopPropagation();
     setSelectedSegment(segment);
-    // Apply this segment's settings to the WLED device
     setColor(segment.color.r, segment.color.g, segment.color.b);
     setEffect(segment.effect);
   };
 
-  // Handle click on container to deselect
   const handleContainerClick = (e: React.MouseEvent) => {
-    // Only deselect if clicking directly on the container, not on its children
     if (e.target === e.currentTarget) {
       setSelectedSegment(null);
     }
@@ -101,20 +95,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const handleColorChange = (color: { r: number; g: number; b: number }) => {
     if (!selectedSegment) return;
     
-    // Update local state
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
         ? { ...seg, color } 
         : seg
     ));
     
-    // Update selected segment
     setSelectedSegment({ ...selectedSegment, color });
     
-    // Apply to device
     setColor(color.r, color.g, color.b);
     
-    // Update specific segment in WLED
     const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
     if (segmentIndex !== -1) {
       setSegmentColor(segmentIndex, color.r, color.g, color.b);
@@ -124,20 +114,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const handleEffectChange = (effectId: number) => {
     if (!selectedSegment) return;
     
-    // Update local state
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
         ? { ...seg, effect: effectId } 
         : seg
     ));
     
-    // Update selected segment
     setSelectedSegment({ ...selectedSegment, effect: effectId });
     
-    // Apply to device and specific segment
     setEffect(effectId);
     
-    // Update specific segment in WLED
     const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
     if (segmentIndex !== -1) {
       setSegmentEffect(segmentIndex, effectId);
@@ -149,38 +135,33 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     const leds = { start: values[0], end: values[1] };
     
-    // Update local state
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
         ? { ...seg, leds } 
         : seg
     ));
     
-    // Update selected segment
     setSelectedSegment({ ...selectedSegment, leds });
   };
 
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
-    e.stopPropagation(); // Prevent event from bubbling
+    e.stopPropagation();
     setSelectedSegment(segment);
     
-    // Store the segment data including rotation
     e.dataTransfer.setData("segmentId", segment.id.toString());
     e.dataTransfer.setData("segmentRotation", segment.rotation.toString());
     
-    // Create a custom ghost image that includes the rotation
     const ghostElement = document.createElement('div');
     ghostElement.style.position = 'absolute';
     ghostElement.style.top = '-1000px';
     ghostElement.style.left = '-1000px';
     ghostElement.innerHTML = `<svg width="40" height="40" viewBox="0 0 24 24" transform="rotate(${segment.rotation})">
-      <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.r},${segment.color.g},${segment.color.b})" stroke="rgba(0,0,0,0.5)" stroke-width="1" />
+      <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.r},${segment.color.b},${segment.color.g})" stroke="rgba(0,0,0,0.5)" stroke-width="1" />
     </svg>`;
     document.body.appendChild(ghostElement);
     
     e.dataTransfer.setDragImage(ghostElement, 20, 20);
     
-    // Clean up the ghost element after a short delay
     setTimeout(() => {
       document.body.removeChild(ghostElement);
     }, 100);
@@ -204,14 +185,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     e.currentTarget.classList.remove('bg-cyan-500/10');
     
     const segmentId = parseInt(e.dataTransfer.getData("segmentId"));
-    // Get the rotation from dataTransfer
     const rotation = parseFloat(e.dataTransfer.getData("segmentRotation")) || 0;
     
     const container = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - container.left) / container.width) * 100;
     const y = ((e.clientY - container.top) / container.height) * 100;
     
-    // Update the position while preserving the rotation
     setSegments(segments.map(seg => 
       seg.id === segmentId 
         ? { ...seg, position: { x, y } } 
@@ -222,14 +201,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleRotateStart = (segment: Segment, e: React.MouseEvent) => {
-    // Stop the event from propagating to parent handlers
     e.stopPropagation();
     e.preventDefault();
     
     setSelectedSegment(segment);
     setIsRotating(true);
     
-    // Calculate the center of the triangle
     const triangleElements = document.querySelectorAll(`[data-segment-id="${segment.id}"]`);
     if (triangleElements.length) {
       const triangleElement = triangleElements[0] as HTMLElement;
@@ -237,7 +214,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
       
-      // Calculate initial angle (in radians)
       const initialAngle = Math.atan2(
         e.clientY - centerY,
         e.clientX - centerX
@@ -247,7 +223,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setStartMousePosition({ x: e.clientX, y: e.clientY });
     }
     
-    // Set up event listeners
     document.addEventListener('mousemove', handleRotateMove);
     document.addEventListener('mouseup', handleRotateEnd);
   };
@@ -255,7 +230,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const handleRotateMove = (e: MouseEvent) => {
     if (!isRotating || !selectedSegment) return;
     
-    // Find the triangle element
     const triangleElements = document.querySelectorAll(`[data-segment-id="${selectedSegment.id}"]`);
     if (!triangleElements.length) return;
     
@@ -264,36 +238,29 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     
-    // Calculate the current angle
     const currentAngle = Math.atan2(
       e.clientY - centerY,
       e.clientX - centerX
     );
     
-    // Calculate the angle difference in degrees
     const angleDiff = (currentAngle - rotationStartAngle) * (180 / Math.PI);
     
-    // Calculate new rotation by adding the difference to the current rotation
     let newRotation = selectedSegment.rotation + angleDiff;
     
-    // Normalize rotation angle to 0-360 degrees
     newRotation = newRotation % 360;
     if (newRotation < 0) newRotation += 360;
     
-    // Update the rotation of the segment
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
         ? { ...seg, rotation: newRotation } 
         : seg
     ));
     
-    // Also update the selected segment
     setSelectedSegment({
       ...selectedSegment,
       rotation: newRotation
     });
     
-    // Update the rotation start angle for the next move
     setRotationStartAngle(currentAngle);
   };
 
@@ -346,6 +313,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   left: `${segment.position.x}%`,
                   top: `${segment.position.y}%`,
                   transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
+                  transformOrigin: "center center"
                 }}
               >
                 <div className="relative">
@@ -356,7 +324,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     strokeWidth={1}
                     className={cn(
                       "drop-shadow-lg transition-all",
-                      // Visualization of the effect with animation classes
                       segment.effect === 1 && "animate-pulse",
                       segment.effect === 2 && "animate-fade-in",
                       segment.effect === 3 && "animate-spin",
@@ -372,7 +339,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       variant="ghost"
                       size="icon"
                       onClick={(e) => {
-                        e.stopPropagation(); // Prevent triggering parent onClick
+                        e.stopPropagation();
                         handleRotateStart(segment, e);
                       }}
                       className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
@@ -511,4 +478,3 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
-
