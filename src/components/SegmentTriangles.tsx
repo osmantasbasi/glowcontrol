@@ -1,13 +1,14 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from "sonner";
 
 interface Segment {
   id: number;
@@ -41,6 +42,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
   const [startMousePosition, setStartMousePosition] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Form input states for temporary values
+  const [ledStart, setLedStart] = useState<string>('');
+  const [ledEnd, setLedEnd] = useState<string>('');
+  const [rotationValue, setRotationValue] = useState<string>('');
   
   const LEDS_PER_SEGMENT = 30;
 
@@ -132,6 +138,15 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
   };
 
+  // Update input states when segment selection changes
+  useEffect(() => {
+    if (selectedSegment) {
+      setLedStart(selectedSegment.leds.start.toString());
+      setLedEnd(selectedSegment.leds.end.toString());
+      setRotationValue(Math.round(selectedSegment.rotation).toString());
+    }
+  }, [selectedSegment]);
+
   const handleLEDRangeChange = (values: number[]) => {
     if (!selectedSegment || values.length !== 2) return;
     
@@ -144,58 +159,64 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     ));
     
     setSelectedSegment({ ...selectedSegment, leds });
+    setLedStart(leds.start.toString());
+    setLedEnd(leds.end.toString());
   };
 
   const handleLEDInputChange = (type: 'start' | 'end', value: string) => {
     if (!selectedSegment) return;
     
-    const numValue = parseInt(value, 10);
-    if (isNaN(numValue)) return;
-    
-    const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
-    const validValue = Math.min(Math.max(0, numValue), maxLed);
-    
-    let start = selectedSegment.leds.start;
-    let end = selectedSegment.leds.end;
-    
     if (type === 'start') {
-      start = validValue;
-      // Ensure start doesn't exceed end
-      if (start > end) end = start;
+      setLedStart(value);
     } else {
-      end = validValue;
-      // Ensure end isn't less than start
-      if (end < start) start = end;
+      setLedEnd(value);
     }
-    
-    const leds = { start, end };
-    
-    setSegments(segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, leds } 
-        : seg
-    ));
-    
-    setSelectedSegment({ ...selectedSegment, leds });
   };
 
   const handleRotationInputChange = (value: string) => {
     if (!selectedSegment) return;
+    setRotationValue(value);
+  };
+
+  const applySettingsUpdate = () => {
+    if (!selectedSegment) return;
     
-    const numValue = parseInt(value, 10);
-    if (isNaN(numValue)) return;
+    // Parse values, allowing empty strings
+    const start = ledStart === '' ? 0 : parseInt(ledStart, 10);
+    const end = ledEnd === '' ? 0 : parseInt(ledEnd, 10);
+    const rotation = rotationValue === '' ? 0 : parseInt(rotationValue, 10);
+    
+    const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
+    
+    // Validate and normalize values
+    const validStart = isNaN(start) ? 0 : Math.min(Math.max(0, start), maxLed);
+    const validEnd = isNaN(end) ? validStart : Math.min(Math.max(validStart, end), maxLed);
     
     // Normalize rotation to 0-359
-    let rotation = numValue % 360;
-    if (rotation < 0) rotation += 360;
+    let validRotation = isNaN(rotation) ? 0 : rotation % 360;
+    if (validRotation < 0) validRotation += 360;
     
+    const leds = { start: validStart, end: validEnd };
+    
+    // Update segment
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
-        ? { ...seg, rotation } 
+        ? { ...seg, leds, rotation: validRotation } 
         : seg
     ));
     
-    setSelectedSegment({ ...selectedSegment, rotation });
+    setSelectedSegment({
+      ...selectedSegment,
+      leds,
+      rotation: validRotation
+    });
+    
+    // Update display values
+    setLedStart(validStart.toString());
+    setLedEnd(validEnd.toString());
+    setRotationValue(validRotation.toString());
+    
+    toast.success("Triangle settings updated");
   };
 
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
@@ -615,24 +636,33 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   )}
                   
                   <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">LED Range</h5>
+                    <div className="flex justify-between items-center">
+                      <h5 className="text-xs text-white/70">LED Range</h5>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={applySettingsUpdate}
+                        className="h-6 px-2 text-xs bg-cyan-500/20 hover:bg-cyan-500/40"
+                      >
+                        <RefreshCw size={10} className="mr-1" />
+                        Update
+                      </Button>
+                    </div>
                     <div className="flex items-center space-x-2">
                       <Input
-                        type="number"
-                        value={segment.leds.start}
+                        type="text"
+                        value={ledStart}
                         onChange={(e) => handleLEDInputChange('start', e.target.value)}
                         className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                        min={0}
-                        max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                        placeholder="0"
                       />
                       <span className="text-xs text-white/50">to</span>
                       <Input
-                        type="number"
-                        value={segment.leds.end}
+                        type="text"
+                        value={ledEnd}
                         onChange={(e) => handleLEDInputChange('end', e.target.value)}
                         className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                        min={0}
-                        max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                        placeholder="30"
                       />
                     </div>
                     <Slider
@@ -649,12 +679,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     <h5 className="text-xs text-white/70">Rotation</h5>
                     <div className="flex items-center space-x-2">
                       <Input
-                        type="number"
-                        value={Math.round(segment.rotation)}
+                        type="text"
+                        value={rotationValue}
                         onChange={(e) => handleRotationInputChange(e.target.value)}
                         className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                        min={0}
-                        max={359}
+                        placeholder="0"
                       />
                       <span className="text-xs">degrees</span>
                       <Slider
@@ -675,6 +704,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                                 ...selectedSegment,
                                 rotation: newRotation
                               });
+                              setRotationValue(Math.round(newRotation).toString());
                             }
                           }
                         }}
