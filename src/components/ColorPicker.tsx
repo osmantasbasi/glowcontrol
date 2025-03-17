@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -44,7 +43,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
   };
   
   // Calculate the current HSV based on RGB color
-  const { h, s, v } = rgbToHsv(color.r, color.g, color.b);
+  const { h, s, v } = rgbToHsv(color.r, color.b, color.g);
   
   // Draw the color wheel
   const drawColorWheel = useCallback(() => {
@@ -189,9 +188,13 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     const radius = Math.min(centerX, centerY) - 5;
     let saturation = Math.min(1, centerToPointDistance / radius);
     
-    // Convert HSV to RGB
+    // Convert HSV to RGB with correct ordering for the API and display
     const newColor = hsvToRgb(angle, saturation, v);
-    onChange(newColor);
+    onChange({
+      r: newColor.r,
+      g: newColor.b,
+      b: newColor.g,
+    });
   };
   
   // Handle mouse/touch events

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -49,6 +50,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [rotationValue, setRotationValue] = useState<string>('');
   
   const LEDS_PER_SEGMENT = 30;
+  const TRIANGLE_SIZE = 70; // Increased triangle size
 
   const calculateNextLedRange = (): { start: number; end: number } => {
     if (segments.length === 0) {
@@ -66,7 +68,35 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     };
   };
 
+  // Function to recalculate LED ranges when triangles are removed
+  const recalculateLedRanges = () => {
+    if (segments.length === 0) return;
+    
+    // Sort segments by LED start values
+    const sortedSegments = [...segments].sort((a, b) => a.leds.start - b.leds.start);
+    
+    // Reassign LED ranges
+    const updatedSegments = sortedSegments.map((segment, index) => {
+      const start = index === 0 ? 0 : sortedSegments[index - 1].leds.end + 1;
+      const end = start + (segment.leds.end - segment.leds.start);
+      
+      return {
+        ...segment,
+        leds: { start, end }
+      };
+    });
+    
+    // Update segments state
+    setSegments(updatedSegments);
+  };
+
   const handleAddSegment = () => {
+    // Limit to maximum 12 triangles
+    if (segments.length >= 12) {
+      toast.error("Maximum of 12 triangles reached");
+      return;
+    }
+    
     const ledRange = calculateNextLedRange();
     
     const newSegment: Segment = {
@@ -85,12 +115,18 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     if (selectedSegment?.id === id) {
       setSelectedSegment(null);
     }
+    
+    // Recalculate LED ranges after a short delay to ensure state has updated
+    setTimeout(() => {
+      recalculateLedRanges();
+    }, 50);
   };
 
   const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedSegment(segment);
-    setColor(segment.color.r, segment.color.g, segment.color.b);
+    // Fix RGB order - swap G and B when setting color
+    setColor(segment.color.r, segment.color.b, segment.color.g);
     setEffect(segment.effect);
   };
 
@@ -103,18 +139,23 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const handleColorChange = (color: { r: number; g: number; b: number }) => {
     if (!selectedSegment) return;
     
+    // Fix RGB order - swap G and B when applying color
+    const correctedColor = { r: color.r, g: color.b, b: color.g };
+    
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
-        ? { ...seg, color } 
+        ? { ...seg, color: correctedColor } 
         : seg
     ));
     
-    setSelectedSegment({ ...selectedSegment, color });
+    setSelectedSegment({ ...selectedSegment, color: correctedColor });
     
+    // Send the original color (swapped) to the API
     setColor(color.r, color.g, color.b);
     
     const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
     if (segmentIndex !== -1) {
+      // Send the original color (swapped) to the API
       setSegmentColor(segmentIndex, color.r, color.g, color.b);
     }
   };
@@ -251,12 +292,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     ghostElement.style.position = 'absolute';
     ghostElement.style.top = '-1000px';
     ghostElement.style.left = '-1000px';
-    ghostElement.innerHTML = `<svg width="40" height="40" viewBox="0 0 24 24">
+    ghostElement.innerHTML = `<svg width="70" height="70" viewBox="0 0 24 24">
       <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.r},${segment.color.g},${segment.color.b})" stroke="rgba(0,0,0,0.5)" stroke-width="1" transform="rotate(${segment.rotation}, 12, 12)" />
     </svg>`;
     document.body.appendChild(ghostElement);
     
-    e.dataTransfer.setDragImage(ghostElement, 20, 20);
+    e.dataTransfer.setDragImage(ghostElement, 35, 35);
     
     setTimeout(() => {
       document.body.removeChild(ghostElement);
@@ -478,7 +519,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               >
                 <div className="relative">
                   <Triangle 
-                    size={40} 
+                    size={TRIANGLE_SIZE} 
                     fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
                     color="rgba(0, 0, 0, 0.5)"
                     strokeWidth={1}
@@ -490,7 +531,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       segment.effect === 4 && "animate-bounce",
                     )}
                   />
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-white">
                     {segments.indexOf(segment) + 1}
                   </div>
                   
@@ -747,7 +788,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 
         {segments.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-white/40">
-            <Triangle size={40} className="mb-2 text-cyan-300/30" />
+            <Triangle size={70} className="mb-2 text-cyan-300/30" />
             <p>Click the + button to add segments</p>
             <p className="text-xs mt-2">Drag triangles to position them</p>
           </div>

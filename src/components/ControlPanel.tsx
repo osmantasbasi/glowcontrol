@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import BrightnessSlider from './BrightnessSlider';
@@ -28,6 +28,23 @@ const ControlPanel: React.FC = () => {
   
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+  
+  // Load saved segments from localStorage 
+  useEffect(() => {
+    const savedSegments = localStorage.getItem('wledSegments');
+    if (savedSegments) {
+      try {
+        setSegments(JSON.parse(savedSegments));
+      } catch (e) {
+        console.error('Error loading segments:', e);
+      }
+    }
+  }, []);
+  
+  // Save segments to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('wledSegments', JSON.stringify(segments));
+  }, [segments]);
   
   useEffect(() => {
     if (deviceState) {

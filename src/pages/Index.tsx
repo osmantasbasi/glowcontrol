@@ -1,7 +1,7 @@
 
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ColorPicker from '@/components/ColorPicker';
 import EffectSelector from '@/components/EffectSelector';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,24 @@ const SegmentEditor = () => {
   const [activeTab, setActiveTab] = useState<string>('segments');
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+
+  // Synchronize segments with the main control panel
+  useEffect(() => {
+    // When the component mounts, check localStorage for existing segments
+    const savedSegments = localStorage.getItem('wledSegments');
+    if (savedSegments) {
+      try {
+        setSegments(JSON.parse(savedSegments));
+      } catch (e) {
+        console.error('Error loading segments:', e);
+      }
+    }
+  }, []);
+
+  // Save segments to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('wledSegments', JSON.stringify(segments));
+  }, [segments]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
