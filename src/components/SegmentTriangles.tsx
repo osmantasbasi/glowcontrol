@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
+import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useWLED } from '@/context/WLEDContext';
@@ -168,55 +168,76 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     if (type === 'start') {
       setLedStart(value);
+      updateSegmentSettings('ledStart', value);
     } else {
       setLedEnd(value);
+      updateSegmentSettings('ledEnd', value);
     }
   };
 
   const handleRotationInputChange = (value: string) => {
     if (!selectedSegment) return;
     setRotationValue(value);
+    updateSegmentSettings('rotation', value);
   };
 
-  const applySettingsUpdate = () => {
+  const updateSegmentSettings = (field: 'ledStart' | 'ledEnd' | 'rotation', value: string) => {
     if (!selectedSegment) return;
-    
-    // Parse values, allowing empty strings
-    const start = ledStart === '' ? 0 : parseInt(ledStart, 10);
-    const end = ledEnd === '' ? 0 : parseInt(ledEnd, 10);
-    const rotation = rotationValue === '' ? 0 : parseInt(rotationValue, 10);
     
     const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
     
-    // Validate and normalize values
-    const validStart = isNaN(start) ? 0 : Math.min(Math.max(0, start), maxLed);
-    const validEnd = isNaN(end) ? validStart : Math.min(Math.max(validStart, end), maxLed);
+    // Create a copy of current leds and rotation
+    let leds = { ...selectedSegment.leds };
+    let rotation = selectedSegment.rotation;
     
-    // Normalize rotation to 0-359
-    let validRotation = isNaN(rotation) ? 0 : rotation % 360;
-    if (validRotation < 0) validRotation += 360;
-    
-    const leds = { start: validStart, end: validEnd };
+    // Update the appropriate field
+    if (field === 'ledStart') {
+      // Allow empty string or parse as number
+      const start = value === '' ? 0 : parseInt(value, 10);
+      if (!isNaN(start)) {
+        const validStart = Math.min(Math.max(0, start), maxLed);
+        leds.start = validStart;
+        
+        // If start > end, adjust end too
+        if (validStart > leds.end) {
+          leds.end = validStart;
+          setLedEnd(validStart.toString());
+        }
+      }
+    } else if (field === 'ledEnd') {
+      // Allow empty string or parse as number
+      const end = value === '' ? 0 : parseInt(value, 10);
+      if (!isNaN(end)) {
+        const validEnd = Math.min(Math.max(leds.start, end), maxLed);
+        leds.end = validEnd;
+      }
+    } else if (field === 'rotation') {
+      // Allow empty string or parse as number
+      const newRotation = value === '' ? 0 : parseInt(value, 10);
+      if (!isNaN(newRotation)) {
+        // Normalize rotation to 0-359
+        let validRotation = newRotation % 360;
+        if (validRotation < 0) validRotation += 360;
+        rotation = validRotation;
+      }
+    }
     
     // Update segment
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
-        ? { ...seg, leds, rotation: validRotation } 
+        ? { ...seg, leds, rotation } 
         : seg
     ));
     
     setSelectedSegment({
       ...selectedSegment,
       leds,
-      rotation: validRotation
+      rotation
     });
-    
-    // Update display values
-    setLedStart(validStart.toString());
-    setLedEnd(validEnd.toString());
-    setRotationValue(validRotation.toString());
-    
-    toast.success("Triangle settings updated");
+  };
+
+  const handleBrightnessChange = (value: number) => {
+    setBrightness(value);
   };
 
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
@@ -410,10 +431,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   }, [selectedSegment, segments, setSelectedSegment, setSegments]);
 
   const showControls = editMode === 'segment';
-
-  const handleBrightnessChange = (value: number) => {
-    setBrightness(value);
-  };
 
   return (
     <div className={cn("glass-card p-4", className)}>
@@ -636,18 +653,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   )}
                   
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <h5 className="text-xs text-white/70">LED Range</h5>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={applySettingsUpdate}
-                        className="h-6 px-2 text-xs bg-cyan-500/20 hover:bg-cyan-500/40"
-                      >
-                        <RefreshCw size={10} className="mr-1" />
-                        Update
-                      </Button>
-                    </div>
+                    <h5 className="text-xs text-white/70">LED Range</h5>
                     <div className="flex items-center space-x-2">
                       <Input
                         type="text"
