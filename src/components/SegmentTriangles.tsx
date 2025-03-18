@@ -50,7 +50,25 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [rotationValue, setRotationValue] = useState<string>('');
   
   const LEDS_PER_SEGMENT = 30;
-  const TRIANGLE_SIZE = 70; // Increased triangle size
+  const TRIANGLE_SIZE = 90; // Increased triangle size for better visibility
+
+  // Syncing with localStorage
+  useEffect(() => {
+    const savedSegments = localStorage.getItem('wledSegments');
+    if (savedSegments) {
+      try {
+        const parsed = JSON.parse(savedSegments);
+        setSegments(parsed);
+      } catch (e) {
+        console.error('Error loading segments:', e);
+      }
+    }
+  }, []);
+
+  // Save to localStorage whenever segments change
+  useEffect(() => {
+    localStorage.setItem('wledSegments', JSON.stringify(segments));
+  }, [segments]);
 
   const calculateNextLedRange = (): { start: number; end: number } => {
     if (segments.length === 0) {
@@ -126,7 +144,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     e.stopPropagation();
     setSelectedSegment(segment);
     // Fix RGB order - swap G and B when setting color
-    setColor(segment.color.r, segment.color.b, segment.color.g);
+    setColor(segment.color.r, segment.color.g, segment.color.b);
     setEffect(segment.effect);
   };
 
@@ -139,8 +157,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const handleColorChange = (color: { r: number; g: number; b: number }) => {
     if (!selectedSegment) return;
     
-    // Fix RGB order - swap G and B when applying color
-    const correctedColor = { r: color.r, g: color.b, b: color.g };
+    // Fix RGB order - no swap needed here since we're storing correctly
+    const correctedColor = { r: color.r, g: color.g, b: color.b };
     
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
@@ -150,12 +168,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     setSelectedSegment({ ...selectedSegment, color: correctedColor });
     
-    // Send the original color (swapped) to the API
+    // Send color to the API
     setColor(color.r, color.g, color.b);
     
     const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
     if (segmentIndex !== -1) {
-      // Send the original color (swapped) to the API
       setSegmentColor(segmentIndex, color.r, color.g, color.b);
     }
   };
@@ -292,12 +309,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     ghostElement.style.position = 'absolute';
     ghostElement.style.top = '-1000px';
     ghostElement.style.left = '-1000px';
-    ghostElement.innerHTML = `<svg width="70" height="70" viewBox="0 0 24 24">
+    ghostElement.innerHTML = `<svg width="${TRIANGLE_SIZE}" height="${TRIANGLE_SIZE}" viewBox="0 0 24 24">
       <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.r},${segment.color.g},${segment.color.b})" stroke="rgba(0,0,0,0.5)" stroke-width="1" transform="rotate(${segment.rotation}, 12, 12)" />
     </svg>`;
     document.body.appendChild(ghostElement);
     
-    e.dataTransfer.setDragImage(ghostElement, 35, 35);
+    e.dataTransfer.setDragImage(ghostElement, TRIANGLE_SIZE/2, TRIANGLE_SIZE/2);
     
     setTimeout(() => {
       document.body.removeChild(ghostElement);
@@ -334,11 +351,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const x = ((e.clientX - container.left) / container.width) * 100;
     const y = ((e.clientY - container.top) / container.height) * 100;
     
-    setSegments(segments.map(seg => 
+    const updatedSegments = segments.map(seg => 
       seg.id === segmentId 
         ? { ...seg, position: { x, y }, rotation } 
         : seg
-    ));
+    );
+    
+    setSegments(updatedSegments);
     
     if (selectedSegment?.id === segmentId) {
       setSelectedSegment({ ...selectedSegment, position: { x, y }, rotation });
@@ -397,17 +416,20 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     newRotation = newRotation % 360;
     if (newRotation < 0) newRotation += 360;
     
-    setSegments(segments.map(seg => 
+    const updatedSegments = segments.map(seg => 
       seg.id === selectedSegment.id 
         ? { ...seg, rotation: newRotation } 
         : seg
-    ));
+    );
+    
+    setSegments(updatedSegments);
     
     setSelectedSegment({
       ...selectedSegment,
       rotation: newRotation
     });
     
+    setRotationValue(Math.round(newRotation).toString());
     setRotationStartAngle(currentAngle);
   };
 
@@ -451,11 +473,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       }
       
       if (newX !== x || newY !== y) {
-        setSegments(segments.map(seg => 
+        const updatedSegments = segments.map(seg => 
           seg.id === selectedSegment.id 
             ? { ...seg, position: { x: newX, y: newY } } 
             : seg
-        ));
+        );
+        
+        setSegments(updatedSegments);
         
         setSelectedSegment({
           ...selectedSegment,
@@ -536,17 +560,30 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   </div>
                   
                   {showControls && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRotateStart(segment, e);
-                      }}
-                      className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
-                    >
-                      <RotateCw size={12} className="text-white" />
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRotateStart(segment, e);
+                        }}
+                        className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
+                      >
+                        <RotateCw size={12} className="text-white" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveSegment(segment.id);
+                        }}
+                        className="absolute -bottom-3 -right-3 h-6 w-6 bg-red-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-500/40 z-30 transition-all"
+                      >
+                        <Trash size={12} className="text-white" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -575,11 +612,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                           className="h-6 w-6 rounded-full hover:bg-white/10"
                           onClick={() => {
                             const newY = Math.max(0, segment.position.y - 1);
-                            setSegments(segments.map(seg => 
+                            const updatedSegments = segments.map(seg => 
                               seg.id === segment.id 
                                 ? { ...seg, position: { ...seg.position, y: newY } } 
                                 : seg
-                            ));
+                            );
+                            setSegments(updatedSegments);
                             if (selectedSegment?.id === segment.id) {
                               setSelectedSegment({
                                 ...selectedSegment,
@@ -596,11 +634,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                           className="h-6 w-6 rounded-full hover:bg-white/10"
                           onClick={() => {
                             const newY = Math.min(100, segment.position.y + 1);
-                            setSegments(segments.map(seg => 
+                            const updatedSegments = segments.map(seg => 
                               seg.id === segment.id 
                                 ? { ...seg, position: { ...seg.position, y: newY } } 
                                 : seg
-                            ));
+                            );
+                            setSegments(updatedSegments);
                             if (selectedSegment?.id === segment.id) {
                               setSelectedSegment({
                                 ...selectedSegment,
@@ -619,11 +658,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                           className="h-6 w-6 rounded-full hover:bg-white/10"
                           onClick={() => {
                             const newX = Math.max(0, segment.position.x - 1);
-                            setSegments(segments.map(seg => 
+                            const updatedSegments = segments.map(seg => 
                               seg.id === segment.id 
                                 ? { ...seg, position: { ...seg.position, x: newX } } 
                                 : seg
-                            ));
+                            );
+                            setSegments(updatedSegments);
                             if (selectedSegment?.id === segment.id) {
                               setSelectedSegment({
                                 ...selectedSegment,
@@ -640,11 +680,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                           className="h-6 w-6 rounded-full hover:bg-white/10"
                           onClick={() => {
                             const newX = Math.min(100, segment.position.x + 1);
-                            setSegments(segments.map(seg => 
+                            const updatedSegments = segments.map(seg => 
                               seg.id === segment.id 
                                 ? { ...seg, position: { ...seg.position, x: newX } } 
                                 : seg
-                            ));
+                            );
+                            setSegments(updatedSegments);
                             if (selectedSegment?.id === segment.id) {
                               setSelectedSegment({
                                 ...selectedSegment,
@@ -741,11 +782,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         onValueChange={(values) => {
                           if (values.length > 0) {
                             const newRotation = values[0];
-                            setSegments(segments.map(seg => 
+                            const updatedSegments = segments.map(seg => 
                               seg.id === segment.id 
                                 ? { ...seg, rotation: newRotation } 
                                 : seg
-                            ));
+                            );
+                            setSegments(updatedSegments);
                             if (selectedSegment?.id === segment.id) {
                               setSelectedSegment({
                                 ...selectedSegment,
@@ -788,7 +830,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 
         {segments.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-white/40">
-            <Triangle size={70} className="mb-2 text-cyan-300/30" />
+            <Triangle size={TRIANGLE_SIZE} className="mb-2 text-cyan-300/30" />
             <p>Click the + button to add segments</p>
             <p className="text-xs mt-2">Drag triangles to position them</p>
           </div>
