@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -46,6 +47,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [ledStart, setLedStart] = useState<string>('');
   const [ledEnd, setLedEnd] = useState<string>('');
   const [rotationValue, setRotationValue] = useState<string>('');
+  
+  // Multi-select functionality
+  const [selectedSegments, setSelectedSegments] = useState<number[]>([]);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
   
   const LEDS_PER_SEGMENT = 30;
   const TRIANGLE_SIZE = 90; // Increased triangle size for better visibility
@@ -128,6 +133,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     });
     
     setSegments(updatedSegments);
+    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
   };
 
   const handleAddSegment = () => {
@@ -150,6 +160,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const updatedSegments = [...segments, newSegment];
     setSegments(updatedSegments);
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
   };
 
   const handleRemoveSegment = (id: number, e?: React.MouseEvent) => {
@@ -165,8 +179,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSelectedSegment(null);
     }
     
+    // Update multi-selection if applicable
+    setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
+    
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
+    
+    // Recalculate LED ranges after a short delay
     setTimeout(() => {
       recalculateLedRanges();
     }, 50);
@@ -176,20 +198,75 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 
   const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedSegment(segment);
-    setColor(segment.color.r, segment.color.g, segment.color.b);
-    setEffect(segment.effect);
+    
+    if (isMultiSelectMode) {
+      // If in multi-select mode, toggle the segment's selection
+      if (selectedSegments.includes(segment.id)) {
+        setSelectedSegments(prevSelected => prevSelected.filter(id => id !== segment.id));
+      } else {
+        setSelectedSegments(prevSelected => [...prevSelected, segment.id]);
+      }
+    } else {
+      // Single selection mode
+      setSelectedSegment(segment);
+      
+      // Set color and effect of the selected triangle
+      if (segment.color) {
+        setColor(segment.color.r, segment.color.g, segment.color.b);
+      }
+      
+      if (segment.effect !== undefined) {
+        setEffect(segment.effect);
+      }
+    }
   };
 
   const handleContainerClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       setSelectedSegment(null);
+      
+      // Clear multi-selection if in multi-select mode
+      if (isMultiSelectMode) {
+        setSelectedSegments([]);
+      }
     }
   };
 
   const handleColorChange = (color: { r: number; g: number; b: number }) => {
+    // Handle color change for multi-selection
+    if (isMultiSelectMode && selectedSegments.length > 0) {
+      // Apply to all selected segments
+      const updatedSegments = segments.map(seg => 
+        selectedSegments.includes(seg.id) 
+          ? { ...seg, color: { r: color.r, g: color.b, b: color.g } } // Fix RGB order issue
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      // Broadcast the change to other instances
+      const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+      window.dispatchEvent(event);
+      
+      // Set color for WLED device
+      setColor(color.r, color.g, color.b);
+      
+      // Apply to individual segments
+      selectedSegments.forEach(segId => {
+        const segmentIndex = segments.findIndex(seg => seg.id === segId);
+        if (segmentIndex !== -1) {
+          setSegmentColor(segmentIndex, color.r, color.g, color.b);
+        }
+      });
+      
+      return;
+    }
+    
+    // Single segment selection
     if (!selectedSegment) return;
     
+    // Fix the RGB order issue
     const correctedColor = { r: color.r, g: color.b, b: color.g };
     
     const updatedSegments = segments.map(seg => 
@@ -203,6 +280,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
+    
     setColor(color.r, color.g, color.b);
     
     const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
@@ -212,6 +293,37 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleEffectChange = (effectId: number) => {
+    // Handle effect change for multi-selection
+    if (isMultiSelectMode && selectedSegments.length > 0) {
+      // Apply to all selected segments
+      const updatedSegments = segments.map(seg => 
+        selectedSegments.includes(seg.id) 
+          ? { ...seg, effect: effectId } 
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      // Broadcast the change to other instances
+      const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+      window.dispatchEvent(event);
+      
+      // Set effect for WLED device
+      setEffect(effectId);
+      
+      // Apply to individual segments
+      selectedSegments.forEach(segId => {
+        const segmentIndex = segments.findIndex(seg => seg.id === segId);
+        if (segmentIndex !== -1) {
+          setSegmentEffect(segmentIndex, effectId);
+        }
+      });
+      
+      return;
+    }
+    
+    // Single segment selection
     if (!selectedSegment) return;
     
     const updatedSegments = segments.map(seg => 
@@ -224,6 +336,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSelectedSegment({ ...selectedSegment, effect: effectId });
     
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
     
     setEffect(effectId);
     
@@ -258,6 +374,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setLedEnd(leds.end.toString());
     
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
   };
 
   const handleLEDInputChange = (type: 'start' | 'end', value: string) => {
@@ -326,6 +446,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     });
     
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
   };
 
   const handleBrightnessChange = (value: number) => {
@@ -334,11 +458,29 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
     e.stopPropagation();
-    setSelectedSegment(segment);
     
-    e.dataTransfer.setData("segmentId", segment.id.toString());
-    e.dataTransfer.setData("segmentRotation", segment.rotation.toString());
+    if (isMultiSelectMode && selectedSegments.length > 0) {
+      // If in multi-select mode and this segment is selected, drag all selected segments
+      if (selectedSegments.includes(segment.id)) {
+        e.dataTransfer.setData("multiSelect", "true");
+        e.dataTransfer.setData("segmentId", segment.id.toString());
+        setDraggedSegment(segment);
+      } else {
+        // If not selected, just drag this segment and select it
+        setSelectedSegment(segment);
+        e.dataTransfer.setData("segmentId", segment.id.toString());
+        e.dataTransfer.setData("segmentRotation", segment.rotation.toString());
+        setDraggedSegment(segment);
+      }
+    } else {
+      // Normal single segment drag
+      setSelectedSegment(segment);
+      e.dataTransfer.setData("segmentId", segment.id.toString());
+      e.dataTransfer.setData("segmentRotation", segment.rotation.toString());
+      setDraggedSegment(segment);
+    }
     
+    // Create ghost drag image
     const ghostElement = document.createElement('div');
     ghostElement.style.position = 'absolute';
     ghostElement.style.top = '-1000px';
@@ -353,8 +495,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setTimeout(() => {
       document.body.removeChild(ghostElement);
     }, 100);
-    
-    setDraggedSegment(segment);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -372,11 +512,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     e.preventDefault();
     e.currentTarget.classList.remove('bg-cyan-500/10');
     
+    const isMultiDrop = e.dataTransfer.getData("multiSelect") === "true";
     const segmentId = parseInt(e.dataTransfer.getData("segmentId"));
     const rotation = parseFloat(e.dataTransfer.getData("segmentRotation")) || 0;
-    
-    const segmentToUpdate = segments.find(seg => seg.id === segmentId);
-    if (!segmentToUpdate) return;
     
     const container = containerRef.current?.getBoundingClientRect();
     if (!container) return;
@@ -384,17 +522,50 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const x = ((e.clientX - container.left) / container.width) * 100;
     const y = ((e.clientY - container.top) / container.height) * 100;
     
-    const updatedSegments = segments.map(seg => 
-      seg.id === segmentId 
-        ? { ...seg, position: { x, y }, rotation } 
-        : seg
-    );
+    let updatedSegments = [...segments];
+    
+    if (isMultiDrop && selectedSegments.length > 0) {
+      // Handle multi-selection drop
+      // Calculate the offset for all selected triangles
+      const draggedIndex = segments.findIndex(seg => seg.id === segmentId);
+      if (draggedIndex === -1) return;
+      
+      const draggedPos = segments[draggedIndex].position;
+      const offsetX = x - draggedPos.x;
+      const offsetY = y - draggedPos.y;
+      
+      // Apply the offset to all selected triangles
+      updatedSegments = segments.map(seg => {
+        if (selectedSegments.includes(seg.id)) {
+          return {
+            ...seg,
+            position: {
+              x: Math.min(Math.max(0, seg.position.x + offsetX), 100),
+              y: Math.min(Math.max(0, seg.position.y + offsetY), 100)
+            }
+          };
+        }
+        return seg;
+      });
+    } else {
+      // Handle single triangle drop
+      updatedSegments = segments.map(seg => 
+        seg.id === segmentId 
+          ? { ...seg, position: { x, y }, rotation } 
+          : seg
+      );
+      
+      if (selectedSegment?.id === segmentId) {
+        setSelectedSegment({ ...selectedSegment, position: { x, y }, rotation });
+      }
+    }
     
     setSegments(updatedSegments);
+    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
-    if (selectedSegment?.id === segmentId) {
-      setSelectedSegment({ ...selectedSegment, position: { x, y }, rotation });
-    }
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
     
     setDraggedSegment(null);
   };
@@ -456,7 +627,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     );
     
     setSegments(updatedSegments);
-    
     setSelectedSegment({
       ...selectedSegment,
       rotation: newRotation
@@ -466,6 +636,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setRotationStartAngle(currentAngle);
     
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    // Broadcast the change to other instances
+    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    window.dispatchEvent(event);
   };
 
   const handleRotateEnd = () => {
@@ -474,35 +648,59 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     document.removeEventListener('mouseup', handleRotateEnd);
   };
 
+  // Handle keyboard navigation for selected triangles
   useEffect(() => {
-    if (!selectedSegment) return;
+    if (!selectedSegment && selectedSegments.length === 0) return;
     
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selectedSegment) return;
-      
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       
       e.preventDefault();
       
       const step = e.shiftKey ? 1 : 0.5;
-      const { x, y } = selectedSegment.position;
       
+      if (isMultiSelectMode && selectedSegments.length > 0) {
+        // Move all selected triangles
+        const updatedSegments = segments.map(seg => {
+          if (selectedSegments.includes(seg.id)) {
+            const { x, y } = seg.position;
+            let newX = x;
+            let newY = y;
+            
+            switch (e.key) {
+              case 'ArrowLeft': newX = Math.max(0, x - step); break;
+              case 'ArrowRight': newX = Math.min(100, x + step); break;
+              case 'ArrowUp': newY = Math.max(0, y - step); break;
+              case 'ArrowDown': newY = Math.min(100, y + step); break;
+            }
+            
+            return { ...seg, position: { x: newX, y: newY } };
+          }
+          return seg;
+        });
+        
+        setSegments(updatedSegments);
+        localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+        
+        // Broadcast the change to other instances
+        const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+        window.dispatchEvent(event);
+        
+        return;
+      }
+      
+      // Move single selected triangle
+      if (!selectedSegment) return;
+      
+      const { x, y } = selectedSegment.position;
       let newX = x;
       let newY = y;
       
       switch (e.key) {
-        case 'ArrowLeft':
-          newX = Math.max(0, x - step);
-          break;
-        case 'ArrowRight':
-          newX = Math.min(100, x + step);
-          break;
-        case 'ArrowUp':
-          newY = Math.max(0, y - step);
-          break;
-        case 'ArrowDown':
-          newY = Math.min(100, y + step);
-          break;
+        case 'ArrowLeft': newX = Math.max(0, x - step); break;
+        case 'ArrowRight': newX = Math.min(100, x + step); break;
+        case 'ArrowUp': newY = Math.max(0, y - step); break;
+        case 'ArrowDown': newY = Math.min(100, y + step); break;
       }
       
       if (newX !== x || newY !== y) {
@@ -513,11 +711,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         );
         
         setSegments(updatedSegments);
-        
         setSelectedSegment({
           ...selectedSegment,
           position: { x: newX, y: newY }
         });
+        
+        localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+        
+        // Broadcast the change to other instances
+        const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+        window.dispatchEvent(event);
       }
     };
     
@@ -526,7 +729,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedSegment, segments, setSelectedSegment, setSegments]);
+  }, [selectedSegment, segments, selectedSegments, isMultiSelectMode, setSelectedSegment, setSegments]);
 
   const showControls = editMode === 'segment';
 
@@ -534,7 +737,25 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     <div className={cn("glass-card p-4", className)}>
       {showControls && (
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-md font-medium text-white/80">LED Segments</h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-md font-medium text-white/80">LED Segments</h3>
+            <Button
+              variant={isMultiSelectMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
+              className={cn(
+                "text-xs",
+                isMultiSelectMode && "bg-cyan-500 hover:bg-cyan-600"
+              )}
+            >
+              {isMultiSelectMode ? "Multi-Select: ON" : "Multi-Select: OFF"}
+            </Button>
+            {isMultiSelectMode && selectedSegments.length > 0 && (
+              <span className="text-xs text-white/70">
+                {selectedSegments.length} selected
+              </span>
+            )}
+          </div>
           <Button 
             variant="ghost" 
             size="icon" 
@@ -565,7 +786,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 onClick={(e) => handleSegmentClick(segment, e)}
                 className={cn(
                   "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
-                  selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10"
+                  selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
+                  isMultiSelectMode && selectedSegments.includes(segment.id) ? "ring-2 ring-purple-400 z-20" : ""
                 )}
                 style={{
                   left: `${segment.position.x}%`,
@@ -658,6 +880,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               });
                             }
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                            
+                            // Broadcast the change to other instances
+                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            window.dispatchEvent(event);
                           }}
                         >
                           <ArrowUp size={14} className="text-cyan-300" />
@@ -681,6 +907,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               });
                             }
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                            
+                            // Broadcast the change to other instances
+                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            window.dispatchEvent(event);
                           }}
                         >
                           <ArrowDown size={14} className="text-cyan-300" />
@@ -706,6 +936,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               });
                             }
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                            
+                            // Broadcast the change to other instances
+                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            window.dispatchEvent(event);
                           }}
                         >
                           <ArrowLeft size={14} className="text-cyan-300" />
@@ -729,6 +963,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               });
                             }
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                            
+                            // Broadcast the change to other instances
+                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            window.dispatchEvent(event);
                           }}
                         >
                           <ArrowRight size={14} className="text-cyan-300" />
@@ -836,6 +1074,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               setRotationValue(Math.round(newRotation).toString());
                             }
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                            
+                            // Broadcast the change to other instances
+                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            window.dispatchEvent(event);
                           }
                         }}
                         className="flex-1"
@@ -882,6 +1124,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         <div className="mt-4 text-xs text-white/50 italic">
           <p>Tip: Click triangles to edit, drag to reposition, use the <RotateCw size={10} className="inline" /> button to rotate</p>
           <p className="mt-1">Use arrow keys to move selected triangle precisely</p>
+          {isMultiSelectMode && (
+            <p className="mt-1 text-purple-300">Multi-select mode: Click multiple triangles, then edit or move them together</p>
+          )}
         </div>
       )}
     </div>
