@@ -26,9 +26,8 @@ const SegmentEditor = () => {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
-  // Synchronize segments with the main control panel
+  // Synchronize segments with localStorage when component mounts
   useEffect(() => {
-    // When the component mounts, check localStorage for existing segments
     const savedSegments = localStorage.getItem('wledSegments');
     if (savedSegments) {
       try {
@@ -37,9 +36,22 @@ const SegmentEditor = () => {
         console.error('Error loading segments:', e);
       }
     }
+    
+    // Listen for segment updates from other components
+    const handleSegmentsUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && Array.isArray(customEvent.detail)) {
+        setSegments(customEvent.detail);
+      }
+    };
+    
+    window.addEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
+    return () => {
+      window.removeEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
+    };
   }, []);
 
-  // Save segments to localStorage when they change
+  // Update localStorage when segments change
   useEffect(() => {
     localStorage.setItem('wledSegments', JSON.stringify(segments));
   }, [segments]);

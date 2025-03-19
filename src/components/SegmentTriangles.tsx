@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -29,6 +28,10 @@ interface SegmentTrianglesProps {
   editMode?: 'segment' | 'color' | 'effect';
 }
 
+// Constants for consistent sizing and display
+const TRIANGLE_SIZE = 90; // Fixed triangle size
+const LEDS_PER_SEGMENT = 30;
+
 const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ 
   className, 
   segments, 
@@ -52,9 +55,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [selectedSegments, setSelectedSegments] = useState<number[]>([]);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
   
-  const LEDS_PER_SEGMENT = 30;
-  const TRIANGLE_SIZE = 90; // Increased triangle size for better visibility
-
+  // Enhanced storage change event listener
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'wledSegments' && e.newValue) {
@@ -71,6 +72,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [setSegments]);
 
+  // Load segments from localStorage on initial mount
   useEffect(() => {
     const savedSegments = localStorage.getItem('wledSegments');
     if (savedSegments) {
@@ -81,19 +83,26 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         console.error('Error loading segments:', e);
       }
     }
-  }, []);
+  }, [setSegments]);
 
+  // Save segments to localStorage and broadcast changes when segments change
   useEffect(() => {
     localStorage.setItem('wledSegments', JSON.stringify(segments));
     
-    const event = new CustomEvent('segmentsUpdated', { detail: segments });
+    // Broadcast changes to other instances using a custom event
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: segments,
+      bubbles: true 
+    });
     window.dispatchEvent(event);
   }, [segments]);
 
+  // Listen for segmentsUpdated events from other instances
   useEffect(() => {
-    const handleSegmentsUpdated = (e: CustomEvent) => {
-      if (e.detail && Array.isArray(e.detail)) {
-        setSegments(e.detail);
+    const handleSegmentsUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && Array.isArray(customEvent.detail)) {
+        setSegments(customEvent.detail);
       }
     };
 
@@ -136,7 +145,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true 
+    });
     window.dispatchEvent(event);
   };
 
@@ -159,11 +171,18 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     const updatedSegments = [...segments, newSegment];
     setSegments(updatedSegments);
+    
+    // Update localStorage and broadcast changes
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
-    // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    // Broadcast the change to all instances
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true
+    });
     window.dispatchEvent(event);
+    
+    toast.success("New segment added");
   };
 
   const handleRemoveSegment = (id: number, e?: React.MouseEvent) => {
@@ -172,9 +191,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       e.preventDefault();
     }
     
+    // Create a new array without the deleted segment
     const updatedSegments = segments.filter(segment => segment.id !== id);
-    setSegments(updatedSegments);
     
+    // Update both local state and localStorage
+    setSegments(updatedSegments);
+    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    // If the deleted segment was selected, deselect it
     if (selectedSegment?.id === id) {
       setSelectedSegment(null);
     }
@@ -182,10 +206,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     // Update multi-selection if applicable
     setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
     
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    // Broadcast the deletion to all instances
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true 
+    });
     window.dispatchEvent(event);
     
     // Recalculate LED ranges after a short delay
@@ -246,7 +271,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
       
       // Broadcast the change to other instances
-      const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true 
+      });
       window.dispatchEvent(event);
       
       // Set color for WLED device
@@ -278,7 +306,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true
+    });
     window.dispatchEvent(event);
     
     setColor(color.r, color.g, color.b);
@@ -303,7 +334,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
       
       // Broadcast the change to other instances
-      const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true 
+      });
       window.dispatchEvent(event);
       
       // Set effect for WLED device
@@ -335,7 +369,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true 
+    });
     window.dispatchEvent(event);
     
     setEffect(effectId);
@@ -373,7 +410,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true 
+    });
     window.dispatchEvent(event);
   };
 
@@ -445,7 +485,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true 
+    });
     window.dispatchEvent(event);
   };
 
@@ -477,7 +520,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setDraggedSegment(segment);
     }
     
-    // Create ghost drag image
+    // Create ghost drag image with consistent size for visual feedback
     const ghostElement = document.createElement('div');
     ghostElement.style.position = 'absolute';
     ghostElement.style.top = '-1000px';
@@ -516,6 +559,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const container = containerRef.current?.getBoundingClientRect();
     if (!container) return;
     
+    // Calculate exact percentage position for consistent placement across views
     const x = ((e.clientX - container.left) / container.width) * 100;
     const y = ((e.clientY - container.top) / container.height) * 100;
     
@@ -560,8 +604,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSegments(updatedSegments);
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
-    // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    // Broadcast the change to all instances
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true
+    });
     window.dispatchEvent(event);
     
     setDraggedSegment(null);
@@ -635,7 +682,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     // Broadcast the change to other instances
-    const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true 
+    });
     window.dispatchEvent(event);
   };
 
@@ -680,7 +730,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
         
         // Broadcast the change to other instances
-        const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+        const event = new CustomEvent('segmentsUpdated', { 
+          detail: updatedSegments,
+          bubbles: true 
+        });
         window.dispatchEvent(event);
         
         return;
@@ -716,7 +769,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
         
         // Broadcast the change to other instances
-        const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+        const event = new CustomEvent('segmentsUpdated', { 
+          detail: updatedSegments,
+          bubbles: true 
+        });
         window.dispatchEvent(event);
       }
     };
@@ -863,7 +919,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                             
                             // Broadcast the change to other instances
-                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            const event = new CustomEvent('segmentsUpdated', { 
+                              detail: updatedSegments,
+                              bubbles: true
+                            });
                             window.dispatchEvent(event);
                           }}
                         >
@@ -890,7 +949,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                             
                             // Broadcast the change to other instances
-                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            const event = new CustomEvent('segmentsUpdated', { 
+                              detail: updatedSegments,
+                              bubbles: true
+                            });
                             window.dispatchEvent(event);
                           }}
                         >
@@ -919,7 +981,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                             
                             // Broadcast the change to other instances
-                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            const event = new CustomEvent('segmentsUpdated', { 
+                              detail: updatedSegments,
+                              bubbles: true
+                            });
                             window.dispatchEvent(event);
                           }}
                         >
@@ -946,7 +1011,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                             
                             // Broadcast the change to other instances
-                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            const event = new CustomEvent('segmentsUpdated', { 
+                              detail: updatedSegments,
+                              bubbles: true
+                            });
                             window.dispatchEvent(event);
                           }}
                         >
@@ -1057,7 +1125,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                             localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                             
                             // Broadcast the change to other instances
-                            const event = new CustomEvent('segmentsUpdated', { detail: updatedSegments });
+                            const event = new CustomEvent('segmentsUpdated', { 
+                              detail: updatedSegments,
+                              bubbles: true
+                            });
                             window.dispatchEvent(event);
                           }
                         }}
