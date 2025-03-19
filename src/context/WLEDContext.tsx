@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
@@ -190,7 +189,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     try {
       const api = getWledApi();
       
-      // Create the payload for the API
       const payload: any = {
         seg: [{
           fx: effectId
@@ -205,7 +203,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         payload.seg[0].ix = intensity;
       }
       
-      // Make the API request with fetch directly since the method doesn't exist
       const response = await fetch(`http://${activeDevice?.ipAddress}/json/state`, {
         method: 'POST',
         headers: {
@@ -250,8 +247,26 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
 
   const setSegmentColor = async (segmentId: number, r: number, g: number, b: number) => {
     try {
+      if (!activeDevice) return;
+      
       const api = getWledApi();
-      await api.setSegmentColor(segmentId, r, g, b);
+      
+      const payload = {
+        seg: [{
+          id: segmentId,
+          col: [[r, g, b]]
+        }]
+      };
+      
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment color');
     } catch (error) {
       console.error('Error setting segment color:', error);
       toast.error('Failed to set segment color');
@@ -260,8 +275,34 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
 
   const setSegmentEffect = async (segmentId: number, effectId: number, speed?: number, intensity?: number) => {
     try {
+      if (!activeDevice) return;
+      
       const api = getWledApi();
-      await api.setSegmentEffect(segmentId, effectId, speed, intensity);
+      
+      const payload: any = {
+        seg: [{
+          id: segmentId,
+          fx: effectId
+        }]
+      };
+      
+      if (speed !== undefined) {
+        payload.seg[0].sx = speed;
+      }
+      
+      if (intensity !== undefined) {
+        payload.seg[0].ix = intensity;
+      }
+      
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment effect');
     } catch (error) {
       console.error('Error setting segment effect:', error);
       toast.error('Failed to set segment effect');
