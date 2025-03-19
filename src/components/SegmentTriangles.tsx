@@ -96,6 +96,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       bubbles: true 
     });
     window.dispatchEvent(event);
+    document.dispatchEvent(event);
   }, [segments]);
 
   // Listen for segmentsUpdated events from other instances
@@ -108,7 +109,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     };
 
     window.addEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
-    return () => window.removeEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
+    document.addEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
+    
+    return () => {
+      window.removeEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
+      document.removeEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
+    };
   }, [setSegments]);
 
   const calculateNextLedRange = (): { start: number; end: number } => {
@@ -216,7 +222,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     window.dispatchEvent(event);
     
     // Trigger a storage event manually to force cross-window updates
-    window.localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     // Recalculate LED ranges after a short delay
     setTimeout(() => {
@@ -886,9 +892,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       variant="ghost"
                       size="icon"
                       onClick={(e) => handleRemoveSegment(segment.id, e)}
-                      className="absolute -bottom-3 -right-3 h-6 w-6 bg-red-500/20 rounded-full opacity-100 hover:bg-red-500/40 z-30 transition-all"
+                      className="absolute -top-3 -left-3 h-5 w-5 bg-red-500/20 rounded-full opacity-100 hover:bg-red-500/40 z-30 transition-all"
                     >
-                      <Trash size={12} className="text-white" />
+                      <Trash size={10} className="text-white" />
                     </Button>
                   )}
                 </div>
