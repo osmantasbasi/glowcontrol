@@ -45,8 +45,12 @@ const SegmentEditor = () => {
       }
     };
     
+    // Listen on both document and window to ensure cross-window sync
+    document.addEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
     window.addEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
+    
     return () => {
+      document.removeEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
       window.removeEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
     };
   }, []);
@@ -54,6 +58,14 @@ const SegmentEditor = () => {
   // Update localStorage when segments change
   useEffect(() => {
     localStorage.setItem('wledSegments', JSON.stringify(segments));
+    
+    // Trigger storage event for cross-tab/window communication
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: segments,
+      bubbles: true 
+    });
+    document.dispatchEvent(event);
+    window.dispatchEvent(event);
   }, [segments]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {

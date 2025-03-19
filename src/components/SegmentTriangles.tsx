@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -194,7 +195,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     // Create a new array without the deleted segment
     const updatedSegments = segments.filter(segment => segment.id !== id);
     
-    // Update both local state and localStorage
+    // Immediately apply the removal both locally and to storage
     setSegments(updatedSegments);
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
@@ -206,12 +207,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     // Update multi-selection if applicable
     setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
     
-    // Broadcast the deletion to all instances
+    // Force a broadcast event with document-level propagation to ensure all windows receive it
     const event = new CustomEvent('segmentsUpdated', { 
       detail: updatedSegments,
       bubbles: true 
     });
+    document.dispatchEvent(event);
     window.dispatchEvent(event);
+    
+    // Trigger a storage event manually to force cross-window updates
+    window.localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     // Recalculate LED ranges after a short delay
     setTimeout(() => {
@@ -560,8 +565,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     if (!container) return;
     
     // Calculate exact percentage position for consistent placement across views
-    const x = ((e.clientX - container.left) / container.width) * 100;
-    const y = ((e.clientY - container.top) / container.height) * 100;
+    // Use exact math to ensure consistent proportions across windows
+    const x = Math.round(((e.clientX - container.left) / container.width) * 100);
+    const y = Math.round(((e.clientY - container.top) / container.height) * 100);
     
     let updatedSegments = [...segments];
     
@@ -581,8 +587,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           return {
             ...seg,
             position: {
-              x: Math.min(Math.max(0, seg.position.x + offsetX), 100),
-              y: Math.min(Math.max(0, seg.position.y + offsetY), 100)
+              x: Math.round(Math.min(Math.max(0, seg.position.x + offsetX), 100)),
+              y: Math.round(Math.min(Math.max(0, seg.position.y + offsetY), 100))
             }
           };
         }
@@ -602,13 +608,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
     
     setSegments(updatedSegments);
+    
+    // Force update localStorage to trigger storage events across windows
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
-    // Broadcast the change to all instances
+    // Broadcast the change with document-level propagation
     const event = new CustomEvent('segmentsUpdated', { 
       detail: updatedSegments,
       bubbles: true
     });
+    document.dispatchEvent(event);
     window.dispatchEvent(event);
     
     setDraggedSegment(null);
@@ -686,6 +695,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       detail: updatedSegments,
       bubbles: true 
     });
+    document.dispatchEvent(event);
     window.dispatchEvent(event);
   };
 
@@ -734,6 +744,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           detail: updatedSegments,
           bubbles: true 
         });
+        document.dispatchEvent(event);
         window.dispatchEvent(event);
         
         return;
@@ -773,6 +784,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           detail: updatedSegments,
           bubbles: true 
         });
+        document.dispatchEvent(event);
         window.dispatchEvent(event);
       }
     };
@@ -838,7 +850,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
                 onClick={(e) => handleSegmentClick(segment, e)}
                 className={cn(
-                  "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
+                  "absolute cursor-move transition-all duration-200 hover:z-10",
                   selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
                   isMultiSelectMode && selectedSegments.includes(segment.id) ? "ring-2 ring-purple-400 z-20" : ""
                 )}
@@ -846,10 +858,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   left: `${segment.position.x}%`,
                   top: `${segment.position.y}%`,
                   transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
-                  transformOrigin: "center center"
+                  transformOrigin: "center center",
+                  width: `${TRIANGLE_SIZE}px`,
+                  height: `${TRIANGLE_SIZE}px`
                 }}
               >
-                <div className="relative">
+                <div className="relative w-full h-full">
                   <Triangle 
                     size={TRIANGLE_SIZE} 
                     fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
@@ -886,17 +900,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   <div className="flex justify-between items-center">
                     <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
                     <div className="flex gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 rounded-full hover:bg-white/10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRotateStart(segment, e);
-                        }}
-                      >
-                        <RotateCw size={14} className="text-cyan-300" />
-                      </Button>
                       <div className="flex flex-col space-y-1">
                         <Button 
                           variant="ghost" 
@@ -923,6 +926,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               detail: updatedSegments,
                               bubbles: true
                             });
+                            document.dispatchEvent(event);
                             window.dispatchEvent(event);
                           }}
                         >
@@ -953,6 +957,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               detail: updatedSegments,
                               bubbles: true
                             });
+                            document.dispatchEvent(event);
                             window.dispatchEvent(event);
                           }}
                         >
@@ -985,6 +990,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               detail: updatedSegments,
                               bubbles: true
                             });
+                            document.dispatchEvent(event);
                             window.dispatchEvent(event);
                           }}
                         >
@@ -1015,6 +1021,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               detail: updatedSegments,
                               bubbles: true
                             });
+                            document.dispatchEvent(event);
                             window.dispatchEvent(event);
                           }}
                         >
@@ -1129,6 +1136,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               detail: updatedSegments,
                               bubbles: true
                             });
+                            document.dispatchEvent(event);
                             window.dispatchEvent(event);
                           }
                         }}
@@ -1174,7 +1182,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       
       {segments.length > 0 && showControls && (
         <div className="mt-4 text-xs text-white/50 italic">
-          <p>Tip: Click triangles to edit, drag to reposition, use the <RotateCw size={10} className="inline" /> button to rotate</p>
+          <p>Tip: Click triangles to edit, drag to reposition</p>
           <p className="mt-1">Use arrow keys to move selected triangle precisely</p>
           {isMultiSelectMode && (
             <p className="mt-1 text-purple-300">Multi-select mode: Click multiple triangles, then edit or move them together</p>
