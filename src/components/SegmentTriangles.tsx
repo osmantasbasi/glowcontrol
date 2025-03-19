@@ -238,7 +238,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       // Apply to all selected segments
       const updatedSegments = segments.map(seg => 
         selectedSegments.includes(seg.id) 
-          ? { ...seg, color: { r: color.r, g: color.b, b: color.g } } // Fix RGB order issue
+          ? { ...seg, color } 
           : seg
       );
       
@@ -266,17 +266,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     // Single segment selection
     if (!selectedSegment) return;
     
-    // Fix the RGB order issue
-    const correctedColor = { r: color.r, g: color.b, b: color.g };
-    
     const updatedSegments = segments.map(seg => 
       seg.id === selectedSegment.id 
-        ? { ...seg, color: correctedColor } 
+        ? { ...seg, color } 
         : seg
     );
     
     setSegments(updatedSegments);
-    setSelectedSegment({ ...selectedSegment, color: correctedColor });
+    setSelectedSegment({ ...selectedSegment, color });
     
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
@@ -815,30 +812,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   </div>
                   
                   {showControls && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRotateStart(segment, e);
-                        }}
-                        className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
-                      >
-                        <RotateCw size={12} className="text-white" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveSegment(segment.id, e);
-                        }}
-                        className="absolute -bottom-3 -right-3 h-6 w-6 bg-red-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-500/40 z-30 transition-all"
-                      >
-                        <Trash size={12} className="text-white" />
-                      </Button>
-                    </>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => handleRemoveSegment(segment.id, e)}
+                      className="absolute -bottom-3 -right-3 h-6 w-6 bg-red-500/20 rounded-full opacity-100 hover:bg-red-500/40 z-30 transition-all"
+                    >
+                      <Trash size={12} className="text-white" />
+                    </Button>
                   )}
                 </div>
               </div>
