@@ -60,6 +60,7 @@ class WLEDApi {
       
       const data = await response.json();
       
+      // Return full state including effects and palettes if available
       return {
         on: data.state?.on || false,
         brightness: data.state?.bri || 0,
@@ -123,24 +124,16 @@ class WLEDApi {
 
   async setSegmentColor(segmentId: number, r: number, g: number, b: number, slot: number = 0): Promise<void> {
     try {
+      // Initialize and structure the payload
       const payload: any = {
         seg: [{
           id: segmentId,
-          col: []
+          col: Array(slot + 1).fill([0, 0, 0]) // Create array with placeholders
         }]
       };
       
-      // Create all slots up to the one we're setting
-      for (let i = 0; i <= slot; i++) {
-        if (i === slot) {
-          payload.seg[0].col[i] = [r, g, b];
-        } else {
-          // For other slots, get existing colors or set to black
-          const existingState = await this.getState();
-          const segment = existingState.segments?.find(s => s.id === segmentId);
-          payload.seg[0].col[i] = segment?.col?.[i] || [0, 0, 0];
-        }
-      }
+      // Set the color at the specified slot
+      payload.seg[0].col[slot] = [r, g, b];
       
       const response = await fetch(`${this.baseUrl}/json/state`, {
         method: 'POST',

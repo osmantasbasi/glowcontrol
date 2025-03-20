@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power, X } from 'lucide-react';
@@ -60,8 +61,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const LEDS_PER_SEGMENT = 30; // Changed to 30 to match WLED standard
   const MAX_SEGMENTS = 16; // Maximum segments supported by WLED
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [activeColorSlot, setActiveColorSlot] = useState(1);
+  const [activeColorSlot, setActiveColorSlot] = useState(0);
 
+  // Updated to calculate correct sequential LED ranges
   const calculateNextLedRange = (): { start: number; end: number } => {
     if (segments.length === 0) {
       return { start: 0, end: LEDS_PER_SEGMENT - 1 };
@@ -80,6 +82,71 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       end: Math.min(end, maxLed) 
     };
   };
+
+  // Effect to sync UI segments with WLED device segments
+  useEffect(() => {
+    if (deviceState?.segments && deviceState.segments.length > 0) {
+      // Map WLED segments to our UI segment format
+      const wledSegments = deviceState.segments.map(seg => {
+        // Skip segments with stop=0 (deleted segments)
+        if (seg.stop === 0) return null;
+
+        // Convert WLED segment to our UI segment format
+        return {
+          id: seg.id || 0,
+          color: { 
+            r: seg.col?.[0]?.[0] || 255, 
+            g: seg.col?.[0]?.[1] || 0, 
+            b: seg.col?.[0]?.[2] || 0 
+          },
+          color2: seg.col?.[1] ? {
+            r: seg.col[1][0] || 0,
+            g: seg.col[1][1] || 0,
+            b: seg.col[1][2] || 0
+          } : undefined,
+          color3: seg.col?.[2] ? {
+            r: seg.col[2][0] || 0,
+            g: seg.col[2][1] || 0,
+            b: seg.col[2][2] || 0
+          } : undefined,
+          effect: seg.fx || 0,
+          position: {
+            // Create random positions for new segments from WLED
+            x: Math.random() * 70 + 10,
+            y: Math.random() * 70 + 10
+          },
+          rotation: 0,
+          leds: {
+            start: seg.start || 0,
+            end: (seg.stop || LEDS_PER_SEGMENT) - 1 // Convert WLED's exclusive stop to inclusive end
+          },
+          brightness: seg.bri || 255,
+          on: seg.on !== undefined ? seg.on : true,
+          speed: seg.sx || 128,
+          intensity: seg.ix || 128,
+          palette: seg.pal || 0
+        };
+      }).filter(Boolean) as Segment[];
+
+      // Update our local segments with positions from existing segments for continuity
+      const updatedSegments = wledSegments.map(newSeg => {
+        const existingSeg = segments.find(s => s.id === newSeg.id);
+        if (existingSeg) {
+          return {
+            ...newSeg,
+            position: existingSeg.position || newSeg.position,
+            rotation: existingSeg.rotation || 0
+          };
+        }
+        return newSeg;
+      });
+
+      // Only update if there are actual differences to avoid infinite loops
+      if (JSON.stringify(updatedSegments.map(s => s.id)) !== JSON.stringify(segments.map(s => s.id))) {
+        setSegments(updatedSegments);
+      }
+    }
+  }, [deviceState?.segments]);
 
   const handleAddSegment = () => {
     if (segments.length >= MAX_SEGMENTS) {
@@ -144,8 +211,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         },
         body: JSON.stringify(payload),
       }).catch(err => console.log("Error creating segment:", err));
+      
+      toast.success(`Added segment ${nextId + 1}`);
     } catch (error) {
       console.error("Error creating new segment:", error);
+      toast.error("Failed to create segment");
     }
   };
 
@@ -165,20 +235,38 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
-      }).catch(err => console.log("Error deleting segment:", err));
+      }).then(() => {
+        // Update local state after successful API call
+        setSegments(segments.filter(segment => segment.id !== id));
+        if (selectedSegment?.id === id) {
+          setSelectedSegment(null);
+        }
+        toast.success(`Removed segment ${id + 1}`);
+      }).catch(err => {
+        console.log("Error deleting segment:", err);
+        toast.error("Failed to delete segment");
+      });
     } catch (error) {
       console.error("Error deleting segment:", error);
-    }
-    
-    setSegments(segments.filter(segment => segment.id !== id));
-    if (selectedSegment?.id === id) {
-      setSelectedSegment(null);
+      toast.error("Failed to delete segment");
     }
   };
 
   const handleSegmentClick = (segment: Segment) => {
     setSelectedSegment(segment);
     setIsEditModalOpen(true);
+    
+    // Set active color slot to the first one by default
+    setActiveColorSlot(0);
+    
+    // Update inputs with segment values
+    if (segment) {
+      setLedStart((segment.leds?.start || 0).toString());
+      setLedEnd((segment.leds?.end || 30).toString());
+      setRotationValue(Math.round(segment.rotation || 0).toString());
+      setSpeedValue((segment.speed || 128).toString());
+      setIntensityValue((segment.intensity || 128).toString());
+    }
   };
 
   const handleContainerClick = (e: React.MouseEvent) => {
@@ -187,16 +275,17 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
   };
 
-  const handleColorChange = (color: { r: number; g: number; b: number }, slot: number = 1) => {
+  const handleColorChange = (color: { r: number; g: number; b: number }, slot: number = 0) => {
     if (!selectedSegment) return;
     
+    // Update local state with the new color
     setSegments(segments.map(seg => {
       if (seg.id === selectedSegment.id) {
-        if (slot === 1) {
+        if (slot === 0) {
           return { ...seg, color };
-        } else if (slot === 2) {
+        } else if (slot === 1) {
           return { ...seg, color2: color };
-        } else if (slot === 3) {
+        } else if (slot === 2) {
           return { ...seg, color3: color };
         }
         return seg;
@@ -204,7 +293,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       return seg;
     }));
     
-    if (slot === 1) {
+    // Update selected segment state
+    if (slot === 0) {
       setSelectedSegment({ ...selectedSegment, color });
       
       try {
@@ -215,10 +305,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       } catch (error) {
         console.log('Error handling color change:', error);
       }
-    } else if (slot === 2 && selectedSegment.color2) {
+    } else if (slot === 1 && selectedSegment.color2) {
       setSelectedSegment({ ...selectedSegment, color2: color });
       setSegmentColor(selectedSegment.id, color.r, color.g, color.b, 1);
-    } else if (slot === 3 && selectedSegment.color3) {
+    } else if (slot === 2 && selectedSegment.color3) {
       setSelectedSegment({ ...selectedSegment, color3: color });
       setSegmentColor(selectedSegment.id, color.r, color.g, color.b, 2);
     }
@@ -708,12 +798,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 <h4 className="text-xs font-medium text-white/70">Colors</h4>
                 <div className="flex gap-1">
                   <button 
-                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 1 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
+                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 0 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
                     style={{backgroundColor: `rgb(${selectedSegment.color?.r || 0}, ${selectedSegment.color?.g || 0}, ${selectedSegment.color?.b || 0})`}}
-                    onClick={() => setActiveColorSlot(1)}
+                    onClick={() => setActiveColorSlot(0)}
                   />
                   <button 
-                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 2 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
+                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 1 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
                     style={{backgroundColor: selectedSegment.color2 ? 
                       `rgb(${selectedSegment.color2.r || 0}, ${selectedSegment.color2.g || 0}, ${selectedSegment.color2.b || 0})` : 
                       'rgba(255, 255, 255, 0.1)'
@@ -730,11 +820,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                           color2: {r: 0, g: 127, b: 255}
                         });
                       }
-                      setActiveColorSlot(2);
+                      setActiveColorSlot(1);
                     }}
                   />
                   <button 
-                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 3 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
+                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 2 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
                     style={{backgroundColor: selectedSegment.color3 ? 
                       `rgb(${selectedSegment.color3.r || 0}, ${selectedSegment.color3.g || 0}, ${selectedSegment.color3.b || 0})` : 
                       'rgba(255, 255, 255, 0.1)'
@@ -751,14 +841,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                           color3: {r: 255, g: 0, b: 127}
                         });
                       }
-                      setActiveColorSlot(3);
+                      setActiveColorSlot(2);
                     }}
                   />
                 </div>
                 
                 <ColorPicker
-                  color={activeColorSlot === 1 ? (selectedSegment.color || {r: 255, g: 0, b: 0}) : 
-                        activeColorSlot === 2 ? (selectedSegment.color2 || {r: 0, g: 255, b: 0}) : 
+                  color={activeColorSlot === 0 ? (selectedSegment.color || {r: 255, g: 0, b: 0}) : 
+                        activeColorSlot === 1 ? (selectedSegment.color2 || {r: 0, g: 255, b: 0}) : 
                         (selectedSegment.color3 || {r: 0, g: 0, b: 255})}
                   onChange={(color) => handleColorChange(color, activeColorSlot)}
                   className="w-full"
@@ -845,7 +935,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     className="w-10 h-6 text-xs bg-black/20 border-white/10"
                   />
                   <Slider
-                    value={[selectedSegment.speed || 128]}
+                    value={[parseInt(speedValue) || 128]}
                     min={0}
                     max={255}
                     step={1}
@@ -873,7 +963,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     className="w-10 h-6 text-xs bg-black/20 border-white/10"
                   />
                   <Slider
-                    value={[selectedSegment.intensity || 128]}
+                    value={[parseInt(intensityValue) || 128]}
                     min={0}
                     max={255}
                     step={1}

@@ -20,10 +20,10 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
     }
   };
 
-  if (!deviceInfo?.effects) {
+  if (!deviceInfo?.effects || deviceInfo.effects.length === 0) {
     return (
       <div className={cn("p-4 text-center text-sm text-white/50", className)}>
-        No effects available. Please connect to a WLED device.
+        Loading effects or no effects available. Please connect to a WLED device.
       </div>
     );
   }
