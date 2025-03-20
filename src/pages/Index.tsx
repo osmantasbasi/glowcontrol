@@ -15,6 +15,7 @@ import SegmentTriangles from '@/components/SegmentTriangles';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
+import ControlSlider from '@/components/ControlSlider';
 
 interface Segment {
   id: number;
