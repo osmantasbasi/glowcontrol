@@ -31,8 +31,7 @@ const StripPreview: React.FC<StripPreviewProps> = ({ className }) => {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Check if device is off or not initialized
-    if (!deviceState?.on || !deviceState?.color) {
+    if (!deviceState?.on) {
       // Device is off - draw gray LEDs
       for (let i = 0; i < ledCount; i++) {
         const x = startX + i * (ledSize + ledSpacing);
@@ -47,8 +46,8 @@ const StripPreview: React.FC<StripPreviewProps> = ({ className }) => {
       return;
     }
 
-    // Get colors from device state - with null check
-    const { r = 255, g = 255, b = 255 } = deviceState.color || { r: 255, g: 255, b: 255 };
+    // Get colors from device state
+    const { r, g, b } = deviceState.color;
     
     // Create LED animation based on current effect
     for (let i = 0; i < ledCount; i++) {
@@ -94,7 +93,7 @@ const StripPreview: React.FC<StripPreviewProps> = ({ className }) => {
       }
       
       // Apply brightness from device state and effect
-      const adjustedBrightness = ((deviceState.brightness || 255) / 255) * brightness;
+      const adjustedBrightness = (deviceState.brightness / 255) * brightness;
       ledR = Math.round(ledR * adjustedBrightness);
       ledG = Math.round(ledG * adjustedBrightness);
       ledB = Math.round(ledB * adjustedBrightness);

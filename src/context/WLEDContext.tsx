@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { getWledApi, initializeWledApi, WLEDInfo, WLEDState as ApiWLEDState } from '../services/wledApi';
 import { toast } from 'sonner';
@@ -52,7 +51,6 @@ interface WLEDContextType {
   deviceState: WLEDState | null;
   deviceInfo: WLEDInfo | null;
   isLoading: boolean;
-  connectionError: string | null;
   addDevice: (name: string, ipAddress: string) => void;
   removeDevice: (id: string) => void;
   setActiveDevice: (id: string) => void;
@@ -80,32 +78,27 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const [deviceInfo, setDeviceInfo] = useState<WLEDInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
   const pollingRef = useRef<number | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const savedDevices = localStorage.getItem('wledDevices');
     if (savedDevices) {
-      try {
-        const parsedDevices = JSON.parse(savedDevices);
-        setDevices(parsedDevices);
-        
-        if (parsedDevices.length > 0) {
-          const activeDeviceId = localStorage.getItem('activeWledDevice');
-          if (activeDeviceId) {
-            const device = parsedDevices.find((d: WLEDDevice) => d.id === activeDeviceId);
-            if (device) {
-              handleSetActiveDevice(device.id);
-            } else if (parsedDevices.length > 0) {
-              handleSetActiveDevice(parsedDevices[0].id);
-            }
-          } else if (parsedDevices.length > 0) {
+      const parsedDevices = JSON.parse(savedDevices);
+      setDevices(parsedDevices);
+      
+      if (parsedDevices.length > 0) {
+        const activeDeviceId = localStorage.getItem('activeWledDevice');
+        if (activeDeviceId) {
+          const device = parsedDevices.find((d: WLEDDevice) => d.id === activeDeviceId);
+          if (device) {
+            handleSetActiveDevice(device.id);
+          } else {
             handleSetActiveDevice(parsedDevices[0].id);
           }
+        } else {
+          handleSetActiveDevice(parsedDevices[0].id);
         }
-      } catch (error) {
-        console.error("Error parsing saved devices:", error);
       }
     }
   }, []);
@@ -142,7 +135,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         
         const stateData: WLEDState = data.state;
         setDeviceState(stateData);
-        setConnectionError(null);
         
         if (data.state && data.state.seg) {
           const segData = data.state.seg as Segment[];
@@ -167,7 +159,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
               )
             );
             stopPolling();
-            setConnectionError('Lost connection to WLED device. Check if your device is on the same network as the WLED device.');
             toast.error('Lost connection to WLED device');
           }
         }
@@ -220,16 +211,9 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const handleSetActiveDevice = async (id: string) => {
     try {
       setIsLoading(true);
-      setConnectionError(null);
       
       const device = devices.find(d => d.id === id);
-      if (!device) {
-        console.log("Available devices:", devices);
-        console.log("Attempted to set active device with ID:", id);
-        setConnectionError("Device not found in list. Please add a WLED device first.");
-        setIsLoading(false);
-        return;
-      }
+      if (!device) throw new Error('Device not found');
       
       setActiveDevice(device);
       
@@ -247,42 +231,25 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         }
       });
       
-      try {
-        const [state, info] = await Promise.all([
-          api.getState(),
-          api.getInfo(),
-        ]);
-        
-        setDeviceState(state);
-        setDeviceInfo(info);
-        
-        if (state && state.seg) {
-          setSegments(state.seg);
-        }
-        
-        setDevices(prev => 
-          prev.map(d => 
-            d.id === id ? { ...d, connected: true } : d
-          )
-        );
-        
-        toast.success(`Connected to ${device.name}`);
-      } catch (error) {
-        console.error('Error fetching device state:', error);
-        
-        if (api.isConnectionFailed()) {
-          setConnectionError('Failed to connect to WLED device. Make sure your device is on the same network as the WLED device.');
-          setDevices(prev => 
-            prev.map(d => 
-              d.id === id ? { ...d, connected: false } : d
-            )
-          );
-          toast.error('Failed to connect to device. Check network settings.');
-          return;
-        }
+      const [state, info] = await Promise.all([
+        api.getState(),
+        api.getInfo(),
+      ]);
+      
+      setDeviceState(state);
+      setDeviceInfo(info);
+      
+      if (state && state.seg) {
+        setSegments(state.seg);
       }
       
-      startPolling();
+      setDevices(prev => 
+        prev.map(d => 
+          d.id === id ? { ...d, connected: true } : d
+        )
+      );
+      
+      toast.success(`Connected to ${device.name}`);
     } catch (error) {
       console.error('Error connecting to device:', error);
       toast.error('Failed to connect to device');
@@ -292,8 +259,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           d.id === id ? { ...d, connected: false } : d
         )
       );
-      
-      setConnectionError('Failed to connect to WLED device. Make sure your device is on the same network as the WLED device.');
     } finally {
       setIsLoading(false);
     }
@@ -312,7 +277,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('Error setting color:', error);
-      toast.error('Failed to set color. Check connection.');
+      toast.error('Failed to set color');
     }
   };
 
@@ -551,7 +516,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         deviceState,
         deviceInfo,
         isLoading,
-        connectionError,
         addDevice,
         removeDevice,
         setActiveDevice: handleSetActiveDevice,
