@@ -1,7 +1,16 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
+import { getWledApi, initializeWledApi, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
+
+interface WLEDState {
+  on?: boolean;
+  brightness?: number;
+  color?: { r: number; g: number; b: number };
+  effect?: number;
+  speed?: number;
+  intensity?: number;
+  seg?: Segment[];
+}
 
 interface WLEDDevice {
   id: string;
@@ -106,7 +115,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     if (activeDevice) {
       localStorage.setItem('activeWledDevice', activeDevice.id);
       
-      // Start polling for data
       startPolling();
       
       return () => {
@@ -118,10 +126,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const startPolling = () => {
     if (!activeDevice) return;
     
-    // Clear any existing polling
     stopPolling();
     
-    // Start new polling (every 800ms)
     pollingIntervalRef.current = setInterval(async () => {
       try {
         if (!activeDevice) return;
@@ -131,29 +137,23 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         
         const data = await response.json();
         
-        // Update state
         setDeviceState(data.state);
         
-        // Update segments if present
         if (data.state && data.state.seg) {
           setSegments(data.state.seg);
         }
         
-        // Set device info if it's not already set
         if (!deviceInfo && data.info) {
           setDeviceInfo(data.info);
         }
         
-        // Reset disconnection counter on successful fetch
         pollingRef.current = 0;
       } catch (error) {
         console.error('Error polling WLED device:', error);
         
-        // Increment disconnection counter
         if (pollingRef.current !== null) {
           pollingRef.current += 1;
           
-          // If we've failed too many times, mark device as disconnected
           if (pollingRef.current > 5) {
             setDevices(prev => 
               prev.map(d => 
@@ -442,7 +442,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       if (!response.ok) throw new Error('Failed to update segment');
       
-      // Update local state
       const updatedSegments = segments.map(seg => 
         seg.id === segmentId ? { ...seg, ...segmentData } : seg
       );

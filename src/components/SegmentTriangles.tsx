@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Palette, Power, SlidersHorizontal } from 'lucide-react';
@@ -396,12 +395,22 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           const segmentIndex = segments.findIndex(seg => seg.id === segId);
           if (segmentIndex !== -1) {
             const colorIndex = colorTabActive === 'color1' ? 0 : colorTabActive === 'color2' ? 1 : 2;
-            updateSegment(segmentIndex, {
-              col: [
-                ...(Array(colorIndex).fill([0, 0, 0])),
-                [color.r, color.g, color.b]
-              ] as [number, number, number][]
-            });
+            const colArray: [number, number, number][] = [];
+            
+            // Create the color array with the proper structure
+            if (colorIndex === 0) {
+              colArray.push([color.r, color.g, color.b]);
+            } else {
+              colArray.push([0, 0, 0]);
+              if (colorIndex === 1) {
+                colArray.push([color.r, color.g, color.b]);
+              } else {
+                colArray.push([0, 0, 0]);
+                colArray.push([color.r, color.g, color.b]);
+              }
+            }
+            
+            updateSegment(segmentIndex, { col: colArray });
           }
         });
         
@@ -411,36 +420,36 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       if (!selectedSegment) return;
       
       let updatedSegment;
-      let wledColorUpdate: [number, number, number][][] = [];
+      let wledColorUpdate: [number, number, number][] = [];
       
       if (colorTabActive === 'color1') {
         updatedSegment = { ...selectedSegment, color };
         wledColorUpdate = [
-          [color.r, color.g, color.b], 
-          selectedSegment.color2 ? [selectedSegment.color2.r, selectedSegment.color2.g, selectedSegment.color2.b] : [0, 0, 0],
-          selectedSegment.color3 ? [selectedSegment.color3.r, selectedSegment.color3.g, selectedSegment.color3.b] : [0, 0, 0]
-        ] as [number, number, number][][];
+          [color.r, color.g, color.b] as [number, number, number],
+          selectedSegment.color2 ? [selectedSegment.color2.r, selectedSegment.color2.g, selectedSegment.color2.b] as [number, number, number] : [0, 0, 0] as [number, number, number],
+          selectedSegment.color3 ? [selectedSegment.color3.r, selectedSegment.color3.g, selectedSegment.color3.b] as [number, number, number] : [0, 0, 0] as [number, number, number]
+        ];
       } else if (colorTabActive === 'color2') {
         updatedSegment = { ...selectedSegment, color2: color };
         wledColorUpdate = [
-          [selectedSegment.color.r, selectedSegment.color.g, selectedSegment.color.b],
-          [color.r, color.g, color.b],
-          selectedSegment.color3 ? [selectedSegment.color3.r, selectedSegment.color3.g, selectedSegment.color3.b] : [0, 0, 0]
-        ] as [number, number, number][][];
+          [selectedSegment.color.r, selectedSegment.color.g, selectedSegment.color.b] as [number, number, number],
+          [color.r, color.g, color.b] as [number, number, number],
+          selectedSegment.color3 ? [selectedSegment.color3.r, selectedSegment.color3.g, selectedSegment.color3.b] as [number, number, number] : [0, 0, 0] as [number, number, number]
+        ];
       } else if (colorTabActive === 'color3') {
         updatedSegment = { ...selectedSegment, color3: color };
         wledColorUpdate = [
-          [selectedSegment.color.r, selectedSegment.color.g, selectedSegment.color.b],
-          selectedSegment.color2 ? [selectedSegment.color2.r, selectedSegment.color2.g, selectedSegment.color2.b] : [0, 0, 0],
-          [color.r, color.g, color.b]
-        ] as [number, number, number][][];
+          [selectedSegment.color.r, selectedSegment.color.g, selectedSegment.color.b] as [number, number, number],
+          selectedSegment.color2 ? [selectedSegment.color2.r, selectedSegment.color2.g, selectedSegment.color2.b] as [number, number, number] : [0, 0, 0] as [number, number, number],
+          [color.r, color.g, color.b] as [number, number, number]
+        ];
       } else {
         updatedSegment = { ...selectedSegment, color };
         wledColorUpdate = [
-          [color.r, color.g, color.b],
-          [0, 0, 0],
-          [0, 0, 0]
-        ] as [number, number, number][][];
+          [color.r, color.g, color.b] as [number, number, number],
+          [0, 0, 0] as [number, number, number],
+          [0, 0, 0] as [number, number, number]
+        ];
       }
       
       const updatedSegments = segments.map(seg => 
@@ -465,7 +474,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       
       // Update WLED segment
       updateSegment(selectedSegment.id, {
-        col: wledColorUpdate[0] ? wledColorUpdate : [[color.r, color.g, color.b]]
+        col: wledColorUpdate
       });
     } catch (error) {
       console.error("Error handling color change:", error);
