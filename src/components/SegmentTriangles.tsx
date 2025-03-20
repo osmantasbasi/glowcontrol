@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power, X } from 'lucide-react';
@@ -588,301 +587,57 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           onClick={handleContainerClick}
         >
           {segments.map((segment) => (
-            <Popover key={segment.id}>
-              <PopoverTrigger asChild>
-                <div
-                  data-segment-id={segment.id}
-                  draggable={showControls}
-                  onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
-                  onClick={() => handleSegmentClick(segment)}
-                  className={cn(
-                    "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
-                    selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
-                    !segment.on && "opacity-50"
-                  )}
-                  style={{
-                    left: `${segment.position.x}%`,
-                    top: `${segment.position.y}%`,
-                    transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
-                    transformOrigin: "center center"
-                  }}
-                >
-                  <div className="relative">
-                    <Triangle 
-                      size={70} 
-                      fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
-                      color="rgba(0, 0, 0, 0.5)"
-                      strokeWidth={1}
-                      className={cn(
-                        "drop-shadow-lg transition-all",
-                        segment.effect === 1 && "animate-pulse",
-                        segment.effect === 2 && "animate-fade-in",
-                        segment.effect === 3 && "animate-spin",
-                        segment.effect === 4 && "animate-bounce",
-                      )}
-                    />
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
-                      {segments.indexOf(segment) + 1}
-                    </div>
-                    
-                    {showControls && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRotateStart(segment, e);
-                        }}
-                        className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
-                      >
-                        <RotateCw size={12} className="text-white" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </PopoverTrigger>
-              {showControls && (
-                <PopoverContent className="w-72 glass border-0 backdrop-blur-lg p-3">
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <Switch 
-                          checked={selectedSegment?.on || false} 
-                          onCheckedChange={handlePowerToggle}
-                          className="data-[state=checked]:bg-cyan-500" 
-                        />
-                        <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRotateStart(segment, e);
-                          }}
-                        >
-                          <RotateCw size={14} className="text-cyan-300" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleRemoveSegment(segment.id)}
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                        >
-                          <Trash size={14} className="text-red-400" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/50 text-center">Colors</h5>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                          <div className="text-xs text-white/50 text-center">Primary</div>
-                          <ColorPicker 
-                            color={segment.color}
-                            onChange={(color) => handleColorChange(color, 1)}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-white/50 text-center">Secondary</div>
-                          <ColorPicker 
-                            color={segment.color2 || { r: 0, g: 255, b: 0 }}
-                            onChange={(color) => handleColorChange(color, 2)}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-white/50 text-center">Tertiary</div>
-                          <ColorPicker 
-                            color={segment.color3 || { r: 0, g: 0, b: 255 }}
-                            onChange={(color) => handleColorChange(color, 3)}
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {deviceInfo?.effects && (
-                      <div className="space-y-2">
-                        <h5 className="text-xs text-white/70">Effect</h5>
-                        <select
-                          value={segment.effect}
-                          onChange={(e) => handleEffectChange(parseInt(e.target.value))}
-                          className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                        >
-                          {deviceInfo.effects.map((effect, index) => (
-                            <option key={index} value={index}>
-                              {effect}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    
-                    {deviceInfo?.palettes && (
-                      <div className="space-y-2">
-                        <h5 className="text-xs text-white/70">Palette</h5>
-                        <select
-                          value={segment.palette}
-                          onChange={(e) => handlePaletteChange(parseInt(e.target.value))}
-                          className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                        >
-                          {deviceInfo.palettes.map((palette, index) => (
-                            <option key={index} value={index}>
-                              {palette}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/70">Effect Speed</h5>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          type="text"
-                          value={speedValue}
-                          onChange={(e) => handleSpeedInputChange(e.target.value)}
-                          className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                          placeholder="128"
-                        />
-                        <Slider
-                          value={[segment.speed]}
-                          min={0}
-                          max={255}
-                          step={1}
-                          onValueChange={(values) => {
-                            if (values.length > 0) {
-                              const newSpeed = values[0];
-                              handleSpeedInputChange(newSpeed.toString());
-                            }
-                          }}
-                          className="flex-1"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/70">Effect Intensity</h5>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          type="text"
-                          value={intensityValue}
-                          onChange={(e) => handleIntensityInputChange(e.target.value)}
-                          className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                          placeholder="128"
-                        />
-                        <Slider
-                          value={[segment.intensity]}
-                          min={0}
-                          max={255}
-                          step={1}
-                          onValueChange={(values) => {
-                            if (values.length > 0) {
-                              const newIntensity = values[0];
-                              handleIntensityInputChange(newIntensity.toString());
-                            }
-                          }}
-                          className="flex-1"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/70">LED Range</h5>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          type="text"
-                          value={ledStart}
-                          onChange={(e) => handleLEDInputChange('start', e.target.value)}
-                          className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                          placeholder="0"
-                        />
-                        <span className="text-xs text-white/50">to</span>
-                        <Input
-                          type="text"
-                          value={ledEnd}
-                          onChange={(e) => handleLEDInputChange('end', e.target.value)}
-                          className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                          placeholder="30"
-                        />
-                      </div>
-                      <Slider
-                        value={[segment.leds.start, segment.leds.end]}
-                        min={0}
-                        max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
-                        step={1}
-                        onValueChange={handleLEDRangeChange}
-                        className="mt-2"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/70">Rotation</h5>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          type="text"
-                          value={rotationValue}
-                          onChange={(e) => handleRotationInputChange(e.target.value)}
-                          className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                          placeholder="0"
-                        />
-                        <span className="text-xs">degrees</span>
-                        <Slider
-                          value={[segment.rotation]}
-                          min={0}
-                          max={359}
-                          step={1}
-                          onValueChange={(values) => {
-                            if (values.length > 0) {
-                              const newRotation = values[0];
-                              setSegments(segments.map(seg => 
-                                seg.id === segment.id 
-                                  ? { ...seg, rotation: newRotation } 
-                                  : seg
-                              ));
-                              if (selectedSegment?.id === segment.id) {
-                                setSelectedSegment({
-                                  ...selectedSegment,
-                                  rotation: newRotation
-                                });
-                                setRotationValue(Math.round(newRotation).toString());
-                              }
-                            }
-                          }}
-                          className="flex-1"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/70">Brightness</h5>
-                      <Slider
-                        value={[segment.brightness]}
-                        min={1}
-                        max={255}
-                        step={1}
-                        onValueChange={(values) => {
-                          if (values.length > 0) {
-                            handleBrightnessChange(values[0]);
-                          }
-                        }}
-                        className="mt-2"
-                      />
-                      <div className="flex justify-between text-xs text-white/50">
-                        <span>Min</span>
-                        <span>{segment.brightness}</span>
-                        <span>Max</span>
-                      </div>
-                    </div>
-                  </div>
-                </PopoverContent>
+            <div
+              key={segment.id}
+              data-segment-id={segment.id}
+              draggable={showControls}
+              onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
+              onClick={() => handleSegmentClick(segment)}
+              className={cn(
+                "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
+                selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
+                !segment.on && "opacity-50"
               )}
-            </Popover>
+              style={{
+                left: `${segment.position.x}%`,
+                top: `${segment.position.y}%`,
+                transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
+                transformOrigin: "center center"
+              }}
+            >
+              <div className="relative">
+                <Triangle 
+                  size={70} 
+                  fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
+                  color="rgba(0, 0, 0, 0.5)"
+                  strokeWidth={1}
+                  className={cn(
+                    "drop-shadow-lg transition-all",
+                    segment.effect === 1 && "animate-pulse",
+                    segment.effect === 2 && "animate-fade-in",
+                    segment.effect === 3 && "animate-spin",
+                    segment.effect === 4 && "animate-bounce",
+                  )}
+                />
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
+                  {segments.indexOf(segment) + 1}
+                </div>
+                
+                {showControls && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRotateStart(segment, e);
+                    }}
+                    className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
+                  >
+                    <RotateCw size={12} className="text-white" />
+                  </Button>
+                )}
+              </div>
+            </div>
           ))}
           
           {segments.length === 0 && (
@@ -914,6 +669,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         ? { ...seg, on: !seg.on } 
                         : seg
                     ));
+                    setSelectedSegment({
+                      ...selectedSegment,
+                      on: !selectedSegment.on
+                    });
                   }}
                   className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${
                     selectedSegment.on 
@@ -940,14 +699,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 <div className="flex items-center gap-4 mb-6">
                   <div className="flex-1">
                     <ColorPicker
-                      color={selectedSegment.color}
-                      onChange={(color) => {
-                        setSegments(segments.map(seg => 
-                          seg.id === selectedSegment.id 
-                            ? { ...seg, color } 
-                            : seg
-                        ));
-                      }}
+                      color={activeColorSlot === 1 ? selectedSegment.color : 
+                            activeColorSlot === 2 ? (selectedSegment.color2 || {r: 0, g: 255, b: 0}) : 
+                            (selectedSegment.color3 || {r: 0, g: 0, b: 255})}
+                      onChange={(color) => handleColorChange(color, activeColorSlot)}
                       className="w-full"
                     />
                   </div>
@@ -971,6 +726,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               ? { ...seg, color2: {r: 0, g: 127, b: 255} } 
                               : seg
                           ));
+                          setSelectedSegment({
+                            ...selectedSegment,
+                            color2: {r: 0, g: 127, b: 255}
+                          });
                         }
                         setActiveColorSlot(2);
                       }}
@@ -988,6 +747,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                               ? { ...seg, color3: {r: 255, g: 0, b: 127} } 
                               : seg
                           ));
+                          setSelectedSegment({
+                            ...selectedSegment,
+                            color3: {r: 255, g: 0, b: 127}
+                          });
                         }
                         setActiveColorSlot(3);
                       }}
@@ -1002,11 +765,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       value={selectedSegment.effect || 0}
                       onChange={(e) => {
                         const effectId = parseInt(e.target.value);
-                        setSegments(segments.map(seg => 
-                          seg.id === selectedSegment.id 
-                            ? { ...seg, effect: effectId } 
-                            : seg
-                        ));
+                        handleEffectChange(effectId);
                       }}
                       className="w-full p-2 rounded bg-black/20 text-sm border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
                     >
@@ -1026,11 +785,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       value={selectedSegment.palette || 0}
                       onChange={(e) => {
                         const paletteId = parseInt(e.target.value);
-                        setSegments(segments.map(seg => 
-                          seg.id === selectedSegment.id 
-                            ? { ...seg, palette: paletteId } 
-                            : seg
-                        ));
+                        handlePaletteChange(paletteId);
                       }}
                       className="w-full p-2 rounded bg-black/20 text-sm border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
                     >
@@ -1051,21 +806,22 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   <label className="text-sm text-white/70">Brightness</label>
                   <span className="text-sm text-white/70">{selectedSegment.brightness}</span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="255"
-                  value={selectedSegment.brightness}
-                  onChange={(e) => {
-                    const brightness = parseInt(e.target.value);
-                    setSegments(segments.map(seg => 
-                      seg.id === selectedSegment.id 
-                        ? { ...seg, brightness } 
-                        : seg
-                    ));
+                <Slider
+                  value={[selectedSegment.brightness]}
+                  min={1}
+                  max={255}
+                  step={1}
+                  onValueChange={(values) => {
+                    if (values.length > 0) {
+                      handleBrightnessChange(values[0]);
+                    }
                   }}
-                  className="w-full"
+                  className="mb-2"
                 />
+                <div className="flex justify-between text-xs text-white/50">
+                  <span>Min</span>
+                  <span>Max</span>
+                </div>
               </div>
               
               <div className="mb-6">
@@ -1073,21 +829,28 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   <label className="text-sm text-white/70">Effect Speed</label>
                   <span className="text-sm text-white/70">{selectedSegment.speed || 128}</span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="255"
-                  value={selectedSegment.speed || 128}
-                  onChange={(e) => {
-                    const speed = parseInt(e.target.value);
-                    setSegments(segments.map(seg => 
-                      seg.id === selectedSegment.id 
-                        ? { ...seg, speed } 
-                        : seg
-                    ));
-                  }}
-                  className="w-full"
-                />
+                <div className="flex items-center space-x-2 mb-1">
+                  <Input
+                    type="text"
+                    value={speedValue}
+                    onChange={(e) => handleSpeedInputChange(e.target.value)}
+                    className="w-16 h-8 text-sm bg-black/20 border-white/10"
+                    placeholder="128"
+                  />
+                  <Slider
+                    value={[selectedSegment.speed || 128]}
+                    min={0}
+                    max={255}
+                    step={1}
+                    onValueChange={(values) => {
+                      if (values.length > 0) {
+                        const newSpeed = values[0];
+                        handleSpeedInputChange(newSpeed.toString());
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                </div>
               </div>
               
               <div className="mb-6">
@@ -1095,71 +858,124 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   <label className="text-sm text-white/70">Effect Intensity</label>
                   <span className="text-sm text-white/70">{selectedSegment.intensity || 128}</span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="255"
-                  value={selectedSegment.intensity || 128}
-                  onChange={(e) => {
-                    const intensity = parseInt(e.target.value);
-                    setSegments(segments.map(seg => 
-                      seg.id === selectedSegment.id 
-                        ? { ...seg, intensity } 
-                        : seg
-                    ));
-                  }}
-                  className="w-full"
-                />
+                <div className="flex items-center space-x-2 mb-1">
+                  <Input
+                    type="text"
+                    value={intensityValue}
+                    onChange={(e) => handleIntensityInputChange(e.target.value)}
+                    className="w-16 h-8 text-sm bg-black/20 border-white/10"
+                    placeholder="128"
+                  />
+                  <Slider
+                    value={[selectedSegment.intensity || 128]}
+                    min={0}
+                    max={255}
+                    step={1}
+                    onValueChange={(values) => {
+                      if (values.length > 0) {
+                        const newIntensity = values[0];
+                        handleIntensityInputChange(newIntensity.toString());
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                </div>
               </div>
               
               <div className="mb-6">
                 <h4 className="text-sm font-medium text-white/70 mb-3">LED Range</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 mb-2">
                   <div>
                     <label className="text-sm text-white/70 mb-1 block">Start LED</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={selectedSegment.leds.start}
-                      onChange={(e) => {
-                        const start = parseInt(e.target.value);
-                        setSegments(segments.map(seg => 
-                          seg.id === selectedSegment.id 
-                            ? { ...seg, leds: { ...seg.leds, start } } 
-                            : seg
-                        ));
-                      }}
-                      className="w-full p-2 rounded bg-black/20 text-sm border border-white/10"
+                    <Input
+                      type="text"
+                      value={ledStart}
+                      onChange={(e) => handleLEDInputChange('start', e.target.value)}
+                      className="w-full bg-black/20 border-white/10"
+                      placeholder="0"
                     />
                   </div>
                   <div>
                     <label className="text-sm text-white/70 mb-1 block">End LED</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={selectedSegment.leds.end}
-                      onChange={(e) => {
-                        const end = parseInt(e.target.value);
-                        setSegments(segments.map(seg => 
-                          seg.id === selectedSegment.id 
-                            ? { ...seg, leds: { ...seg.leds, end } } 
-                            : seg
-                        ));
-                      }}
-                      className="w-full p-2 rounded bg-black/20 text-sm border border-white/10"
+                    <Input
+                      type="text"
+                      value={ledEnd}
+                      onChange={(e) => handleLEDInputChange('end', e.target.value)}
+                      className="w-full bg-black/20 border-white/10"
+                      placeholder="30"
                     />
                   </div>
                 </div>
+                <Slider
+                  value={[selectedSegment.leds.start, selectedSegment.leds.end]}
+                  min={0}
+                  max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                  step={1}
+                  onValueChange={handleLEDRangeChange}
+                  className="mt-2"
+                />
               </div>
+              
+              <div className="mb-6">
+                <h4 className="text-sm font-medium text-white/70 mb-3">Rotation</h4>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="text"
+                    value={rotationValue}
+                    onChange={(e) => handleRotationInputChange(e.target.value)}
+                    className="w-16 h-8 text-sm bg-black/20 border-white/10"
+                    placeholder="0"
+                  />
+                  <span className="text-xs">degrees</span>
+                  <Slider
+                    value={[selectedSegment.rotation]}
+                    min={0}
+                    max={359}
+                    step={1}
+                    onValueChange={(values) => {
+                      if (values.length > 0) {
+                        const newRotation = values[0];
+                        setSegments(segments.map(seg => 
+                          seg.id === selectedSegment.id 
+                            ? { ...seg, rotation: newRotation } 
+                            : seg
+                        ));
+                        setSelectedSegment({
+                          ...selectedSegment,
+                          rotation: newRotation
+                        });
+                        setRotationValue(Math.round(newRotation).toString());
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+              
+              {showControls && (
+                <div className="pt-4 border-t border-white/10">
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      handleRemoveSegment(selectedSegment.id);
+                      setIsEditModalOpen(false);
+                    }}
+                    className="w-full"
+                  >
+                    <Trash size={16} className="mr-2" />
+                    Delete segment
+                  </Button>
+                </div>
+              )}
             </div>
             
             <div className="p-4 border-t border-white/10 flex justify-end">
-              <button
+              <Button
                 onClick={() => setIsEditModalOpen(false)}
                 className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-500 transition-colors"
               >
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         </div>
