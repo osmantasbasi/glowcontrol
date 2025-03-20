@@ -63,6 +63,7 @@ interface WLEDContextType {
   getSegments: () => Segment[];
   updateSegment: (segmentId: number, segmentData: Partial<Segment>) => Promise<void>;
   toggleAllSegments: (on?: boolean) => Promise<void>;
+  updateWLEDSegments: (segmentData: Partial<Segment>[]) => Promise<void>;
 }
 
 const WLEDContext = createContext<WLEDContextType | undefined>(undefined);
@@ -363,38 +364,19 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       if (!activeDevice) return;
       
       const currentSegments = getSegments();
+      if (currentSegments.length === 0) {
+        toast.error('No segments to toggle');
+        return;
+      }
+      
       const newState = on === undefined ? !(currentSegments[0]?.on ?? true) : on;
       
-      const payload = {
-        seg: currentSegments.map(seg => ({
-          id: seg.id,
-          on: newState
-        }))
-      };
-      
-      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      if (!response.ok) throw new Error('Failed to toggle segments');
-      
-      const updatedSegments = currentSegments.map(seg => ({
-        ...seg,
+      const segmentsToUpdate = currentSegments.map(seg => ({
+        id: seg.id,
         on: newState
       }));
       
-      setSegments(updatedSegments);
-      
-      if (deviceState) {
-        setDeviceState({
-          ...deviceState,
-          seg: updatedSegments
-        });
-      }
+      await updateWLEDSegments(segmentsToUpdate);
       
       toast.success(`All segments turned ${newState ? 'on' : 'off'}`);
       
@@ -508,6 +490,57 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
+  const updateWLEDSegments = async (segmentDataArray: Partial<Segment>[]) => {
+    try {
+      if (!activeDevice) return;
+      
+      const payload = {
+        seg: segmentDataArray
+      };
+      
+      console.log('Updating segments with payload:', payload);
+      
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to update segments');
+      
+      // Get the current segments to update them in state
+      const currentSegments = [...segments];
+      
+      // Update the local segments state with the changes
+      const updatedSegments = currentSegments.map(seg => {
+        const updatedData = segmentDataArray.find(update => update.id === seg.id);
+        if (updatedData) {
+          // Special case: if stop is 0, it means delete this segment
+          if (updatedData.stop === 0) {
+            return null; // Mark for deletion
+          }
+          return { ...seg, ...updatedData };
+        }
+        return seg;
+      }).filter(Boolean) as Segment[]; // Remove null entries (deleted segments)
+      
+      setSegments(updatedSegments);
+      
+      if (deviceState) {
+        setDeviceState({
+          ...deviceState,
+          seg: updatedSegments
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error updating segments:', error);
+      toast.error('Failed to update segments');
+    }
+  };
+
   return (
     <WLEDContext.Provider
       value={{
@@ -528,6 +561,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         getSegments,
         updateSegment,
         toggleAllSegments,
+        updateWLEDSegments,
       }}
     >
       {children}

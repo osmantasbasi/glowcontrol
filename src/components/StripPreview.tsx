@@ -30,8 +30,12 @@ const StripPreview: React.FC<StripPreviewProps> = ({ className }) => {
 
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Check if we have segments
+    const segments = deviceState?.seg || [];
+    const hasSegments = segments.length > 0;
 
-    if (!deviceState?.on) {
+    if (!deviceState?.on && !hasSegments) {
       // Device is off - draw gray LEDs
       for (let i = 0; i < ledCount; i++) {
         const x = startX + i * (ledSize + ledSpacing);
@@ -46,24 +50,64 @@ const StripPreview: React.FC<StripPreviewProps> = ({ className }) => {
       return;
     }
 
-    // Get colors from device state
-    const { r, g, b } = deviceState.color;
+    // Get default color from device state
+    const defaultColor = deviceState?.color || { r: 255, g: 255, b: 255 };
     
-    // Create LED animation based on current effect
+    // Create LED animation based on current effect and segments
     for (let i = 0; i < ledCount; i++) {
       const x = startX + i * (ledSize + ledSpacing);
       
+      // Find the segment this LED belongs to
+      let segmentOn = true;
+      let ledColor = { r: defaultColor.r, g: defaultColor.g, b: defaultColor.b };
+      let segmentEffect = deviceState?.effect || 0;
+      
+      if (hasSegments) {
+        // Find which segment this LED belongs to (if any)
+        const matchingSegment = segments.find(seg => {
+          const start = seg.start || 0;
+          const stop = seg.stop || ledCount;
+          return i >= start && i < stop;
+        });
+        
+        if (matchingSegment) {
+          segmentOn = matchingSegment.on !== false;
+          
+          // Get the color from the segment
+          if (matchingSegment.col && matchingSegment.col.length > 0) {
+            const segColor = matchingSegment.col[0];
+            if (segColor && segColor.length >= 3) {
+              ledColor = { r: segColor[0], g: segColor[1], b: segColor[2] };
+            }
+          }
+          
+          // Get the effect from the segment
+          if (typeof matchingSegment.fx === 'number') {
+            segmentEffect = matchingSegment.fx;
+          }
+        }
+      }
+      
+      // If segment is off, draw gray LED
+      if (!segmentOn) {
+        ctx.beginPath();
+        ctx.roundRect(x, 10, ledSize, ledSize, 4);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fill();
+        continue;
+      }
+      
       // Modify colors based on current effect and position
-      let ledR = r, ledG = g, ledB = b;
+      let { r: ledR, g: ledG, b: ledB } = ledColor;
       let brightness = 1;
       
       // Very simple effect simulation
-      if (deviceState.effect > 0) {
+      if (segmentEffect > 0) {
         // This is a very simplified effect simulation - in reality, each effect would have its own algorithm
         const time = Date.now() / 1000;
         const position = i / ledCount;
         
-        switch (deviceState.effect % 8) {
+        switch (segmentEffect % 8) {
           case 1: // "Blink" effect
             brightness = Math.sin(time * 2) > 0 ? 1 : 0.1;
             break;
@@ -93,7 +137,7 @@ const StripPreview: React.FC<StripPreviewProps> = ({ className }) => {
       }
       
       // Apply brightness from device state and effect
-      const adjustedBrightness = (deviceState.brightness / 255) * brightness;
+      const adjustedBrightness = (deviceState?.brightness || 255) / 255 * brightness;
       ledR = Math.round(ledR * adjustedBrightness);
       ledG = Math.round(ledG * adjustedBrightness);
       ledB = Math.round(ledB * adjustedBrightness);

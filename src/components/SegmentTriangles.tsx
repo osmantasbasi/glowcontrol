@@ -79,7 +79,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   setSelectedSegment,
   editMode = 'segment'
 }) => {
-  const { deviceInfo, deviceState, setColor, setEffect, updateSegment, getSegments } = useWLED();
+  const { deviceInfo, deviceState, setColor, setEffect, updateSegment, getSegments, updateWLEDSegments } = useWLED();
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
@@ -214,9 +214,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const ledRange = calculateNextLedRange();
     const segmentId = segments.length;
     
+    const newColor = { r: 255, g: 0, b: 0 };
     const newSegment: Segment = {
       id: segmentId,
-      color: { r: 255, g: 0, b: 0 },
+      color: newColor,
       color2: { r: 0, g: 255, b: 0 },
       color3: { r: 0, g: 0, b: 255 },
       effect: 0,
@@ -233,6 +234,22 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const updatedSegments = [...segments, newSegment];
     setSegments(updatedSegments);
     
+    if (updateWLEDSegments) {
+      try {
+        const newWLEDSegment = {
+          id: segmentId,
+          start: Math.floor(Math.random() * 10),
+          stop: Math.floor(Math.random() * 20) + 10,
+          len: 10,
+          on: true,
+          col: [[newColor.r, newColor.g, newColor.b]]
+        };
+        updateWLEDSegments([newWLEDSegment]);
+      } catch (err) {
+        console.error('Error adding segment in WLED:', err);
+      }
+    }
+    
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
     const event = new CustomEvent('segmentsUpdated', { 
@@ -241,21 +258,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     });
     window.dispatchEvent(event);
     document.dispatchEvent(event);
-    
-    // Add the segment to the actual WLED device
-    updateSegment(segmentId, {
-      id: segmentId,
-      start: ledRange.start,
-      stop: ledRange.end,
-      len: ledRange.end - ledRange.start + 1,
-      on: true,
-      col: [[255, 0, 0], [0, 255, 0], [0, 0, 255]],
-      fx: 0,
-      sx: 128,
-      ix: 128,
-      bri: 255,
-      pal: 0
-    });
     
     toast.success("New segment added");
   };
@@ -307,6 +309,38 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
     
     toast.success("Segment removed");
+  };
+
+  const deleteSegment = (id: number) => {
+    const updatedSegments = segments.filter(seg => seg.id !== id);
+    setSegments(updatedSegments);
+    
+    if (selectedSegment && selectedSegment.id === id) {
+      setSelectedSegment(null);
+    }
+    
+    // Dispatch event to update other components
+    const event = new CustomEvent('segmentsUpdated', {
+      detail: updatedSegments,
+      bubbles: true
+    });
+    document.dispatchEvent(event);
+    window.dispatchEvent(event);
+    
+    // Update WLED JSON segment data
+    if (updateWLEDSegments) {
+      try {
+        // Delete the segment in WLED by setting stop=0
+        updateWLEDSegments([{
+          id,
+          stop: 0
+        }]);
+      } catch (err) {
+        console.error('Error deleting segment in WLED:', err);
+      }
+    }
+    
+    toast.success('Segment deleted');
   };
 
   const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
@@ -1683,3 +1717,4 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
+
