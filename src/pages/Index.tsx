@@ -257,89 +257,50 @@ const SegmentEditor = () => {
                 <h3 className="text-sm font-medium text-white/70 mb-3">Effect Settings</h3>
                 
                 <div className="space-y-3">
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-xs text-white/70">Speed</span>
-                      <span className="text-xs text-white/50">{selectedSegment.effectSpeed ?? 128}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <SlidersHorizontal size={14} className="text-cyan-300" />
-                      <Slider 
-                        value={[selectedSegment.effectSpeed ?? 128]}
-                        min={0}
-                        max={255}
-                        step={1}
-                        onValueChange={(values) => {
-                          if (values.length > 0) {
-                            const newSpeed = values[0];
-                            const updatedSegments = segments.map(seg => 
-                              seg.id === selectedSegment.id 
-                                ? { ...seg, effectSpeed: newSpeed } 
-                                : seg
-                            );
-                            setSegments(updatedSegments);
-                            setSelectedSegment({...selectedSegment, effectSpeed: newSpeed});
-                            setEffect(selectedSegment.effect, newSpeed, selectedSegment.effectIntensity);
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
+                  <ControlSlider 
+                    type="speed"
+                    value={selectedSegment.effectSpeed ?? 128}
+                    onChange={(newSpeed) => {
+                      const updatedSegments = segments.map(seg => 
+                        seg.id === selectedSegment.id 
+                          ? { ...seg, effectSpeed: newSpeed } 
+                          : seg
+                      );
+                      setSegments(updatedSegments);
+                      setSelectedSegment({...selectedSegment, effectSpeed: newSpeed});
+                      setEffect(selectedSegment.effect, newSpeed, selectedSegment.effectIntensity);
+                    }}
+                  />
                   
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-xs text-white/70">Intensity</span>
-                      <span className="text-xs text-white/50">{selectedSegment.effectIntensity ?? 128}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <SlidersHorizontal size={14} className="text-cyan-300" />
-                      <Slider 
-                        value={[selectedSegment.effectIntensity ?? 128]}
-                        min={0}
-                        max={255}
-                        step={1}
-                        onValueChange={(values) => {
-                          if (values.length > 0) {
-                            const newIntensity = values[0];
-                            const updatedSegments = segments.map(seg => 
-                              seg.id === selectedSegment.id 
-                                ? { ...seg, effectIntensity: newIntensity } 
-                                : seg
-                            );
-                            setSegments(updatedSegments);
-                            setSelectedSegment({...selectedSegment, effectIntensity: newIntensity});
-                            setEffect(selectedSegment.effect, selectedSegment.effectSpeed, newIntensity);
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
+                  <ControlSlider 
+                    type="intensity"
+                    value={selectedSegment.effectIntensity ?? 128}
+                    onChange={(newIntensity) => {
+                      const updatedSegments = segments.map(seg => 
+                        seg.id === selectedSegment.id 
+                          ? { ...seg, effectIntensity: newIntensity } 
+                          : seg
+                      );
+                      setSegments(updatedSegments);
+                      setSelectedSegment({...selectedSegment, effectIntensity: newIntensity});
+                      setEffect(selectedSegment.effect, selectedSegment.effectSpeed, newIntensity);
+                    }}
+                  />
                   
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-xs text-white/70">Brightness</span>
-                      <span className="text-xs text-white/50">{selectedSegment.brightness ?? 255}</span>
-                    </div>
-                    <Slider 
-                      value={[selectedSegment.brightness ?? 255]}
-                      min={0}
-                      max={255}
-                      step={1}
-                      onValueChange={(values) => {
-                        if (values.length > 0) {
-                          const newBrightness = values[0];
-                          const updatedSegments = segments.map(seg => 
-                            seg.id === selectedSegment.id 
-                              ? { ...seg, brightness: newBrightness } 
-                              : seg
-                          );
-                          setSegments(updatedSegments);
-                          setSelectedSegment({...selectedSegment, brightness: newBrightness});
-                          setBrightness(newBrightness);
-                        }
-                      }}
-                    />
-                  </div>
+                  <ControlSlider 
+                    type="brightness"
+                    value={selectedSegment.brightness ?? 255}
+                    onChange={(newBrightness) => {
+                      const updatedSegments = segments.map(seg => 
+                        seg.id === selectedSegment.id 
+                          ? { ...seg, brightness: newBrightness } 
+                          : seg
+                      );
+                      setSegments(updatedSegments);
+                      setSelectedSegment({...selectedSegment, brightness: newBrightness});
+                      setBrightness(newBrightness);
+                    }}
+                  />
                 </div>
               </div>
               
