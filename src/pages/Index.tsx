@@ -1,4 +1,3 @@
-
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
-import { Layers, Triangle, Palette, Power, SlidersHorizontal } from 'lucide-react';
+import { Layers, Triangle, Palette, Power, SlidersHorizontal, Settings, Cog } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 import { cn } from '@/lib/utils';
 
@@ -35,7 +34,6 @@ const SegmentEditor = () => {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
-  // Synchronize segments with localStorage when component mounts
   useEffect(() => {
     const savedSegments = localStorage.getItem('wledSegments');
     if (savedSegments) {
@@ -46,7 +44,6 @@ const SegmentEditor = () => {
       }
     }
     
-    // Listen for segment updates from other components
     const handleSegmentsUpdated = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail && Array.isArray(customEvent.detail)) {
@@ -54,7 +51,6 @@ const SegmentEditor = () => {
       }
     };
     
-    // Listen on both document and window to ensure cross-window sync
     document.addEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
     window.addEventListener('segmentsUpdated', handleSegmentsUpdated as EventListener);
     
@@ -64,11 +60,9 @@ const SegmentEditor = () => {
     };
   }, []);
 
-  // Update localStorage when segments change
   useEffect(() => {
     localStorage.setItem('wledSegments', JSON.stringify(segments));
     
-    // Trigger storage event for cross-tab/window communication
     const event = new CustomEvent('segmentsUpdated', { 
       detail: segments,
       bubbles: true 
@@ -117,7 +111,6 @@ const SegmentEditor = () => {
     }
   };
 
-  // Handle clicking outside triangles to deselect
   const handleBackgroundClick = () => {
     setSelectedSegment(null);
   };
@@ -142,6 +135,10 @@ const SegmentEditor = () => {
             <TabsTrigger value="palette" className="data-[state=active]:bg-white/10">
               <Palette size={14} className="mr-1" />
               Palette
+            </TabsTrigger>
+            <TabsTrigger value="config" className="data-[state=active]:bg-white/10">
+              <Cog size={14} className="mr-1" />
+              Config
             </TabsTrigger>
           </TabsList>
           
@@ -382,6 +379,113 @@ const SegmentEditor = () => {
               setSelectedSegment={setSelectedSegment}
               editMode="effect"
             />
+          </div>
+        </TabsContent>
+        
+        <TabsContent 
+          value="config" 
+          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+        >
+          <div className="text-center text-sm text-white/70 mb-4">
+            Configure advanced settings for your WLED setup
+          </div>
+          
+          <div className="glass p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-white/70 mb-3">Device Information</h3>
+            
+            {deviceInfo ? (
+              <div className="mt-2 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-white/50">Device Name:</span>
+                  <span>{deviceInfo.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/50">Firmware Version:</span>
+                  <span>{deviceInfo.version}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/50">LED Count:</span>
+                  <span>{deviceInfo.ledCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/50">Effects:</span>
+                  <span>{deviceInfo.effects.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/50">Palettes:</span>
+                  <span>{deviceInfo.palettes.length}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-white/50">
+                No device connected. Connect to a WLED device to see its information.
+              </div>
+            )}
+          </div>
+          
+          <div className="glass p-4 rounded-lg mt-4">
+            <h3 className="text-sm font-medium text-white/70 mb-3">Display Settings</h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-white/70">Theme</span>
+                <select 
+                  className="bg-black/20 border border-white/10 rounded p-1 text-xs focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                >
+                  <option value="dark">Dark (Default)</option>
+                  <option value="light">Light</option>
+                  <option value="system">System Preference</option>
+                </select>
+              </div>
+              
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-white/70">Show Segment IDs</span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs"
+                >
+                  Enabled
+                </Button>
+              </div>
+              
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-white/70">Canvas Size</span>
+                <select 
+                  className="bg-black/20 border border-white/10 rounded p-1 text-xs focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium (Default)</option>
+                  <option value="large">Large</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <div className="glass p-4 rounded-lg mt-4">
+            <h3 className="text-sm font-medium text-white/70 mb-3">Application Settings</h3>
+            
+            <div className="space-y-2 text-sm">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start text-sm"
+              >
+                <SlidersHorizontal size={14} className="mr-2" />
+                Reset All Settings
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="w-full justify-start text-sm"
+              >
+                <Palette size={14} className="mr-2" />
+                Clear Segment Data
+              </Button>
+              
+              <div className="text-xs text-white/50 mt-2">
+                GlowControl v1.0.0 • Powered by WLED
+              </div>
+            </div>
           </div>
         </TabsContent>
       </Tabs>
