@@ -66,6 +66,7 @@ interface SegmentTrianglesProps {
   selectedSegment: Segment | null;
   setSelectedSegment: React.Dispatch<React.SetStateAction<Segment | null>>;
   editMode?: 'segment' | 'color' | 'effect';
+  updateWLEDSegments?: (segmentData: Partial<Segment>[]) => Promise<void>;
 }
 
 const TRIANGLE_SIZE = 90; // Fixed triangle size
@@ -77,9 +78,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   setSegments, 
   selectedSegment, 
   setSelectedSegment,
-  editMode = 'segment'
+  editMode = 'segment',
+  updateWLEDSegments
 }) => {
-  const { deviceInfo, deviceState, setColor, setEffect, updateSegment, getSegments, updateWLEDSegments } = useWLED();
+  const { deviceInfo, deviceState, setColor, setEffect, updateSegment, getSegments, updateWLEDSegments: updateWLEDSegmentsContext } = useWLED();
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
@@ -242,7 +244,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           stop: Math.floor(Math.random() * 20) + 10,
           len: 10,
           on: true,
-          col: [[newColor.r, newColor.g, newColor.b]]
+          col: [[newColor.r, newColor.g, newColor.b]] as [number, number, number][]
         };
         updateWLEDSegments([newWLEDSegment]);
       } catch (err) {
@@ -507,9 +509,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setColor(color.r, color.g, color.b);
       
       // Update WLED segment
-      updateSegment(selectedSegment.id, {
-        col: wledColorUpdate
-      });
+      if (updateSegment) {
+        updateSegment(selectedSegment.id, {
+          col: wledColorUpdate
+        });
+      }
     } catch (error) {
       console.error("Error handling color change:", error);
       toast.error("Error updating color");
@@ -573,7 +577,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setEffect(effectId);
       
       // Update WLED segment
-      updateSegment(selectedSegment.id, { fx: effectId });
+      if (updateSegment) {
+        updateSegment(selectedSegment.id, { fx: effectId });
+      }
     } catch (error) {
       console.error("Error handling effect change:", error);
       toast.error("Error updating effect");
@@ -604,7 +610,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       window.dispatchEvent(event);
       
       // Update WLED segment
-      updateSegment(selectedSegment.id, { pal: paletteId });
+      if (updateSegment) {
+        updateSegment(selectedSegment.id, { pal: paletteId });
+      }
     } catch (error) {
       console.error("Error handling palette change:", error);
       toast.error("Error updating palette");
@@ -636,7 +644,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       window.dispatchEvent(event);
       
       // Update WLED segment
-      updateSegment(selectedSegment.id, { sx: speed });
+      if (updateSegment) {
+        updateSegment(selectedSegment.id, { sx: speed });
+      }
     } catch (error) {
       console.error("Error handling effect speed change:", error);
       toast.error("Error updating effect speed");
@@ -668,7 +678,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       window.dispatchEvent(event);
       
       // Update WLED segment
-      updateSegment(selectedSegment.id, { ix: intensity });
+      if (updateSegment) {
+        updateSegment(selectedSegment.id, { ix: intensity });
+      }
     } catch (error) {
       console.error("Error handling effect intensity change:", error);
       toast.error("Error updating effect intensity");
@@ -701,7 +713,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       window.dispatchEvent(event);
       
       // Update WLED segment
-      updateSegment(selectedSegment.id, { on: newOnState });
+      if (updateSegment) {
+        updateSegment(selectedSegment.id, { on: newOnState });
+      }
       
       toast.success(newOnState ? "Segment turned on" : "Segment turned off");
     } catch (error) {
@@ -749,11 +763,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       window.dispatchEvent(event);
       
       // Update WLED segment
-      updateSegment(selectedSegment.id, { 
-        start: leds.start, 
-        stop: leds.end,
-        len: leds.end - leds.start + 1
-      });
+      if (updateSegment) {
+        updateSegment(selectedSegment.id, { 
+          start: leds.start, 
+          stop: leds.end,
+          len: leds.end - leds.start + 1
+        });
+      }
     } catch (error) {
       console.error("Error handling LED range change:", error);
       toast.error("Error updating LED range");
@@ -803,7 +819,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       window.dispatchEvent(event);
       
       // Update WLED segment
-      updateSegment(selectedSegment.id, { bri: brightness });
+      if (updateSegment) {
+        updateSegment(selectedSegment.id, { bri: brightness });
+      }
     } catch (error) {
       console.error("Error handling segment brightness change:", error);
       toast.error("Error updating segment brightness");
@@ -870,11 +888,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       
       // Update WLED segment if we're changing LED settings
       if (field === 'ledStart' || field === 'ledEnd') {
-        updateSegment(selectedSegment.id, { 
-          start: leds.start, 
-          stop: leds.end,
-          len: leds.end - leds.start + 1
-        });
+        if (updateSegment) {
+          updateSegment(selectedSegment.id, { 
+            start: leds.start, 
+            stop: leds.end,
+            len: leds.end - leds.start + 1
+          });
+        }
       }
     } catch (error) {
       console.error("Error updating segment settings:", error);
@@ -1717,4 +1737,3 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
-

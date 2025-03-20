@@ -15,6 +15,7 @@ import SegmentTriangles from '@/components/SegmentTriangles';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
+import { toast } from "sonner";
 
 interface Segment {
   id: number;
@@ -632,3 +633,4 @@ const Index = () => {
 };
 
 export default Index;
+
