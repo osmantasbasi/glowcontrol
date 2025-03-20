@@ -1,3 +1,4 @@
+
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect } from 'react';
@@ -263,7 +264,7 @@ const SegmentEditor = () => {
                   <span className="text-white/50">Total Segments:</span>
                   <span>{segments.length}</span>
                   <span className="text-white/50">Selected Segment:</span>
-                  <span>{selectedSegment ? segments.findIndex(s => s.id === selectedSegment.id) +.1 : 'None'}</span>
+                  <span>{selectedSegment ? segments.findIndex(s => s.id === selectedSegment.id) + 1 : 'None'}</span>
                 </div>
               </div>
             </div>

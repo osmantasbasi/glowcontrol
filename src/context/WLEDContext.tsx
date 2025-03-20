@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
@@ -23,8 +22,11 @@ interface WLEDContextType {
   setBrightness: (brightness: number) => Promise<void>;
   setEffect: (effectId: number, speed?: number, intensity?: number) => Promise<void>;
   togglePower: (on?: boolean) => Promise<void>;
-  setSegmentColor: (segmentId: number, r: number, g: number, b: number) => Promise<void>;
+  setSegmentColor: (segmentId: number, r: number, g: number, b: number, slot?: number) => Promise<void>;
   setSegmentEffect: (segmentId: number, effectId: number, speed?: number, intensity?: number) => Promise<void>;
+  setSegmentBrightness: (segmentId: number, brightness: number) => Promise<void>;
+  setSegmentPower: (segmentId: number, on: boolean) => Promise<void>;
+  setSegmentLedRange: (segmentId: number, start: number, stop: number) => Promise<void>;
 }
 
 const WLEDContext = createContext<WLEDContextType | undefined>(undefined);
@@ -39,6 +41,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const [deviceState, setDeviceState] = useState<WLEDState | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<WLEDInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
 
   useEffect(() => {
     const savedDevices = localStorage.getItem('wledDevices');
@@ -61,6 +64,38 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (activeDevice && activeDevice.connected) {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      
+      const intervalId = window.setInterval(async () => {
+        try {
+          const api = getWledApi();
+          const state = await api.getState();
+          setDeviceState(state);
+        } catch (error) {
+          console.error('Error polling device state:', error);
+          setDevices(prev => 
+            prev.map(d => 
+              d.id === activeDevice.id ? { ...d, connected: false } : d
+            )
+          );
+          clearInterval(intervalId);
+          setPollingInterval(null);
+        }
+      }, 1000);
+      
+      setPollingInterval(intervalId);
+      
+      return () => {
+        clearInterval(intervalId);
+        setPollingInterval(null);
+      };
+    }
+  }, [activeDevice]);
 
   useEffect(() => {
     localStorage.setItem('wledDevices', JSON.stringify(devices));
@@ -190,7 +225,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     try {
       const api = getWledApi();
       
-      // Create the payload for the API
       const payload: any = {
         seg: [{
           fx: effectId
@@ -205,7 +239,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         payload.seg[0].ix = intensity;
       }
       
-      // Make the API request with fetch directly since the method doesn't exist
       const response = await fetch(`http://${activeDevice?.ipAddress}/json/state`, {
         method: 'POST',
         headers: {
@@ -248,10 +281,36 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
-  const setSegmentColor = async (segmentId: number, r: number, g: number, b: number) => {
+  const setSegmentColor = async (segmentId: number, r: number, g: number, b: number, slot: number = 0) => {
     try {
       const api = getWledApi();
-      await api.setSegmentColor(segmentId, r, g, b);
+      
+      const payload: any = {
+        seg: [{
+          id: segmentId,
+          col: []
+        }]
+      };
+      
+      for (let i = 0; i <= slot; i++) {
+        if (i === slot) {
+          payload.seg[0].col[i] = [r, g, b];
+        } else {
+          payload.seg[0].col[i] = [0, 0, 0];
+        }
+      }
+      
+      const response = await fetch(`http://${activeDevice?.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment color');
+      
+      return;
     } catch (error) {
       console.error('Error setting segment color:', error);
       toast.error('Failed to set segment color');
@@ -260,11 +319,117 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
 
   const setSegmentEffect = async (segmentId: number, effectId: number, speed?: number, intensity?: number) => {
     try {
-      const api = getWledApi();
-      await api.setSegmentEffect(segmentId, effectId, speed, intensity);
+      const payload: any = {
+        seg: [{
+          id: segmentId,
+          fx: effectId
+        }]
+      };
+      
+      if (speed !== undefined) {
+        payload.seg[0].sx = speed;
+      }
+      
+      if (intensity !== undefined) {
+        payload.seg[0].ix = intensity;
+      }
+      
+      const response = await fetch(`http://${activeDevice?.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment effect');
+      
+      return;
     } catch (error) {
       console.error('Error setting segment effect:', error);
       toast.error('Failed to set segment effect');
+    }
+  };
+
+  const setSegmentBrightness = async (segmentId: number, brightness: number) => {
+    try {
+      const payload: any = {
+        seg: [{
+          id: segmentId,
+          bri: brightness
+        }]
+      };
+      
+      const response = await fetch(`http://${activeDevice?.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment brightness');
+      
+      return;
+    } catch (error) {
+      console.error('Error setting segment brightness:', error);
+      toast.error('Failed to set segment brightness');
+    }
+  };
+
+  const setSegmentPower = async (segmentId: number, on: boolean) => {
+    try {
+      const payload: any = {
+        seg: [{
+          id: segmentId,
+          on: on
+        }]
+      };
+      
+      const response = await fetch(`http://${activeDevice?.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment power');
+      
+      return;
+    } catch (error) {
+      console.error('Error setting segment power:', error);
+      toast.error('Failed to set segment power');
+    }
+  };
+
+  const setSegmentLedRange = async (segmentId: number, start: number, stop: number) => {
+    try {
+      const len = stop - start + 1;
+      
+      const payload: any = {
+        seg: [{
+          id: segmentId,
+          start: start,
+          stop: stop,
+          len: len
+        }]
+      };
+      
+      const response = await fetch(`http://${activeDevice?.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment LED range');
+      
+      return;
+    } catch (error) {
+      console.error('Error setting segment LED range:', error);
+      toast.error('Failed to set segment LED range');
     }
   };
 
@@ -285,6 +450,9 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         togglePower,
         setSegmentColor,
         setSegmentEffect,
+        setSegmentBrightness,
+        setSegmentPower,
+        setSegmentLedRange,
       }}
     >
       {children}
