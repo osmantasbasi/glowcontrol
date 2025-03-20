@@ -1,3 +1,4 @@
+
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect } from 'react';
@@ -125,24 +126,24 @@ const SegmentEditor = () => {
     <div className="glass-card overflow-hidden animate-fade-in mt-4 md:mt-8">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex items-center justify-between p-2 md:p-4">
-          <TabsList className="glass w-full overflow-x-auto scrollbar-none">
-            <TabsTrigger value="segments" className="data-[state=active]:bg-white/10">
+          <TabsList className="glass w-full overflow-x-auto scrollbar-none tabs-container">
+            <TabsTrigger value="segments" className="data-[state=active]:bg-white/10 whitespace-nowrap">
               <Triangle size={14} className="mr-1" />
               <span className="whitespace-nowrap">Segments</span>
             </TabsTrigger>
-            <TabsTrigger value="color" className="data-[state=active]:bg-white/10">
+            <TabsTrigger value="color" className="data-[state=active]:bg-white/10 whitespace-nowrap">
               <Palette size={14} className="mr-1" />
               <span className="whitespace-nowrap">Color</span>
             </TabsTrigger>
-            <TabsTrigger value="effect" className="data-[state=active]:bg-white/10">
+            <TabsTrigger value="effect" className="data-[state=active]:bg-white/10 whitespace-nowrap">
               <Layers size={14} className="mr-1" />
               <span className="whitespace-nowrap">Effect</span>
             </TabsTrigger>
-            <TabsTrigger value="palette" className="data-[state=active]:bg-white/10">
+            <TabsTrigger value="palette" className="data-[state=active]:bg-white/10 whitespace-nowrap">
               <Palette size={14} className="mr-1" />
               <span className="whitespace-nowrap">Palette</span>
             </TabsTrigger>
-            <TabsTrigger value="config" className="data-[state=active]:bg-white/10">
+            <TabsTrigger value="config" className="data-[state=active]:bg-white/10 whitespace-nowrap">
               <Cog size={14} className="mr-1" />
               <span className="whitespace-nowrap">Config</span>
             </TabsTrigger>
@@ -185,6 +186,7 @@ const SegmentEditor = () => {
             setSegments={setSegments}
             selectedSegment={selectedSegment}
             setSelectedSegment={setSelectedSegment}
+            className="triangle-canvas"
           />
         </TabsContent>
         
@@ -195,12 +197,12 @@ const SegmentEditor = () => {
           <div className="text-center text-sm text-white/70 mb-4">
             Select segments above first, then pick a color to apply
           </div>
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center mobile-center">
             <ColorPicker 
               color={selectedSegment?.color || currentColor}
               onChange={handleColorChange} 
               className="w-full max-w-[300px]"
-              size={isMobile ? 250 : 300}
+              size={isMobile ? 200 : 300}
             />
           </div>
           <div className="mt-4">
@@ -210,6 +212,7 @@ const SegmentEditor = () => {
               selectedSegment={selectedSegment}
               setSelectedSegment={setSelectedSegment}
               editMode="color"
+              className="triangle-canvas"
             />
           </div>
         </TabsContent>
@@ -322,6 +325,7 @@ const SegmentEditor = () => {
                   selectedSegment={selectedSegment}
                   setSelectedSegment={setSelectedSegment}
                   editMode="effect"
+                  className="triangle-canvas"
                 />
               </div>
             </div>
@@ -512,7 +516,7 @@ const Index = () => {
       <WLEDProvider>
         {isMobile ? (
           <>
-            <div className="sticky top-0 z-20 w-full backdrop-blur-md bg-black/40 border-b border-white/10 p-4">
+            <div className="sticky top-0 z-20 w-full backdrop-blur-md bg-black/40 border-b border-white/10 p-2">
               <div className="flex items-center justify-between">
                 <h1 className="text-xl font-medium gradient-text">GlowControl</h1>
                 
@@ -526,7 +530,7 @@ const Index = () => {
                       )}
                     </Button>
                   </DrawerTrigger>
-                  <DrawerContent className="glass-card p-4 max-h-[85vh] overflow-y-auto">
+                  <DrawerContent className="glass-card p-2 max-h-[80vh] overflow-y-auto">
                     <div className="mb-2 flex justify-between items-center">
                       <h2 className="text-lg font-medium gradient-text">Device Manager</h2>
                       <Button 
@@ -538,7 +542,7 @@ const Index = () => {
                         <ChevronDown className="h-5 w-5" />
                       </Button>
                     </div>
-                    <div className="pb-10">
+                    <div className="pb-4">
                       <ControlPanel />
                     </div>
                   </DrawerContent>
@@ -546,7 +550,7 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="w-full px-2 pb-8 pt-4">
+            <div className="w-full px-1 pb-4 pt-3">
               <SegmentEditor />
             </div>
           </>

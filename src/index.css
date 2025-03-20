@@ -144,6 +144,9 @@
 @media (max-width: 768px) {
   .glass-card {
     border-radius: 12px;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+    width: calc(100% - 1rem);
   }
   
   input, button, select {
@@ -152,5 +155,34 @@
   
   :root {
     --radius: 0.75rem;
+  }
+  
+  .tabs-container {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .tabs-container::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .compact-mobile {
+    padding: 0.5rem !important;
+  }
+  
+  .mobile-full-width {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  .mobile-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .triangle-canvas {
+    height: 250px !important;
   }
 }
