@@ -914,4 +914,410 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
             return {
               ...seg,
               position: {
-                x:
+                x: Math.max(0, Math.min(100, seg.position.x + offsetX)),
+                y: Math.max(0, Math.min(100, seg.position.y + offsetY))
+              }
+            };
+          }
+          return seg;
+        });
+      } else {
+        const segmentIndex = segments.findIndex(seg => seg.id === segmentId);
+        if (segmentIndex === -1) return;
+        
+        updatedSegments[segmentIndex] = {
+          ...updatedSegments[segmentIndex],
+          position: { x, y },
+          rotation
+        };
+      }
+      
+      setSegments(updatedSegments);
+      setDraggedSegment(null);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true 
+      });
+      window.dispatchEvent(event);
+      document.dispatchEvent(event);
+    } catch (error) {
+      console.error("Error in drop handler:", error);
+      toast.error("Error during drag and drop");
+    }
+  };
+
+  return (
+    <div 
+      ref={containerRef}
+      className={cn(
+        "relative w-full h-full min-h-[200px] rounded-lg bg-gradient-to-b from-black/20 to-black/40 backdrop-blur-sm border border-white/10 overflow-hidden",
+        { "cursor-move": draggedSegment !== null },
+        className
+      )}
+      onClick={handleContainerClick}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {segments.map((segment) => {
+        const isSelected = selectedSegment?.id === segment.id;
+        const isMultiSelected = selectedSegments.includes(segment.id);
+        
+        return (
+          <div
+            key={segment.id}
+            className={cn(
+              "absolute cursor-pointer transition-transform duration-75 ease-out",
+              { 
+                "z-10 scale-105": isSelected || isMultiSelected,
+                "opacity-50": !segment.on
+              }
+            )}
+            style={{
+              left: `${segment.position.x}%`,
+              top: `${segment.position.y}%`,
+              transform: `translate(-50%, -50%)`,
+              width: `${TRIANGLE_SIZE}px`,
+              height: `${TRIANGLE_SIZE}px`,
+            }}
+            onClick={(e) => handleSegmentClick(segment, e)}
+            draggable
+            onDragStart={(e) => handleDragStart(e, segment)}
+          >
+            <svg 
+              width={TRIANGLE_SIZE} 
+              height={TRIANGLE_SIZE} 
+              viewBox="0 0 24 24"
+            >
+              <g transform={`rotate(${segment.rotation}, 12, 12)`}>
+                <polygon 
+                  points="12,2 22,22 2,22" 
+                  fill={`rgb(${segment.color.r},${segment.color.g},${segment.color.b})`}
+                  stroke={isSelected || isMultiSelected ? "rgba(6, 182, 212, 0.7)" : "rgba(255,255,255,0.2)"}
+                  strokeWidth={isSelected || isMultiSelected ? "2" : "1"}
+                />
+                <text
+                  x="12"
+                  y="20"
+                  fontSize="4"
+                  fill="white"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                >
+                  {segment.id + 1}
+                </text>
+              </g>
+            </svg>
+          </div>
+        );
+      })}
+      
+      {(selectedSegment || selectedSegments.length > 0) && (
+        <div className="absolute bottom-0 left-0 w-full p-2 bg-black/50 backdrop-blur-md border-t border-white/10 flex flex-col">
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center space-x-2">
+              {isMultiSelectMode ? (
+                <span className="text-xs text-white/70">
+                  {selectedSegments.length} triangles selected
+                </span>
+              ) : (
+                <span className="text-xs text-white/70">
+                  Triangle {selectedSegment?.id !== undefined ? selectedSegment.id + 1 : ''}
+                </span>
+              )}
+            </div>
+            <div className="flex space-x-1">
+              {selectedSegment && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 rounded-full bg-black/30"
+                  onClick={() => handleTogglePower(selectedSegment.id)}
+                >
+                  <Power size={14} className={selectedSegment.on ? "text-cyan-300" : "text-red-400"} />
+                </Button>
+              )}
+              {selectedSegment && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 rounded-full bg-black/30"
+                  onClick={(e) => handleRemoveSegment(selectedSegment.id, e)}
+                >
+                  <Trash size={14} className="text-red-400" />
+                </Button>
+              )}
+            </div>
+          </div>
+          
+          <Tabs defaultValue="position" className="w-full">
+            <TabsList className="w-full grid grid-cols-3 bg-black/40 mb-2">
+              <TabsTrigger value="position" className="text-xs" onClick={() => setSelectedSegments([])}>
+                <Move size={14} className="mr-1" />
+                Position
+              </TabsTrigger>
+              {editMode === 'color' && (
+                <TabsTrigger value="color" className="text-xs">
+                  <Palette size={14} className="mr-1" />
+                  Color
+                </TabsTrigger>
+              )}
+              {editMode === 'effect' && (
+                <TabsTrigger value="effect" className="text-xs">
+                  <SlidersHorizontal size={14} className="mr-1" />
+                  Effect
+                </TabsTrigger>
+              )}
+            </TabsList>
+            
+            <TabsContent value="position" className="mt-0">
+              {!isMultiSelectMode && selectedSegment && (
+                <>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <Label htmlFor="ledStart" className="text-xs text-white/70">Start LED</Label>
+                      <Input
+                        id="ledStart"
+                        value={ledStart}
+                        onChange={(e) => handleLEDInputChange('start', e.target.value)}
+                        className="h-7 bg-black/30 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="ledEnd" className="text-xs text-white/70">End LED</Label>
+                      <Input
+                        id="ledEnd"
+                        value={ledEnd}
+                        onChange={(e) => handleLEDInputChange('end', e.target.value)}
+                        className="h-7 bg-black/30 text-xs"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mb-2">
+                    <Label htmlFor="ledRange" className="text-xs text-white/70">LED Range</Label>
+                    <Slider
+                      id="ledRange"
+                      min={0}
+                      max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                      value={[
+                        parseInt(ledStart) || 0,
+                        parseInt(ledEnd) || (deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300)
+                      ]}
+                      step={1}
+                      onValueChange={handleLEDRangeChange}
+                      className="mt-1"
+                    />
+                  </div>
+                  
+                  <div className="mb-2">
+                    <Label htmlFor="rotation" className="text-xs text-white/70">Rotation</Label>
+                    <div className="flex space-x-2">
+                      <Input
+                        id="rotation"
+                        value={rotationValue}
+                        onChange={(e) => handleRotationInputChange(e.target.value)}
+                        className="h-7 bg-black/30 text-xs"
+                      />
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-7 w-7 rounded-full bg-black/30"
+                        onClick={() => {
+                          const newRotation = (parseInt(rotationValue) + 45) % 360;
+                          setRotationValue(newRotation.toString());
+                          updateSegmentSettings('rotation', newRotation.toString());
+                        }}
+                      >
+                        <RotateCw size={14} className="text-cyan-300" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 bg-black/30 text-xs w-full"
+                      onClick={() => {
+                        if (!selectedSegment) return;
+                        const updatedSegment = { 
+                          ...selectedSegment, 
+                          position: { 
+                            ...selectedSegment.position, 
+                            y: Math.max(0, selectedSegment.position.y - 1) 
+                          } 
+                        };
+                        const updatedSegments = segments.map(seg => 
+                          seg.id === selectedSegment.id ? updatedSegment : seg
+                        );
+                        setSegments(updatedSegments);
+                        setSelectedSegment(updatedSegment);
+                      }}
+                    >
+                      <ArrowUp size={14} className="mr-1" />
+                      Up
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 bg-black/30 text-xs w-full"
+                      onClick={() => {
+                        if (!selectedSegment) return;
+                        const updatedSegment = { 
+                          ...selectedSegment, 
+                          position: { 
+                            ...selectedSegment.position, 
+                            x: Math.max(0, selectedSegment.position.x - 1) 
+                          } 
+                        };
+                        const updatedSegments = segments.map(seg => 
+                          seg.id === selectedSegment.id ? updatedSegment : seg
+                        );
+                        setSegments(updatedSegments);
+                        setSelectedSegment(updatedSegment);
+                      }}
+                    >
+                      <ArrowLeft size={14} className="mr-1" />
+                      Left
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 bg-black/30 text-xs w-full"
+                      onClick={() => {
+                        if (!selectedSegment) return;
+                        const updatedSegment = { 
+                          ...selectedSegment, 
+                          position: { 
+                            ...selectedSegment.position, 
+                            x: Math.min(100, selectedSegment.position.x + 1) 
+                          } 
+                        };
+                        const updatedSegments = segments.map(seg => 
+                          seg.id === selectedSegment.id ? updatedSegment : seg
+                        );
+                        setSegments(updatedSegments);
+                        setSelectedSegment(updatedSegment);
+                      }}
+                    >
+                      <ArrowRight size={14} className="mr-1" />
+                      Right
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 bg-black/30 text-xs w-full col-span-3"
+                      onClick={() => {
+                        if (!selectedSegment) return;
+                        const updatedSegment = { 
+                          ...selectedSegment, 
+                          position: { 
+                            ...selectedSegment.position, 
+                            y: Math.min(100, selectedSegment.position.y + 1) 
+                          } 
+                        };
+                        const updatedSegments = segments.map(seg => 
+                          seg.id === selectedSegment.id ? updatedSegment : seg
+                        );
+                        setSegments(updatedSegments);
+                        setSelectedSegment(updatedSegment);
+                      }}
+                    >
+                      <ArrowDown size={14} className="mr-1" />
+                      Down
+                    </Button>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+            
+            {editMode === 'color' && (
+              <TabsContent value="color" className="mt-0">
+                <div className="mb-2">
+                  <Tabs value={colorTabActive} onValueChange={setColorTabActive} className="w-full">
+                    <TabsList className="w-full grid grid-cols-3 bg-black/40">
+                      <TabsTrigger value="color1" className="text-xs">Color 1</TabsTrigger>
+                      <TabsTrigger value="color2" className="text-xs">Color 2</TabsTrigger>
+                      <TabsTrigger value="color3" className="text-xs">Color 3</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="color1" className="mt-2">
+                      <ColorPicker
+                        color={selectedSegment?.color || { r: 255, g: 0, b: 0 }}
+                        onChange={handleColorChange}
+                      />
+                    </TabsContent>
+                    
+                    <TabsContent value="color2" className="mt-2">
+                      <ColorPicker
+                        color={selectedSegment?.color2 || { r: 0, g: 255, b: 0 }}
+                        onChange={handleColorChange}
+                      />
+                    </TabsContent>
+                    
+                    <TabsContent value="color3" className="mt-2">
+                      <ColorPicker
+                        color={selectedSegment?.color3 || { r: 0, g: 0, b: 255 }}
+                        onChange={handleColorChange}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </TabsContent>
+            )}
+            
+            {editMode === 'effect' && (
+              <TabsContent value="effect" className="mt-0">
+                {selectedSegment && (
+                  <div className="space-y-3">
+                    {/* Speed Slider */}
+                    <ControlSlider
+                      type="speed"
+                      value={effectSpeed}
+                      onChange={handleEffectSpeedChange}
+                      min={0}
+                      max={255}
+                    />
+                    
+                    {/* Intensity Slider */}
+                    <ControlSlider
+                      type="intensity"
+                      value={effectIntensity}
+                      onChange={handleEffectIntensityChange}
+                      min={0}
+                      max={255}
+                    />
+                    
+                    {/* Brightness Slider */}
+                    <ControlSlider
+                      type="brightness"
+                      value={segmentBrightness}
+                      onChange={handleSegmentBrightnessChange}
+                      min={0}
+                      max={255}
+                    />
+                  </div>
+                )}
+              </TabsContent>
+            )}
+          </Tabs>
+        </div>
+      )}
+      
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute top-2 left-2 h-8 w-8 rounded-full bg-black/50 border-white/20 hover:bg-black/70"
+        onClick={handleAddSegment}
+      >
+        <Plus size={16} className="text-cyan-300" />
+      </Button>
+    </div>
+  );
+};
+
+export default SegmentTriangles;
