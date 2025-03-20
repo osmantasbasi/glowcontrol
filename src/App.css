@@ -1,7 +1,8 @@
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 0;
   text-align: center;
 }
 
@@ -39,4 +40,39 @@
 
 .read-the-docs {
   color: #888;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+  
+  .glass-card {
+    border-radius: 0.75rem;
+  }
+  
+  /* Fix mobile touch targets */
+  button, [role="button"] {
+    min-height: 40px;
+    min-width: 40px;
+  }
+  
+  /* Improve scrolling on mobile */
+  .overflow-auto, .overflow-x-auto, .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Better mobile inputs */
+  input, select, textarea {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+}
+
+/* Touch devices */
+@media (pointer: coarse) {
+  /* Increase touch targets */
+  .tabs-list button {
+    padding: 0.5rem;
+  }
 }
