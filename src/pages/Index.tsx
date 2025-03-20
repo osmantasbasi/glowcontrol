@@ -9,12 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { 
   Layers, Triangle, Palette, Power, SlidersHorizontal, 
-  Settings, Cog, ChevronUp, ChevronDown, ZapOff, Zap
+  Settings, Cog, ChevronUp, ChevronDown, ZapOff, Zap,
+  AlertCircle, Wifi
 } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface Segment {
   id: number;
@@ -33,7 +35,7 @@ interface Segment {
 }
 
 const SegmentEditor = () => {
-  const { deviceState, deviceInfo, setColor, setEffect, setBrightness, togglePower, toggleAllSegments } = useWLED();
+  const { deviceState, deviceInfo, connectionError, setColor, setEffect, setBrightness, togglePower, toggleAllSegments } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -85,53 +87,38 @@ const SegmentEditor = () => {
     }
   }, [segments]);
 
-  const handleColorChange = (color: {r: number, g: number, b: number}) => {
-    setCurrentColor(color);
-    
-    if (selectedSegment) {
-      setSegments(segments.map(seg => 
-        seg.id === selectedSegment.id 
-          ? { ...seg, color } 
-          : seg
-      ));
-    }
-    
-    const timeoutId = setTimeout(() => {
-      setColor(color.r, color.g, color.b);
-    }, 50);
-    
-    return () => clearTimeout(timeoutId);
-  };
-
-  const handleEffectChange = (effectId: number) => {
-    if (selectedSegment) {
-      setSegments(segments.map(seg => 
-        seg.id === selectedSegment.id 
-          ? { ...seg, effect: effectId } 
-          : seg
-      ));
-      
-      setEffect(effectId);
-    }
-  };
-
-  const handlePaletteChange = (paletteId: number) => {
-    if (selectedSegment) {
-      setSegments(segments.map(seg => 
-        seg.id === selectedSegment.id 
-          ? { ...seg, palette: paletteId } 
-          : seg
-      ));
-    }
-  };
-
-  const handleBackgroundClick = () => {
-    setSelectedSegment(null);
-  };
-
-  const handleToggleAllSegments = () => {
-    toggleAllSegments(!allSegmentsOn);
-  };
+  if (connectionError) {
+    return (
+      <div className="glass-card p-4 animate-fade-in mt-4 md:mt-8">
+        <Alert variant="destructive" className="bg-red-950/50 border-red-600/50">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Connection Error</AlertTitle>
+          <AlertDescription className="mt-2">
+            {connectionError}
+            <div className="mt-4 text-sm">
+              <p>Troubleshooting steps:</p>
+              <ol className="list-decimal ml-5 mt-2 space-y-1">
+                <li>Make sure your WLED device is powered on and connected to your network</li>
+                <li>Verify that both your device and the WLED controller are on the same network</li>
+                <li>Check if you entered the correct IP address for your WLED device</li>
+                <li>Try accessing the WLED web interface directly in your browser to verify it's working</li>
+              </ol>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button 
+                variant="outline" 
+                className="bg-red-900/50 hover:bg-red-800/50 border-red-700"
+                onClick={() => window.location.reload()}
+              >
+                <Wifi className="mr-2 h-4 w-4" />
+                Refresh Connection
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-card overflow-hidden animate-fade-in mt-4 md:mt-8">
