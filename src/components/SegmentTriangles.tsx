@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Palette, Power, SlidersHorizontal } from 'lucide-react';
@@ -948,8 +949,87 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   return (
-    <div className={cn('flex flex-col gap-4', className)}>
-      {/* Component content */}
+    <div 
+      ref={containerRef}
+      className={cn(
+        'relative w-full aspect-square border rounded-lg overflow-hidden bg-gray-900/50 backdrop-blur-sm',
+        'border-gray-700 shadow-md',
+        className
+      )}
+      onClick={handleContainerClick}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Segment triangles */}
+      {segments.map((segment) => (
+        <div
+          key={segment.id}
+          className={cn(
+            'absolute cursor-grab',
+            'transition-all duration-150',
+            (selectedSegment?.id === segment.id || selectedSegments.includes(segment.id)) && 
+              'ring-2 ring-primary ring-offset-2 ring-offset-background'
+          )}
+          style={{
+            left: `${segment.position.x}%`,
+            top: `${segment.position.y}%`,
+            transform: `translate(-50%, -50%)`,
+            zIndex: selectedSegment?.id === segment.id ? 10 : 1,
+            opacity: segment.on === false ? 0.5 : 1
+          }}
+          onClick={(e) => handleSegmentClick(segment, e)}
+          draggable={true}
+          onDragStart={(e) => handleDragStart(e, segment)}
+        >
+          <svg 
+            width={TRIANGLE_SIZE} 
+            height={TRIANGLE_SIZE} 
+            viewBox="0 0 24 24"
+          >
+            <polygon 
+              points="12,2 22,22 2,22" 
+              fill={`rgb(${segment.color.r},${segment.color.g},${segment.color.b})`}
+              stroke={
+                (selectedSegment?.id === segment.id || selectedSegments.includes(segment.id)) 
+                  ? 'white' 
+                  : 'rgba(0,0,0,0.5)'
+              }
+              strokeWidth="1"
+              transform={`rotate(${segment.rotation}, 12, 12)`}
+            />
+          </svg>
+          
+          <div className="absolute bottom-0 right-0 left-0 flex justify-center">
+            <span className="text-xs bg-black/50 px-1 rounded">
+              {segment.id}
+            </span>
+          </div>
+        </div>
+      ))}
+      
+      {/* Controls */}
+      <div className="absolute bottom-4 right-4 z-30 flex gap-2">
+        <Button
+          variant="secondary"
+          size="icon"
+          className="h-10 w-10 rounded-full shadow-lg"
+          onClick={handleAddSegment}
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
+        
+        {selectedSegment && (
+          <Button
+            variant="destructive"
+            size="icon"
+            className="h-10 w-10 rounded-full shadow-lg"
+            onClick={(e) => handleRemoveSegment(selectedSegment.id, e)}
+          >
+            <Trash className="h-5 w-5" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
