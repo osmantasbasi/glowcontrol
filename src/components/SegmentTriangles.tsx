@@ -87,7 +87,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 }) => {
   const { deviceInfo, deviceState, setColor, setEffect, updateSegment, getSegments } = useWLED();
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
-  const [isRotating, setIsRotating] = useState(isRotating);
+  const [isRotating, setIsRotating] = useState(false);
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
   const [startMousePosition, setStartMousePosition] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -913,4 +913,45 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           if (selectedSegments.includes(seg.id)) {
             return {
               ...seg,
-              position:
+              position: {
+                x: Math.max(0, Math.min(100, seg.position.x + offsetX)),
+                y: Math.max(0, Math.min(100, seg.position.y + offsetY))
+              }
+            };
+          }
+          return seg;
+        });
+      } else {
+        updatedSegments = segments.map(seg => 
+          seg.id === segmentId 
+            ? { ...seg, position: { x, y }, rotation }
+            : seg
+        );
+      }
+      
+      setSegments(updatedSegments);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true 
+      });
+      window.dispatchEvent(event);
+      document.dispatchEvent(event);
+      
+      setDraggedSegment(null);
+    } catch (error) {
+      console.error("Error handling drop:", error);
+      toast.error("Error positioning segment");
+    }
+  };
+
+  return (
+    <div className={cn('flex flex-col gap-4', className)}>
+      {/* Component content */}
+    </div>
+  );
+};
+
+export default SegmentTriangles;
