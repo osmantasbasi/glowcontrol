@@ -11,6 +11,19 @@ type WLEDState = {
   effect: number;
   speed: number;
   intensity: number;
+  seg?: {
+    id: number;
+    start: number;
+    stop: number;
+    len: number;
+    col: [number, number, number][];
+    fx: number;
+    sx: number;
+    ix: number;
+    on: boolean;
+    bri: number;
+    [key: string]: any;
+  }[];
 };
 
 type WLEDInfo = {
@@ -68,6 +81,7 @@ class WLEDApi {
         effect: data.seg?.[0]?.fx || 0,
         speed: data.seg?.[0]?.sx || 128,
         intensity: data.seg?.[0]?.ix || 128,
+        seg: data.seg || [],
       };
     } catch (error) {
       console.error('Error fetching WLED state:', error);
@@ -241,6 +255,7 @@ class WLEDApi {
               effect: data.state.seg?.[0]?.fx || 0,
               speed: data.state.seg?.[0]?.sx || 128,
               intensity: data.state.seg?.[0]?.ix || 128,
+              seg: data.state.seg || [],
             };
             
             this.onUpdateCallbacks.forEach(callback => callback(state));
