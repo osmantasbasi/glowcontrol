@@ -1,4 +1,3 @@
-
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect } from 'react';
@@ -7,7 +6,7 @@ import EffectSelector from '@/components/EffectSelector';
 import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Layers, Triangle, Palette, Settings } from 'lucide-react';
+import { Layers, Triangle, Palette, Settings, Power, X } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 import { toast } from 'sonner';
 
@@ -32,7 +31,6 @@ const SegmentEditor = () => {
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
   
-  // Store segments in localStorage to persist them
   const [segments, setSegments] = useState<Segment[]>(() => {
     try {
       const savedSegments = localStorage.getItem('wledSegments');
@@ -45,7 +43,6 @@ const SegmentEditor = () => {
   
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
-  // Save segments to localStorage whenever they change
   useEffect(() => {
     try {
       localStorage.setItem('wledSegments', JSON.stringify(segments));
@@ -96,7 +93,6 @@ const SegmentEditor = () => {
     }
   };
 
-  // Handle clicking outside triangles to deselect
   const handleBackgroundClick = () => {
     setSelectedSegment(null);
   };
@@ -267,7 +263,7 @@ const SegmentEditor = () => {
                   <span className="text-white/50">Total Segments:</span>
                   <span>{segments.length}</span>
                   <span className="text-white/50">Selected Segment:</span>
-                  <span>{selectedSegment ? segments.findIndex(s => s.id === selectedSegment.id) + 1 : 'None'}</span>
+                  <span>{selectedSegment ? segments.findIndex(s => s.id === selectedSegment.id) +.1 : 'None'}</span>
                 </div>
               </div>
             </div>
@@ -278,7 +274,6 @@ const SegmentEditor = () => {
   );
 };
 
-// Helper function to conditionally join class names
 const cn = (...classes: (string | boolean | undefined)[]) => {
   return classes.filter(Boolean).join(' ');
 };
