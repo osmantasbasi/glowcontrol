@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Palette, Power, SlidersHorizontal } from 'lucide-react';
@@ -58,7 +57,6 @@ interface Segment {
   brightness?: number;
   on?: boolean;
   palette?: number;
-  // Add properties to match WLED API
   start?: number;
   stop?: number;
   len?: number;
@@ -202,7 +200,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     window.dispatchEvent(event);
     document.dispatchEvent(event);
     
-    // Also update the actual WLED segments
     updatedSegments.forEach((segment, index) => {
       updateSegment(index, {
         id: index,
@@ -250,7 +247,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     window.dispatchEvent(event);
     document.dispatchEvent(event);
     
-    // Add the segment to the actual WLED device
     updateSegment(segmentId, {
       id: segmentId,
       start: ledRange.start,
@@ -279,7 +275,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     const updatedSegments = segments.filter(segment => segment.id !== id);
     
-    // Reassign IDs sequentially
     const reindexedSegments = updatedSegments.map((seg, index) => ({
       ...seg,
       id: index
@@ -293,10 +288,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
     
-    // Update localStorage
     localStorage.setItem('wledSegments', JSON.stringify(reindexedSegments));
     
-    // Dispatch event
     const event = new CustomEvent('segmentsUpdated', { 
       detail: reindexedSegments,
       bubbles: true 
@@ -304,9 +297,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     document.dispatchEvent(event);
     window.dispatchEvent(event);
     
-    // Update WLED device
     try {
-      // For now, just recalculate the LED ranges to make sure everything is in order
       setTimeout(() => {
         recalculateLedRanges();
       }, 50);
@@ -395,17 +386,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         });
         window.dispatchEvent(event);
         
-        // Update color for WLED
         setColor(color.r, color.g, color.b);
         
-        // Update each selected segment in WLED
         selectedSegments.forEach(segId => {
           const segmentIndex = segments.findIndex(seg => seg.id === segId);
           if (segmentIndex !== -1) {
             const colorIndex = colorTabActive === 'color1' ? 0 : colorTabActive === 'color2' ? 1 : 2;
             const colArray: [number, number, number][] = [];
             
-            // Create the color array with the proper structure
             if (colorIndex === 0) {
               colArray.push([color.r, color.g, color.b]);
             } else {
@@ -477,10 +465,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Set selected color
       setColor(color.r, color.g, color.b);
       
-      // Update WLED segment
       updateSegment(selectedSegment.id, {
         col: wledColorUpdate
       });
@@ -508,10 +494,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         });
         window.dispatchEvent(event);
         
-        // Update effect for the device
         setEffect(effectId);
         
-        // Update each selected segment
         selectedSegments.forEach(segId => {
           const segmentIndex = segments.findIndex(seg => seg.id === segId);
           if (segmentIndex !== -1) {
@@ -543,10 +527,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Update effect for the device
       setEffect(effectId);
       
-      // Update WLED segment
       updateSegment(selectedSegment.id, { fx: effectId });
     } catch (error) {
       console.error("Error handling effect change:", error);
@@ -577,7 +559,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Update WLED segment
       updateSegment(selectedSegment.id, { pal: paletteId });
     } catch (error) {
       console.error("Error handling palette change:", error);
@@ -609,7 +590,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Update WLED segment
       updateSegment(selectedSegment.id, { sx: speed });
     } catch (error) {
       console.error("Error handling effect speed change:", error);
@@ -641,7 +621,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Update WLED segment
       updateSegment(selectedSegment.id, { ix: intensity });
     } catch (error) {
       console.error("Error handling effect intensity change:", error);
@@ -674,7 +653,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Update WLED segment
       updateSegment(selectedSegment.id, { on: newOnState });
       
       toast.success(newOnState ? "Segment turned on" : "Segment turned off");
@@ -722,7 +700,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Update WLED segment
       updateSegment(selectedSegment.id, { 
         start: leds.start, 
         stop: leds.end,
@@ -776,7 +753,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Update WLED segment
       updateSegment(selectedSegment.id, { bri: brightness });
     } catch (error) {
       console.error("Error handling segment brightness change:", error);
@@ -842,7 +818,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       });
       window.dispatchEvent(event);
       
-      // Update WLED segment if we're changing LED settings
       if (field === 'ledStart' || field === 'ledEnd') {
         updateSegment(selectedSegment.id, { 
           start: leds.start, 
@@ -1190,7 +1165,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   size={TRIANGLE_SIZE} 
                   fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
                   color={isSelected ? "#33C3F0" : "rgba(0, 0, 0, 0.5)"}
-                  strokeWidth={isSelected ? 3 : 1}
+                  strokeWidth={isSelected ? 3 : 1.5}
                   className={cn(
                     "drop-shadow-lg transition-all",
                     isSelected && "animate-pulse",
@@ -1207,7 +1182,21 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       <polygon 
                         points="12,2 22,22 2,22" 
                         fill="none" 
-                        stroke="#33C3F0" 
+                        stroke="#E8E8EA" 
+                        strokeWidth="1.5"
+                        strokeDasharray="3,2" 
+                        className="animate-pulse" 
+                      />
+                    </svg>
+                  </div>
+                )}
+                {isMultiSelected && (
+                  <div className="absolute inset-0 pointer-events-none">
+                    <svg width={TRIANGLE_SIZE} height={TRIANGLE_SIZE} viewBox="0 0 24 24">
+                      <polygon 
+                        points="12,2 22,22 2,22" 
+                        fill="none" 
+                        stroke="#9b87f5" 
                         strokeWidth="1.5"
                         strokeDasharray="3,2" 
                         className="animate-pulse" 
@@ -1709,3 +1698,4 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
+
