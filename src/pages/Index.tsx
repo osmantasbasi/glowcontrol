@@ -7,8 +7,10 @@ import EffectSelector from '@/components/EffectSelector';
 import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Slider } from '@/components/ui/slider';
 import { Layers, Triangle, Palette, Power, SlidersHorizontal } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
+import { cn } from '@/lib/utils';
 
 interface Segment {
   id: number;

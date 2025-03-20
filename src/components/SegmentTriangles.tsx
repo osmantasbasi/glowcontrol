@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Palette, Power, SlidersHorizontal } from 'lucide-react';
@@ -38,7 +37,6 @@ interface SegmentTrianglesProps {
   editMode?: 'segment' | 'color' | 'effect';
 }
 
-// Constants for consistent sizing and display
 const TRIANGLE_SIZE = 90; // Fixed triangle size
 const LEDS_PER_SEGMENT = 30;
 
@@ -129,12 +127,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       return { start: 0, end: LEDS_PER_SEGMENT - 1 };
     }
     
-    // Sort segments by end LED to find the last used LED
-    const sortedSegments = [...segments].sort((a, b) => a.leds.end - b.leds.end);
-    const lastSegment = sortedSegments[sortedSegments.length - 1];
-    
-    // Next segment should start at the end of the last segment + 1
-    const start = lastSegment.leds.end + 1;
+    const segmentIndex = segments.length;
+    const start = segmentIndex * LEDS_PER_SEGMENT;
     const end = start + LEDS_PER_SEGMENT - 1;
     
     const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
@@ -215,7 +209,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       e.preventDefault();
     }
     
-    // Immediately update the UI by filtering out the segment
     const updatedSegments = segments.filter(segment => segment.id !== id);
     setSegments(updatedSegments);
     
@@ -225,7 +218,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
     
-    // Ensure cross-window sync by dispatching the event immediately 
     const event = new CustomEvent('segmentsUpdated', { 
       detail: updatedSegments,
       bubbles: true 
@@ -233,10 +225,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     document.dispatchEvent(event);
     window.dispatchEvent(event);
     
-    // Update localStorage
     localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
     
-    // Recalculate LED ranges after a small delay to allow state update
     setTimeout(() => {
       recalculateLedRanges();
     }, 50);
@@ -256,25 +246,28 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     } else {
       setSelectedSegment(segment);
       
-      // Update UI states based on the selected segment
-      if (segment.color) {
-        setColor(segment.color.r, segment.color.g, segment.color.b);
-      }
-      
-      if (segment.effect !== undefined) {
-        setEffect(segment.effect);
-      }
-      
-      if (segment.effectSpeed !== undefined) {
-        setEffectSpeed(segment.effectSpeed);
-      }
-      
-      if (segment.effectIntensity !== undefined) {
-        setEffectIntensity(segment.effectIntensity);
-      }
-      
-      if (segment.brightness !== undefined) {
-        setSegmentBrightness(segment.brightness);
+      try {
+        if (segment.color) {
+          setColor(segment.color.r, segment.color.g, segment.color.b);
+        }
+        
+        if (segment.effect !== undefined) {
+          setEffect(segment.effect);
+        }
+        
+        if (segment.effectSpeed !== undefined) {
+          setEffectSpeed(segment.effectSpeed);
+        }
+        
+        if (segment.effectIntensity !== undefined) {
+          setEffectIntensity(segment.effectIntensity);
+        }
+        
+        if (segment.brightness !== undefined) {
+          setSegmentBrightness(segment.brightness);
+        }
+      } catch (error) {
+        console.error("Error handling segment click:", error);
       }
     }
   };
@@ -356,7 +349,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     });
     window.dispatchEvent(event);
     
-    // Always send the primary color to the device
     setColor(color.r, color.g, color.b);
     
     const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
@@ -670,38 +662,42 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
     e.stopPropagation();
     
-    if (isMultiSelectMode && selectedSegments.length > 0) {
-      if (selectedSegments.includes(segment.id)) {
-        e.dataTransfer.setData("multiSelect", "true");
-        e.dataTransfer.setData("segmentId", segment.id.toString());
-        setDraggedSegment(segment);
+    try {
+      if (isMultiSelectMode && selectedSegments.length > 0) {
+        if (selectedSegments.includes(segment.id)) {
+          e.dataTransfer.setData("multiSelect", "true");
+          e.dataTransfer.setData("segmentId", segment.id.toString());
+          setDraggedSegment(segment);
+        } else {
+          setSelectedSegment(segment);
+          e.dataTransfer.setData("segmentId", segment.id.toString());
+          e.dataTransfer.setData("segmentRotation", segment.rotation.toString());
+          setDraggedSegment(segment);
+        }
       } else {
         setSelectedSegment(segment);
         e.dataTransfer.setData("segmentId", segment.id.toString());
         e.dataTransfer.setData("segmentRotation", segment.rotation.toString());
         setDraggedSegment(segment);
       }
-    } else {
-      setSelectedSegment(segment);
-      e.dataTransfer.setData("segmentId", segment.id.toString());
-      e.dataTransfer.setData("segmentRotation", segment.rotation.toString());
-      setDraggedSegment(segment);
+      
+      const ghostElement = document.createElement('div');
+      ghostElement.style.position = 'absolute';
+      ghostElement.style.top = '-1000px';
+      ghostElement.style.left = '-1000px';
+      ghostElement.innerHTML = `<svg width="${TRIANGLE_SIZE}" height="${TRIANGLE_SIZE}" viewBox="0 0 24 24">
+        <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.r},${segment.color.g},${segment.color.b})" stroke="rgba(0,0,0,0.5)" stroke-width="1" transform="rotate(${segment.rotation}, 12, 12)" />
+      </svg>`;
+      document.body.appendChild(ghostElement);
+      
+      e.dataTransfer.setDragImage(ghostElement, TRIANGLE_SIZE/2, TRIANGLE_SIZE/2);
+      
+      setTimeout(() => {
+        document.body.removeChild(ghostElement);
+      }, 100);
+    } catch (error) {
+      console.error("Error in drag start:", error);
     }
-    
-    const ghostElement = document.createElement('div');
-    ghostElement.style.position = 'absolute';
-    ghostElement.style.top = '-1000px';
-    ghostElement.style.left = '-1000px';
-    ghostElement.innerHTML = `<svg width="${TRIANGLE_SIZE}" height="${TRIANGLE_SIZE}" viewBox="0 0 24 24">
-      <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.r},${segment.color.g},${segment.color.b})" stroke="rgba(0,0,0,0.5)" stroke-width="1" transform="rotate(${segment.rotation}, 12, 12)" />
-    </svg>`;
-    document.body.appendChild(ghostElement);
-    
-    e.dataTransfer.setDragImage(ghostElement, TRIANGLE_SIZE/2, TRIANGLE_SIZE/2);
-    
-    setTimeout(() => {
-      document.body.removeChild(ghostElement);
-    }, 100);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -944,6 +940,449 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     };
   }, [selectedSegment, segments, selectedSegments, isMultiSelectMode, setSelectedSegment, setSegments]);
 
+  const renderTriangle = (segment: Segment) => {
+    try {
+      return (
+        <Popover key={segment.id}>
+          <PopoverTrigger asChild>
+            <div
+              data-segment-id={segment.id}
+              draggable={showControls}
+              onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
+              onClick={(e) => handleSegmentClick(segment, e)}
+              className={cn(
+                "absolute cursor-move transition-all duration-200 hover:z-10",
+                selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
+                isMultiSelectMode && selectedSegments.includes(segment.id) ? "ring-2 ring-purple-400 z-20" : "",
+                segment.on === false && "opacity-40"
+              )}
+              style={{
+                left: `${segment.position.x}%`,
+                top: `${segment.position.y}%`,
+                transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
+                transformOrigin: "center center",
+                width: `${TRIANGLE_SIZE}px`,
+                height: `${TRIANGLE_SIZE}px`
+              }}
+            >
+              <div className="relative w-full h-full">
+                <Triangle 
+                  size={TRIANGLE_SIZE} 
+                  fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
+                  color="rgba(0, 0, 0, 0.5)"
+                  strokeWidth={1}
+                  className={cn(
+                    "drop-shadow-lg transition-all",
+                    segment.effect === 1 && "animate-pulse",
+                    segment.effect === 2 && "animate-fade-in",
+                    segment.effect === 3 && "animate-spin",
+                    segment.effect === 4 && "animate-bounce",
+                    segment.on === false && "opacity-40"
+                  )}
+                />
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-white">
+                  {segments.indexOf(segment) + 1}
+                </div>
+                
+                {showControls && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => handleRemoveSegment(segment.id, e)}
+                    className="absolute -top-3 -left-3 h-5 w-5 bg-red-500/20 rounded-full opacity-100 hover:bg-red-500/40 z-30 transition-all"
+                  >
+                    <Trash size={10} className="text-white" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </PopoverTrigger>
+          {showControls && (
+            <PopoverContent className="w-64 glass border-0 backdrop-blur-lg p-3">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={cn(
+                        "h-6 w-6 rounded-full",
+                        segment.on === false ? "bg-black/30 text-white/40" : "bg-cyan-500/20 text-white"
+                      )}
+                      onClick={() => handleTogglePower(segment.id)}
+                    >
+                      <Power size={14} />
+                    </Button>
+                    <div className="flex flex-col space-y-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 rounded-full hover:bg-white/10"
+                        onClick={() => {
+                          const newY = Math.max(0, segment.position.y - 1);
+                          const updatedSegments = segments.map(seg => 
+                            seg.id === segment.id 
+                              ? { ...seg, position: { ...seg.position, y: newY } } 
+                              : seg
+                          );
+                          setSegments(updatedSegments);
+                          if (selectedSegment?.id === segment.id) {
+                            setSelectedSegment({
+                              ...selectedSegment,
+                              position: { ...selectedSegment.position, y: newY }
+                            });
+                          }
+                          localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                          
+                          const event = new CustomEvent('segmentsUpdated', { 
+                            detail: updatedSegments,
+                            bubbles: true
+                          });
+                          document.dispatchEvent(event);
+                          window.dispatchEvent(event);
+                        }}
+                      >
+                        <ArrowUp size={14} className="text-cyan-300" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 rounded-full hover:bg-white/10"
+                        onClick={() => {
+                          const newY = Math.min(100, segment.position.y + 1);
+                          const updatedSegments = segments.map(seg => 
+                            seg.id === segment.id 
+                              ? { ...seg, position: { ...seg.position, y: newY } } 
+                              : seg
+                          );
+                          setSegments(updatedSegments);
+                          if (selectedSegment?.id === segment.id) {
+                            setSelectedSegment({
+                              ...selectedSegment,
+                              position: { ...selectedSegment.position, y: newY }
+                            });
+                          }
+                          localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                          
+                          const event = new CustomEvent('segmentsUpdated', { 
+                            detail: updatedSegments,
+                            bubbles: true
+                          });
+                          document.dispatchEvent(event);
+                          window.dispatchEvent(event);
+                        }}
+                      >
+                        <ArrowDown size={14} className="text-cyan-300" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-col space-y-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 rounded-full hover:bg-white/10"
+                        onClick={() => {
+                          const newX = Math.max(0, segment.position.x - 1);
+                          const updatedSegments = segments.map(seg => 
+                            seg.id === segment.id 
+                              ? { ...seg, position: { ...seg.position, x: newX } } 
+                              : seg
+                          );
+                          setSegments(updatedSegments);
+                          if (selectedSegment?.id === segment.id) {
+                            setSelectedSegment({
+                              ...selectedSegment,
+                              position: { ...selectedSegment.position, x: newX }
+                            });
+                          }
+                          localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                          
+                          const event = new CustomEvent('segmentsUpdated', { 
+                            detail: updatedSegments,
+                            bubbles: true
+                          });
+                          document.dispatchEvent(event);
+                          window.dispatchEvent(event);
+                        }}
+                      >
+                        <ArrowLeft size={14} className="text-cyan-300" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 rounded-full hover:bg-white/10"
+                        onClick={() => {
+                          const newX = Math.min(100, segment.position.x + 1);
+                          const updatedSegments = segments.map(seg => 
+                            seg.id === segment.id 
+                              ? { ...seg, position: { ...seg.position, x: newX } } 
+                              : seg
+                          );
+                          setSegments(updatedSegments);
+                          if (selectedSegment?.id === segment.id) {
+                            setSelectedSegment({
+                              ...selectedSegment,
+                              position: { ...selectedSegment.position, x: newX }
+                            });
+                          }
+                          localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                          
+                          const event = new CustomEvent('segmentsUpdated', { 
+                            detail: updatedSegments,
+                            bubbles: true
+                          });
+                          document.dispatchEvent(event);
+                          window.dispatchEvent(event);
+                        }}
+                      >
+                        <ArrowRight size={14} className="text-cyan-300" />
+                      </Button>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveSegment(segment.id, e);
+                      }}
+                      className="h-6 w-6 rounded-full hover:bg-white/10"
+                    >
+                      <Trash size={14} className="text-red-400" />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <h5 className="text-xs text-white/70">Color</h5>
+                  <Tabs defaultValue="color1" onValueChange={setColorTabActive}>
+                    <TabsList className="w-full glass">
+                      <TabsTrigger value="color1" className="flex-1 data-[state=active]:bg-white/10">
+                        <div className="w-3 h-3 rounded-full mr-1" style={{backgroundColor: `rgb(${segment.color.r},${segment.color.g},${segment.color.b})`}}></div>
+                        1
+                      </TabsTrigger>
+                      <TabsTrigger value="color2" className="flex-1 data-[state=active]:bg-white/10">
+                        <div className="w-3 h-3 rounded-full mr-1" style={{backgroundColor: `rgb(${segment.color2?.r || 0},${segment.color2?.g || 255},${segment.color2?.b || 0})`}}></div>
+                        2
+                      </TabsTrigger>
+                      <TabsTrigger value="color3" className="flex-1 data-[state=active]:bg-white/10">
+                        <div className="w-3 h-3 rounded-full mr-1" style={{backgroundColor: `rgb(${segment.color3?.r || 0},${segment.color3?.g || 0},${segment.color3?.b || 255})`}}></div>
+                        3
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="color1">
+                      <ColorPicker 
+                        color={segment.color}
+                        onChange={handleColorChange}
+                        className="w-full"
+                      />
+                    </TabsContent>
+                    <TabsContent value="color2">
+                      <ColorPicker 
+                        color={segment.color2 || {r: 0, g: 255, b: 0}}
+                        onChange={handleColorChange}
+                        className="w-full"
+                      />
+                    </TabsContent>
+                    <TabsContent value="color3">
+                      <ColorPicker 
+                        color={segment.color3 || {r: 0, g: 0, b: 255}}
+                        onChange={handleColorChange}
+                        className="w-full"
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+                
+                {deviceInfo?.effects && (
+                  <div className="space-y-2">
+                    <h5 className="text-xs text-white/70">Effect</h5>
+                    <select
+                      value={segment.effect}
+                      onChange={(e) => handleEffectChange(parseInt(e.target.value))}
+                      className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                    >
+                      {deviceInfo.effects.map((effect, index) => (
+                        <option key={index} value={index}>
+                          {effect}
+                        </option>
+                      ))}
+                    </select>
+                    
+                    <div className="pt-2 space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex justify-between">
+                          <Label className="text-xs text-white/70">Speed</Label>
+                          <span className="text-xs text-white/50">{effectSpeed}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <SlidersHorizontal size={14} className="text-cyan-300" />
+                          <Slider
+                            value={[segment.effectSpeed ?? effectSpeed]}
+                            min={0}
+                            max={255}
+                            step={1}
+                            onValueChange={(values) => {
+                              if (values.length > 0) {
+                                handleEffectSpeedChange(values[0]);
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <div className="flex justify-between">
+                          <Label className="text-xs text-white/70">Intensity</Label>
+                          <span className="text-xs text-white/50">{effectIntensity}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <SlidersHorizontal size={14} className="text-cyan-300" />
+                          <Slider
+                            value={[segment.effectIntensity ?? effectIntensity]}
+                            min={0}
+                            max={255}
+                            step={1}
+                            onValueChange={(values) => {
+                              if (values.length > 0) {
+                                handleEffectIntensityChange(values[0]);
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {deviceInfo?.palettes && (
+                  <div className="space-y-2">
+                    <h5 className="text-xs text-white/70">Palette</h5>
+                    <div className="flex items-center space-x-2">
+                      <Palette size={14} className="text-cyan-300" />
+                      <select
+                        value={segment.palette ?? 0}
+                        onChange={(e) => handlePaletteChange(parseInt(e.target.value))}
+                        className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                      >
+                        {deviceInfo.palettes.map((palette, index) => (
+                          <option key={index} value={index}>
+                            {palette}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <h5 className="text-xs text-white/70">LED Range</h5>
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      type="text"
+                      value={ledStart}
+                      onChange={(e) => handleLEDInputChange('start', e.target.value)}
+                      className="w-16 h-8 text-sm bg-black/20 border-white/10"
+                      placeholder="0"
+                    />
+                    <span className="text-xs text-white/50">to</span>
+                    <Input
+                      type="text"
+                      value={ledEnd}
+                      onChange={(e) => handleLEDInputChange('end', e.target.value)}
+                      className="w-16 h-8 text-sm bg-black/20 border-white/10"
+                      placeholder="30"
+                    />
+                  </div>
+                  <Slider
+                    value={[segment.leds.start, segment.leds.end]}
+                    min={0}
+                    max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                    step={1}
+                    onValueChange={handleLEDRangeChange}
+                    className="mt-2"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <h5 className="text-xs text-white/70">Rotation</h5>
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      type="text"
+                      value={rotationValue}
+                      onChange={(e) => handleRotationInputChange(e.target.value)}
+                      className="w-16 h-8 text-sm bg-black/20 border-white/10"
+                      placeholder="0"
+                    />
+                    <span className="text-xs">degrees</span>
+                    <Slider
+                      value={[segment.rotation]}
+                      min={0}
+                      max={359}
+                      step={1}
+                      onValueChange={(values) => {
+                        if (values.length > 0) {
+                          const newRotation = values[0];
+                          const updatedSegments = segments.map(seg => 
+                            seg.id === segment.id 
+                              ? { ...seg, rotation: newRotation } 
+                              : seg
+                          );
+                          setSegments(updatedSegments);
+                          if (selectedSegment?.id === segment.id) {
+                            setSelectedSegment({
+                              ...selectedSegment,
+                              rotation: newRotation
+                            });
+                            setRotationValue(Math.round(newRotation).toString());
+                          }
+                          localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+                          
+                          const event = new CustomEvent('segmentsUpdated', { 
+                            detail: updatedSegments,
+                            bubbles: true
+                          });
+                          document.dispatchEvent(event);
+                          window.dispatchEvent(event);
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <h5 className="text-xs text-white/70">Brightness</h5>
+                  <Slider
+                    value={[segment.brightness ?? segmentBrightness]}
+                    min={1}
+                    max={255}
+                    step={1}
+                    onValueChange={(values) => {
+                      if (values.length > 0) {
+                        handleSegmentBrightnessChange(values[0]);
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <div className="flex justify-between text-xs text-white/50">
+                    <span>Min</span>
+                    <span>{segment.brightness ?? segmentBrightness}</span>
+                    <span>Max</span>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          )}
+        </Popover>
+      );
+    } catch (error) {
+      console.error("Error rendering triangle:", error);
+      return null;
+    }
+  };
+
   const showControls = editMode === 'segment';
 
   return (
@@ -990,439 +1429,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         onClick={handleContainerClick}
       >
         {segments.map((segment) => (
-          <Popover key={segment.id}>
-            <PopoverTrigger asChild>
-              <div
-                data-segment-id={segment.id}
-                draggable={showControls}
-                onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
-                onClick={(e) => handleSegmentClick(segment, e)}
-                className={cn(
-                  "absolute cursor-move transition-all duration-200 hover:z-10",
-                  selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
-                  isMultiSelectMode && selectedSegments.includes(segment.id) ? "ring-2 ring-purple-400 z-20" : "",
-                  segment.on === false && "opacity-40"
-                )}
-                style={{
-                  left: `${segment.position.x}%`,
-                  top: `${segment.position.y}%`,
-                  transform: `translate(-50%, -50%) rotate(${segment.rotation}deg)`,
-                  transformOrigin: "center center",
-                  width: `${TRIANGLE_SIZE}px`,
-                  height: `${TRIANGLE_SIZE}px`
-                }}
-              >
-                <div className="relative w-full h-full">
-                  <Triangle 
-                    size={TRIANGLE_SIZE} 
-                    fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
-                    color="rgba(0, 0, 0, 0.5)"
-                    strokeWidth={1}
-                    className={cn(
-                      "drop-shadow-lg transition-all",
-                      segment.effect === 1 && "animate-pulse",
-                      segment.effect === 2 && "animate-fade-in",
-                      segment.effect === 3 && "animate-spin",
-                      segment.effect === 4 && "animate-bounce",
-                      segment.on === false && "opacity-40"
-                    )}
-                  />
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-white">
-                    {segments.indexOf(segment) + 1}
-                  </div>
-                  
-                  {showControls && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => handleRemoveSegment(segment.id, e)}
-                      className="absolute -top-3 -left-3 h-5 w-5 bg-red-500/20 rounded-full opacity-100 hover:bg-red-500/40 z-30 transition-all"
-                    >
-                      <Trash size={10} className="text-white" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </PopoverTrigger>
-            {showControls && (
-              <PopoverContent className="w-64 glass border-0 backdrop-blur-lg p-3">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className={cn(
-                          "h-6 w-6 rounded-full",
-                          segment.on === false ? "bg-black/30 text-white/40" : "bg-cyan-500/20 text-white"
-                        )}
-                        onClick={() => handleTogglePower(segment.id)}
-                      >
-                        <Power size={14} />
-                      </Button>
-                      <div className="flex flex-col space-y-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={() => {
-                            const newY = Math.max(0, segment.position.y - 1);
-                            const updatedSegments = segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, position: { ...seg.position, y: newY } } 
-                                : seg
-                            );
-                            setSegments(updatedSegments);
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                position: { ...selectedSegment.position, y: newY }
-                              });
-                            }
-                            localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-                            
-                            const event = new CustomEvent('segmentsUpdated', { 
-                              detail: updatedSegments,
-                              bubbles: true
-                            });
-                            document.dispatchEvent(event);
-                            window.dispatchEvent(event);
-                          }}
-                        >
-                          <ArrowUp size={14} className="text-cyan-300" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={() => {
-                            const newY = Math.min(100, segment.position.y + 1);
-                            const updatedSegments = segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, position: { ...seg.position, y: newY } } 
-                                : seg
-                            );
-                            setSegments(updatedSegments);
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                position: { ...selectedSegment.position, y: newY }
-                              });
-                            }
-                            localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-                            
-                            const event = new CustomEvent('segmentsUpdated', { 
-                              detail: updatedSegments,
-                              bubbles: true
-                            });
-                            document.dispatchEvent(event);
-                            window.dispatchEvent(event);
-                          }}
-                        >
-                          <ArrowDown size={14} className="text-cyan-300" />
-                        </Button>
-                      </div>
-                      <div className="flex flex-col space-y-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={() => {
-                            const newX = Math.max(0, segment.position.x - 1);
-                            const updatedSegments = segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, position: { ...seg.position, x: newX } } 
-                                : seg
-                            );
-                            setSegments(updatedSegments);
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                position: { ...selectedSegment.position, x: newX }
-                              });
-                            }
-                            localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-                            
-                            const event = new CustomEvent('segmentsUpdated', { 
-                              detail: updatedSegments,
-                              bubbles: true
-                            });
-                            document.dispatchEvent(event);
-                            window.dispatchEvent(event);
-                          }}
-                        >
-                          <ArrowLeft size={14} className="text-cyan-300" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={() => {
-                            const newX = Math.min(100, segment.position.x + 1);
-                            const updatedSegments = segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, position: { ...seg.position, x: newX } } 
-                                : seg
-                            );
-                            setSegments(updatedSegments);
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                position: { ...selectedSegment.position, x: newX }
-                              });
-                            }
-                            localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-                            
-                            const event = new CustomEvent('segmentsUpdated', { 
-                              detail: updatedSegments,
-                              bubbles: true
-                            });
-                            document.dispatchEvent(event);
-                            window.dispatchEvent(event);
-                          }}
-                        >
-                          <ArrowRight size={14} className="text-cyan-300" />
-                        </Button>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveSegment(segment.id, e);
-                        }}
-                        className="h-6 w-6 rounded-full hover:bg-white/10"
-                      >
-                        <Trash size={14} className="text-red-400" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">Color</h5>
-                    <Tabs defaultValue="color1" onValueChange={setColorTabActive}>
-                      <TabsList className="w-full glass">
-                        <TabsTrigger value="color1" className="flex-1 data-[state=active]:bg-white/10">
-                          <div className="w-3 h-3 rounded-full mr-1" style={{backgroundColor: `rgb(${segment.color.r},${segment.color.g},${segment.color.b})`}}></div>
-                          1
-                        </TabsTrigger>
-                        <TabsTrigger value="color2" className="flex-1 data-[state=active]:bg-white/10">
-                          <div className="w-3 h-3 rounded-full mr-1" style={{backgroundColor: `rgb(${segment.color2?.r || 0},${segment.color2?.g || 255},${segment.color2?.b || 0})`}}></div>
-                          2
-                        </TabsTrigger>
-                        <TabsTrigger value="color3" className="flex-1 data-[state=active]:bg-white/10">
-                          <div className="w-3 h-3 rounded-full mr-1" style={{backgroundColor: `rgb(${segment.color3?.r || 0},${segment.color3?.g || 0},${segment.color3?.b || 255})`}}></div>
-                          3
-                        </TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="color1">
-                        <ColorPicker 
-                          color={segment.color}
-                          onChange={handleColorChange}
-                          className="w-full"
-                        />
-                      </TabsContent>
-                      <TabsContent value="color2">
-                        <ColorPicker 
-                          color={segment.color2 || {r: 0, g: 255, b: 0}}
-                          onChange={handleColorChange}
-                          className="w-full"
-                        />
-                      </TabsContent>
-                      <TabsContent value="color3">
-                        <ColorPicker 
-                          color={segment.color3 || {r: 0, g: 0, b: 255}}
-                          onChange={handleColorChange}
-                          className="w-full"
-                        />
-                      </TabsContent>
-                    </Tabs>
-                  </div>
-                  
-                  {deviceInfo?.effects && (
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/70">Effect</h5>
-                      <select
-                        value={segment.effect}
-                        onChange={(e) => handleEffectChange(parseInt(e.target.value))}
-                        className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                      >
-                        {deviceInfo.effects.map((effect, index) => (
-                          <option key={index} value={index}>
-                            {effect}
-                          </option>
-                        ))}
-                      </select>
-                      
-                      <div className="pt-2 space-y-3">
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <Label className="text-xs text-white/70">Speed</Label>
-                            <span className="text-xs text-white/50">{effectSpeed}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <SlidersHorizontal size={14} className="text-cyan-300" />
-                            <Slider
-                              value={[segment.effectSpeed ?? effectSpeed]}
-                              min={0}
-                              max={255}
-                              step={1}
-                              onValueChange={(values) => {
-                                if (values.length > 0) {
-                                  handleEffectSpeedChange(values[0]);
-                                }
-                              }}
-                              className="flex-1"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <Label className="text-xs text-white/70">Intensity</Label>
-                            <span className="text-xs text-white/50">{effectIntensity}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <SlidersHorizontal size={14} className="text-cyan-300" />
-                            <Slider
-                              value={[segment.effectIntensity ?? effectIntensity]}
-                              min={0}
-                              max={255}
-                              step={1}
-                              onValueChange={(values) => {
-                                if (values.length > 0) {
-                                  handleEffectIntensityChange(values[0]);
-                                }
-                              }}
-                              className="flex-1"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {deviceInfo?.palettes && (
-                    <div className="space-y-2">
-                      <h5 className="text-xs text-white/70">Palette</h5>
-                      <div className="flex items-center space-x-2">
-                        <Palette size={14} className="text-cyan-300" />
-                        <select
-                          value={segment.palette ?? 0}
-                          onChange={(e) => handlePaletteChange(parseInt(e.target.value))}
-                          className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                        >
-                          {deviceInfo.palettes.map((palette, index) => (
-                            <option key={index} value={index}>
-                              {palette}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">LED Range</h5>
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        type="text"
-                        value={ledStart}
-                        onChange={(e) => handleLEDInputChange('start', e.target.value)}
-                        className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                        placeholder="0"
-                      />
-                      <span className="text-xs text-white/50">to</span>
-                      <Input
-                        type="text"
-                        value={ledEnd}
-                        onChange={(e) => handleLEDInputChange('end', e.target.value)}
-                        className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                        placeholder="30"
-                      />
-                    </div>
-                    <Slider
-                      value={[segment.leds.start, segment.leds.end]}
-                      min={0}
-                      max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
-                      step={1}
-                      onValueChange={handleLEDRangeChange}
-                      className="mt-2"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">Rotation</h5>
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        type="text"
-                        value={rotationValue}
-                        onChange={(e) => handleRotationInputChange(e.target.value)}
-                        className="w-16 h-8 text-sm bg-black/20 border-white/10"
-                        placeholder="0"
-                      />
-                      <span className="text-xs">degrees</span>
-                      <Slider
-                        value={[segment.rotation]}
-                        min={0}
-                        max={359}
-                        step={1}
-                        onValueChange={(values) => {
-                          if (values.length > 0) {
-                            const newRotation = values[0];
-                            const updatedSegments = segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, rotation: newRotation } 
-                                : seg
-                            );
-                            setSegments(updatedSegments);
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                rotation: newRotation
-                              });
-                              setRotationValue(Math.round(newRotation).toString());
-                            }
-                            localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-                            
-                            const event = new CustomEvent('segmentsUpdated', { 
-                              detail: updatedSegments,
-                              bubbles: true
-                            });
-                            document.dispatchEvent(event);
-                            window.dispatchEvent(event);
-                          }
-                        }}
-                        className="flex-1"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">Brightness</h5>
-                    <Slider
-                      value={[segment.brightness ?? segmentBrightness]}
-                      min={1}
-                      max={255}
-                      step={1}
-                      onValueChange={(values) => {
-                        if (values.length > 0) {
-                          handleSegmentBrightnessChange(values[0]);
-                        }
-                      }}
-                      className="mt-2"
-                    />
-                    <div className="flex justify-between text-xs text-white/50">
-                      <span>Min</span>
-                      <span>{segment.brightness ?? segmentBrightness}</span>
-                      <span>Max</span>
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            )}
-          </Popover>
+          <React.Fragment key={segment.id}>
+            {renderTriangle(segment)}
+          </React.Fragment>
         ))}
 
         {segments.length === 0 && (
@@ -1447,7 +1456,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   );
 };
 
-// Re-export the required functions from the original file to maintain compatibility
 const handleDragOver = (e: React.DragEvent) => {
   e.preventDefault();
 };
