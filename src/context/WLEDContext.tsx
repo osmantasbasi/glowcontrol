@@ -27,6 +27,9 @@ interface WLEDContextType {
   setSegmentBrightness: (segmentId: number, brightness: number) => Promise<void>;
   setSegmentPower: (segmentId: number, on: boolean) => Promise<void>;
   setSegmentLedRange: (segmentId: number, start: number, stop: number) => Promise<void>;
+  setSegmentPalette: (segmentId: number, paletteId: number) => Promise<void>;
+  addSegment: (startLed: number, endLed: number) => Promise<void>;
+  deleteSegment: (segmentId: number) => Promise<void>;
 }
 
 const WLEDContext = createContext<WLEDContextType | undefined>(undefined);
@@ -116,11 +119,11 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       }
       
       // Update info if available
-      if (data.info && !deviceInfo) {
+      if (data.effects && data.palettes && (!deviceInfo || !deviceInfo.effects || !deviceInfo.palettes)) {
         setDeviceInfo({
-          name: data.info.name || 'WLED Device',
-          version: data.info.ver || 'Unknown',
-          ledCount: data.info.leds?.count || 0,
+          name: data.info?.name || 'WLED Device',
+          version: data.info?.ver || 'Unknown',
+          ledCount: data.info?.leds?.count || 0,
           effects: data.effects || [],
           palettes: data.palettes || [],
         });
@@ -628,6 +631,87 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
+  const setSegmentPalette = async (segmentId: number, paletteId: number) => {
+    if (!activeDevice) {
+      toast.error('No active device');
+      return;
+    }
+    
+    try {
+      const api = getWledApi();
+      await api.setSegmentPalette(segmentId, paletteId);
+      
+      // Update the local state if we have segments data
+      if (deviceState && deviceState.segments) {
+        const updatedSegments = deviceState.segments.map(seg => {
+          if (seg.id === segmentId) {
+            return { ...seg, pal: paletteId };
+          }
+          return seg;
+        });
+        
+        setDeviceState({
+          ...deviceState,
+          segments: updatedSegments,
+        });
+      }
+    } catch (error) {
+      console.error('Error setting segment palette:', error);
+      toast.error('Failed to set segment palette');
+    }
+  };
+
+  const addSegment = async (startLed: number, endLed: number) => {
+    if (!activeDevice) {
+      toast.error('No active device');
+      return;
+    }
+    
+    try {
+      // Get current state to find the next available ID
+      const currentState = await getWledApi().getState();
+      const segments = currentState.segments || [];
+      
+      // Find the highest segment ID and increment by 1
+      const nextId = segments.length > 0 
+        ? Math.max(...segments.map(s => s.id || 0)) + 1 
+        : 0;
+      
+      await getWledApi().addSegment(nextId, startLed, endLed + 1); // WLED uses exclusive stop value
+      
+      toast.success(`Added segment ${nextId}`);
+      
+      // Force fetch device state to update with new segment
+      await fetchDeviceState();
+      
+      return;
+    } catch (error) {
+      console.error('Error adding segment:', error);
+      toast.error('Failed to add segment');
+    }
+  };
+
+  const deleteSegment = async (segmentId: number) => {
+    if (!activeDevice) {
+      toast.error('No active device');
+      return;
+    }
+    
+    try {
+      await getWledApi().deleteSegment(segmentId);
+      
+      toast.success(`Deleted segment ${segmentId}`);
+      
+      // Force fetch device state to update without this segment
+      await fetchDeviceState();
+      
+      return;
+    } catch (error) {
+      console.error('Error deleting segment:', error);
+      toast.error('Failed to delete segment');
+    }
+  };
+
   return (
     <WLEDContext.Provider
       value={{
@@ -648,6 +732,9 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         setSegmentBrightness,
         setSegmentPower,
         setSegmentLedRange,
+        setSegmentPalette,
+        addSegment,
+        deleteSegment,
       }}
     >
       {children}

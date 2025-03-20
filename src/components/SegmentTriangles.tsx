@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power, X } from 'lucide-react';
@@ -45,7 +44,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   setSelectedSegment,
   editMode = 'segment'
 }) => {
-  const { deviceInfo, deviceState, setSegmentColor, setSegmentEffect, setSegmentBrightness, setSegmentPower, setSegmentLedRange } = useWLED();
+  const { deviceInfo, deviceState, setSegmentColor, setSegmentEffect, setSegmentBrightness, setSegmentPower, setSegmentLedRange, setSegmentPalette, addSegment, deleteSegment } = useWLED();
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
@@ -70,7 +69,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
     
     // Find the maximum end value across all segments
-    const highestEnd = Math.max(...segments.map(seg => seg.leds?.end || 0));
+    // Sort segments by their LED range to make sure we add sequentially
+    const sortedSegments = [...segments].sort((a, b) => 
+      (a.leds?.end || 0) - (b.leds?.end || 0)
+    );
+    
+    const highestEnd = sortedSegments[sortedSegments.length - 1]?.leds?.end || 0;
     
     // Start from the next LED after the highest end
     const start = highestEnd + 1;
@@ -86,11 +90,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   // Effect to sync UI segments with WLED device segments
   useEffect(() => {
     if (deviceState?.segments && deviceState.segments.length > 0) {
+      // Filter out segments with stop=0 (deleted segments)
+      const activeWledSegments = deviceState.segments.filter(seg => seg.stop !== 0);
+      
       // Map WLED segments to our UI segment format
-      const wledSegments = deviceState.segments.map(seg => {
-        // Skip segments with stop=0 (deleted segments)
-        if (seg.stop === 0) return null;
-
+      const wledSegments = activeWledSegments.map(seg => {
         // Convert WLED segment to our UI segment format
         return {
           id: seg.id || 0,
@@ -111,7 +115,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           } : undefined,
           effect: seg.fx || 0,
           position: {
-            // Create random positions for new segments from WLED
             x: Math.random() * 70 + 10,
             y: Math.random() * 70 + 10
           },
@@ -126,9 +129,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           intensity: seg.ix || 128,
           palette: seg.pal || 0
         };
-      }).filter(Boolean) as Segment[];
+      });
 
       // Update our local segments with positions from existing segments for continuity
+      // If IDs match between WLED and local store, keep position
       const updatedSegments = wledSegments.map(newSeg => {
         const existingSeg = segments.find(s => s.id === newSeg.id);
         if (existingSeg) {
@@ -141,14 +145,22 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         return newSeg;
       });
 
-      // Only update if there are actual differences to avoid infinite loops
-      if (JSON.stringify(updatedSegments.map(s => s.id)) !== JSON.stringify(segments.map(s => s.id))) {
+      // Check if there are actual changes to avoid infinite loops
+      const currentIds = segments.map(s => s.id).sort().join(',');
+      const newIds = updatedSegments.map(s => s.id).sort().join(',');
+      
+      if (currentIds !== newIds || updatedSegments.length !== segments.length) {
         setSegments(updatedSegments);
+        
+        // If the currently selected segment was deleted, deselect it
+        if (selectedSegment && !updatedSegments.find(s => s.id === selectedSegment.id)) {
+          setSelectedSegment(null);
+        }
       }
     }
   }, [deviceState?.segments]);
 
-  const handleAddSegment = () => {
+  const handleAddSegment = async () => {
     if (segments.length >= MAX_SEGMENTS) {
       toast.error(`Maximum of ${MAX_SEGMENTS} segments allowed`);
       return;
@@ -156,96 +168,30 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     const ledRange = calculateNextLedRange();
     
-    // Use the next sequential ID
-    const nextId = segments.length > 0 
-      ? Math.max(...segments.map(seg => seg.id || 0)) + 1 
-      : 0;
-    
-    const newSegment: Segment = {
-      id: nextId,
-      color: { r: 255, g: 0, b: 0 },
-      color2: { r: 0, g: 255, b: 0 },
-      color3: { r: 0, g: 0, b: 255 },
-      effect: 0,
-      position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 },
-      rotation: 0,
-      leds: {
-        start: ledRange.start,
-        end: ledRange.end,
-      },
-      brightness: 255,
-      on: true,
-      speed: 128,
-      intensity: 128,
-      palette: 0
-    };
-    
-    setSegments([...segments, newSegment]);
-    
-    // Also send to WLED device to create the segment
     try {
-      const payload = {
-        seg: [{
-          id: nextId,
-          start: ledRange.start,
-          stop: ledRange.end + 1, // WLED uses stop as exclusive
-          len: ledRange.end - ledRange.start + 1,
-          col: [
-            [255, 0, 0],
-            [0, 255, 0],
-            [0, 0, 255]
-          ],
-          fx: 0,
-          sx: 128,
-          ix: 128,
-          pal: 0,
-          bri: 255,
-          on: true
-        }]
-      };
+      // Add segment via WLED API - this will assign the next available ID
+      await addSegment(ledRange.start, ledRange.end);
       
-      fetch(`http://${deviceInfo?.name || 'localhost'}/json/state`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }).catch(err => console.log("Error creating segment:", err));
-      
-      toast.success(`Added segment ${nextId + 1}`);
+      // State will be updated by the polling mechanism in useEffect
+      toast.success('Added new segment');
     } catch (error) {
       console.error("Error creating new segment:", error);
       toast.error("Failed to create segment");
     }
   };
 
-  const handleRemoveSegment = (id: number) => {
-    // Delete from WLED first
+  const handleRemoveSegment = async (id: number) => {
     try {
-      const payload = {
-        seg: [{
-          id: id,
-          stop: 0 // Setting stop to 0 is how you delete a segment in WLED
-        }]
-      };
+      // Delete segment via WLED API
+      await deleteSegment(id);
       
-      fetch(`http://${deviceInfo?.name || 'localhost'}/json/state`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }).then(() => {
-        // Update local state after successful API call
-        setSegments(segments.filter(segment => segment.id !== id));
-        if (selectedSegment?.id === id) {
-          setSelectedSegment(null);
-        }
-        toast.success(`Removed segment ${id + 1}`);
-      }).catch(err => {
-        console.log("Error deleting segment:", err);
-        toast.error("Failed to delete segment");
-      });
+      // Clear selection if the deleted segment was selected
+      if (selectedSegment?.id === id) {
+        setSelectedSegment(null);
+      }
+      
+      // State will be updated by the polling mechanism in useEffect
+      toast.success(`Removed segment ${id}`);
     } catch (error) {
       console.error("Error deleting segment:", error);
       toast.error("Failed to delete segment");
@@ -305,10 +251,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       } catch (error) {
         console.log('Error handling color change:', error);
       }
-    } else if (slot === 1 && selectedSegment.color2) {
+    } else if (slot === 1) {
       setSelectedSegment({ ...selectedSegment, color2: color });
       setSegmentColor(selectedSegment.id, color.r, color.g, color.b, 1);
-    } else if (slot === 2 && selectedSegment.color3) {
+    } else if (slot === 2) {
       setSelectedSegment({ ...selectedSegment, color3: color });
       setSegmentColor(selectedSegment.id, color.r, color.g, color.b, 2);
     }
@@ -347,40 +293,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSelectedSegment({ ...selectedSegment, palette: paletteId });
     
     try {
-      const payload = {
-        seg: [{
-          id: selectedSegment.id,
-          pal: paletteId
-        }]
-      };
-      
-      fetch(`http://${deviceInfo?.name || 'localhost'}/json/state`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }).catch(err => console.log("Error setting palette:", err));
+      // Use the context function to update palette
+      setSegmentPalette(selectedSegment.id, paletteId);
     } catch (error) {
       console.error("Error setting palette:", error);
+      toast.error("Failed to set palette");
     }
   };
-
-  useEffect(() => {
-    if (selectedSegment) {
-      setLedStart(selectedSegment.leds?.start?.toString() || '0');
-      setLedEnd(selectedSegment.leds?.end?.toString() || '30');
-      setRotationValue(Math.round(selectedSegment.rotation || 0).toString());
-      setSpeedValue((selectedSegment.speed || 128).toString());
-      setIntensityValue((selectedSegment.intensity || 128).toString());
-    } else {
-      setLedStart('0');
-      setLedEnd('30');
-      setRotationValue('0');
-      setSpeedValue('128');
-      setIntensityValue('128');
-    }
-  }, [selectedSegment]);
 
   const handleLEDRangeChange = (values: number[]) => {
     if (!selectedSegment || values.length !== 2) return;
@@ -819,6 +738,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                           ...selectedSegment,
                           color2: {r: 0, g: 127, b: 255}
                         });
+                        
+                        // Also update WLED with this new color
+                        setSegmentColor(selectedSegment.id, 0, 127, 255, 1);
                       }
                       setActiveColorSlot(1);
                     }}
@@ -840,6 +762,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                           ...selectedSegment,
                           color3: {r: 255, g: 0, b: 127}
                         });
+                        
+                        // Also update WLED with this new color
+                        setSegmentColor(selectedSegment.id, 255, 0, 127, 2);
                       }
                       setActiveColorSlot(2);
                     }}
@@ -1181,3 +1106,4 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
+

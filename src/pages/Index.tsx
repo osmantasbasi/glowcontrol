@@ -28,7 +28,7 @@ interface Segment {
 }
 
 const SegmentEditor = () => {
-  const { deviceState, deviceInfo, setColor, setEffect } = useWLED();
+  const { deviceState, deviceInfo, setColor, setEffect, setSegmentPalette } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
   
@@ -90,6 +90,24 @@ const SegmentEditor = () => {
         }
       } catch (error) {
         console.error('Error setting effect:', error);
+      }
+    }
+  };
+
+  const handlePaletteChange = (paletteId: number) => {
+    if (selectedSegment) {
+      setSegments(segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, palette: paletteId } 
+          : seg
+      ));
+      
+      try {
+        if (deviceState) {
+          setSegmentPalette(selectedSegment.id, paletteId);
+        }
+      } catch (error) {
+        console.error('Error setting palette:', error);
       }
     }
   };
@@ -199,11 +217,7 @@ const SegmentEditor = () => {
                   key={index}
                   onClick={() => {
                     if (selectedSegment) {
-                      setSegments(segments.map(seg => 
-                        seg.id === selectedSegment.id 
-                          ? { ...seg, palette: index } 
-                          : seg
-                      ));
+                      handlePaletteChange(index);
                     }
                   }}
                   className={cn(
@@ -220,7 +234,7 @@ const SegmentEditor = () => {
             </div>
           ) : (
             <div className="p-4 text-center text-sm text-white/50">
-              No palettes available. Please connect to a WLED device.
+              Loading palettes...
             </div>
           )}
           <div className="mt-4">

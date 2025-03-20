@@ -1,4 +1,3 @@
-
 // WLED API service
 
 type WLEDState = {
@@ -124,16 +123,22 @@ class WLEDApi {
 
   async setSegmentColor(segmentId: number, r: number, g: number, b: number, slot: number = 0): Promise<void> {
     try {
-      // Initialize and structure the payload
-      const payload: any = {
+      // Get current segment data to preserve other color slots
+      const state = await this.getState();
+      const segment = state.segments?.find(s => s.id === segmentId);
+      
+      // Initialize colors array, preserving existing colors
+      const colors = segment?.col ? [...segment.col] : [[0,0,0],[0,0,0],[0,0,0]];
+      
+      // Update only the specified color slot
+      colors[slot] = [r, g, b];
+      
+      const payload = {
         seg: [{
           id: segmentId,
-          col: Array(slot + 1).fill([0, 0, 0]) // Create array with placeholders
+          col: colors
         }]
       };
-      
-      // Set the color at the specified slot
-      payload.seg[0].col[slot] = [r, g, b];
       
       const response = await fetch(`${this.baseUrl}/json/state`, {
         method: 'POST',
@@ -148,6 +153,32 @@ class WLEDApi {
       return;
     } catch (error) {
       console.error('Error setting segment color:', error);
+      throw error;
+    }
+  }
+
+  async setSegmentPalette(segmentId: number, paletteId: number): Promise<void> {
+    try {
+      const payload = {
+        seg: [{
+          id: segmentId,
+          pal: paletteId
+        }]
+      };
+      
+      const response = await fetch(`${this.baseUrl}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment palette');
+      
+      return;
+    } catch (error) {
+      console.error('Error setting segment palette:', error);
       throw error;
     }
   }
@@ -203,6 +234,70 @@ class WLEDApi {
       return;
     } catch (error) {
       console.error('Error toggling power:', error);
+      throw error;
+    }
+  }
+
+  async addSegment(id: number, start: number, stop: number): Promise<void> {
+    try {
+      const payload = {
+        seg: [{
+          id: id,
+          start: start,
+          stop: stop,
+          len: stop - start,
+          col: [
+            [255, 0, 0],
+            [0, 255, 0],
+            [0, 0, 255]
+          ],
+          fx: 0,
+          sx: 128,
+          ix: 128,
+          pal: 0,
+          on: true
+        }]
+      };
+      
+      const response = await fetch(`${this.baseUrl}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to add segment');
+      
+      return;
+    } catch (error) {
+      console.error('Error adding segment:', error);
+      throw error;
+    }
+  }
+
+  async deleteSegment(segmentId: number): Promise<void> {
+    try {
+      const payload = {
+        seg: [{
+          id: segmentId,
+          stop: 0  // Setting stop to 0 deletes the segment in WLED
+        }]
+      };
+      
+      const response = await fetch(`${this.baseUrl}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete segment');
+      
+      return;
+    } catch (error) {
+      console.error('Error deleting segment:', error);
       throw error;
     }
   }
