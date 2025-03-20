@@ -55,20 +55,82 @@ type WLEDInfo = {
   palettes: string[];
 };
 
+type NetworkConfig = {
+  protocol: 'http' | 'https';
+  ipAddress: string;
+  port?: number;
+  autoDetect?: boolean;
+};
+
 class WLEDApi {
   private baseUrl: string;
   private socketConnection: WebSocket | null = null;
   private onUpdateCallbacks: ((state: WLEDState) => void)[] = [];
+  private networkConfig: NetworkConfig;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
+  private reconnectTimeout: number = 2000; // Start with 2 seconds
 
-  constructor(ipAddress: string) {
-    this.baseUrl = `http://${ipAddress}`;
+  constructor(ipAddress: string, port?: number) {
+    // Remove any protocol prefixes if they exist
+    const cleanIpAddress = ipAddress.replace(/(^\w+:|^)\/\//, '');
+    
+    this.networkConfig = {
+      protocol: 'http',
+      ipAddress: cleanIpAddress,
+      port: port
+    };
+    
+    this.baseUrl = this.buildBaseUrl();
+  }
+
+  private buildBaseUrl(): string {
+    const { protocol, ipAddress, port } = this.networkConfig;
+    return `${protocol}://${ipAddress}${port ? `:${port}` : ''}`;
+  }
+
+  // Helper method to handle network requests with timeout and retry logic
+  private async makeRequest(
+    endpoint: string, 
+    options: RequestInit = {}, 
+    timeoutMs: number = 5000
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    
+    const url = `${this.baseUrl}${endpoint}`;
+    console.log(`Making request to: ${url}`);
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      
+      clearTimeout(id);
+      
+      if (!response.ok) {
+        throw new Error(`Request failed with status: ${response.status}`);
+      }
+      
+      return response;
+    } catch (error: any) {
+      clearTimeout(id);
+      
+      // Check if it's a timeout error
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out. Check if the device is reachable.');
+      }
+      
+      // Network error - could be CORS, connection refused, etc.
+      console.error('Network error:', error);
+      throw new Error(`Network error: ${error.message}`);
+    }
   }
 
   async getInfo(): Promise<WLEDInfo> {
     try {
-      const response = await fetch(`${this.baseUrl}/json/info`);
-      if (!response.ok) throw new Error('Failed to fetch WLED info');
-      
+      const response = await this.makeRequest('/json/info');
       const data = await response.json();
       
       return {
@@ -86,9 +148,7 @@ class WLEDApi {
 
   async getState(): Promise<WLEDState> {
     try {
-      const response = await fetch(`${this.baseUrl}/json/state`);
-      if (!response.ok) throw new Error('Failed to fetch WLED state');
-      
+      const response = await this.makeRequest('/json/state');
       const data = await response.json();
       
       return {
@@ -112,7 +172,7 @@ class WLEDApi {
 
   async setColor(r: number, g: number, b: number): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/json/state`, {
+      await this.makeRequest('/json/state', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -121,8 +181,6 @@ class WLEDApi {
           seg: [{ col: [[r, g, b]] }],
         }),
       });
-      
-      if (!response.ok) throw new Error('Failed to set color');
       
       return;
     } catch (error) {
@@ -133,7 +191,7 @@ class WLEDApi {
 
   async setBrightness(brightness: number): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/json/state`, {
+      await this.makeRequest('/json/state', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,8 +200,6 @@ class WLEDApi {
           bri: brightness,
         }),
       });
-      
-      if (!response.ok) throw new Error('Failed to set brightness');
       
       return;
     } catch (error) {
@@ -167,15 +223,13 @@ class WLEDApi {
         }
       }
       
-      const response = await fetch(`${this.baseUrl}/json/state`, {
+      await this.makeRequest('/json/state', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
       });
-      
-      if (!response.ok) throw new Error('Failed to set segment color');
       
       return;
     } catch (error) {
@@ -209,15 +263,13 @@ class WLEDApi {
         }
       }
       
-      const response = await fetch(`${this.baseUrl}/json/state`, {
+      await this.makeRequest('/json/state', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
       });
-      
-      if (!response.ok) throw new Error('Failed to set segment effect');
       
       return;
     } catch (error) {
@@ -228,7 +280,7 @@ class WLEDApi {
 
   async togglePower(on?: boolean): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/json/state`, {
+      await this.makeRequest('/json/state', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,8 +289,6 @@ class WLEDApi {
           on: on === undefined ? 'toggle' : on,
         }),
       });
-      
-      if (!response.ok) throw new Error('Failed to toggle power');
       
       return;
     } catch (error) {
@@ -254,11 +304,20 @@ class WLEDApi {
         this.socketConnection.close();
       }
       
+      // WebSocket URL should use ws:// or wss:// depending on the protocol
+      const wsProtocol = this.networkConfig.protocol === 'https' ? 'wss' : 'ws';
+      const wsUrl = `${wsProtocol}://${this.networkConfig.ipAddress}${this.networkConfig.port ? `:${this.networkConfig.port}` : ''}/ws`;
+      
+      console.log(`Connecting to WebSocket at: ${wsUrl}`);
+      
       // Create new WebSocket connection
-      this.socketConnection = new WebSocket(`ws://${this.baseUrl.replace('http://', '')}/ws`);
+      this.socketConnection = new WebSocket(wsUrl);
       
       this.socketConnection.onopen = () => {
         console.log('WebSocket connection established');
+        // Reset reconnect attempts on successful connection
+        this.reconnectAttempts = 0;
+        this.reconnectTimeout = 2000;
       };
       
       this.socketConnection.onmessage = (event) => {
@@ -290,13 +349,42 @@ class WLEDApi {
         console.error('WebSocket error:', error);
       };
       
-      this.socketConnection.onclose = () => {
-        console.log('WebSocket connection closed');
-        // Attempt to reconnect after a delay
-        setTimeout(() => this.connectWebSocket(), 5000);
+      this.socketConnection.onclose = (event) => {
+        console.log(`WebSocket connection closed with code: ${event.code}`);
+        
+        // Attempt to reconnect with exponential backoff, unless we've hit max attempts
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          // Exponential backoff - double the timeout with each attempt (up to 30 seconds)
+          this.reconnectTimeout = Math.min(this.reconnectTimeout * 2, 30000);
+          
+          console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${this.reconnectTimeout/1000} seconds...`);
+          
+          setTimeout(() => this.connectWebSocket(), this.reconnectTimeout);
+        } else {
+          console.log('Maximum reconnect attempts reached. Giving up.');
+        }
       };
     } catch (error) {
       console.error('Error establishing WebSocket connection:', error);
+    }
+  }
+
+  // Set a custom IP address and port after initialization
+  setNetworkAddress(ipAddress: string, port?: number): void {
+    // Remove any protocol prefixes if they exist
+    const cleanIpAddress = ipAddress.replace(/(^\w+:|^)\/\//, '');
+    
+    this.networkConfig.ipAddress = cleanIpAddress;
+    if (port !== undefined) {
+      this.networkConfig.port = port;
+    }
+    
+    this.baseUrl = this.buildBaseUrl();
+    
+    // Reconnect WebSocket if active
+    if (this.socketConnection) {
+      this.connectWebSocket();
     }
   }
 
@@ -316,8 +404,8 @@ class WLEDApi {
 // Create a singleton instance - will be initialized with real IP later
 let wledApiInstance: WLEDApi | null = null;
 
-export const initializeWledApi = (ipAddress: string) => {
-  wledApiInstance = new WLEDApi(ipAddress);
+export const initializeWledApi = (ipAddress: string, port?: number) => {
+  wledApiInstance = new WLEDApi(ipAddress, port);
   return wledApiInstance;
 };
 
@@ -329,4 +417,4 @@ export const getWledApi = (): WLEDApi => {
   return wledApiInstance;
 };
 
-export type { WLEDState, WLEDInfo };
+export type { WLEDState, WLEDInfo, NetworkConfig };
