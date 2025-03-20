@@ -13,7 +13,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Convert RGB to HSV - fix RGB order (swap g and b)
+  // Convert RGB to HSV - proper RGB order
   const rgbToHsv = (r: number, g: number, b: number) => {
     r /= 255;
     g /= 255;
@@ -44,7 +44,15 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
   };
   
   // Calculate the current HSV based on RGB color
-  const { h, s, v } = rgbToHsv(color.r, color.g, color.b);
+  const hsv = useMemo(() => {
+    // Check if color is black (special case)
+    if (color.r === 0 && color.g === 0 && color.b === 0) {
+      return { h: 0, s: 0, v: 0 };
+    }
+    return rgbToHsv(color.r, color.g, color.b);
+  }, [color.r, color.g, color.b]);
+  
+  const { h, s, v } = hsv;
   
   // Draw the color wheel
   const drawColorWheel = useCallback(() => {
@@ -110,10 +118,17 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     ctx.stroke();
     
     // Draw current color selection
-    const hueRadians = (h * Math.PI) / 180;
-    const distance = s * radius;
-    const x = centerX + Math.cos(hueRadians) * distance;
-    const y = centerY - Math.sin(hueRadians) * distance;
+    // If color is black, position selector in the center black circle
+    let x, y;
+    if (color.r === 0 && color.g === 0 && color.b === 0) {
+      x = centerX;
+      y = centerY;
+    } else {
+      const hueRadians = (h * Math.PI) / 180;
+      const distance = s * radius;
+      x = centerX + Math.cos(hueRadians) * distance;
+      y = centerY - Math.sin(hueRadians) * distance;
+    }
     
     // Outer circle (white or black depending on background)
     ctx.beginPath();
@@ -135,7 +150,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     ctx.stroke();
   }, [color.r, color.g, color.b, h, s, v]);
   
-  // Convert HSV to RGB - fix RGB order (swap g and b)
+  // Convert HSV to RGB - proper RGB order
   const hsvToRgb = (h: number, s: number, v: number) => {
     let r = 0, g = 0, b = 0;
     
@@ -208,7 +223,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     let saturation = Math.min(1, centerToPointDistance / radius);
     
     // Convert HSV to RGB
-    const newColor = hsvToRgb(angle, saturation, v);
+    const newColor = hsvToRgb(angle, saturation, 1); // Always use v=1 for color wheel
     onChange(newColor);
   };
   
