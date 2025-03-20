@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
+import { loadConfiguration, saveConfiguration } from '../services/configService';
 
 interface WLEDDevice {
   id: string;
@@ -195,6 +196,9 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       const api = initializeWledApi(device.ipAddress);
       
+      // Load saved configuration for this device if available
+      const savedConfig = loadConfiguration(device.ipAddress);
+      
       // Fetch both the state and info in a single request
       const response = await fetch(`http://${device.ipAddress}/json`);
       if (!response.ok) throw new Error('Failed to fetch WLED data');
@@ -216,6 +220,25 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           segments: data.state.seg || [],
         };
         
+        // If we have saved segment data, use it instead
+        if (savedConfig && savedConfig.segments && savedConfig.segments.length > 0) {
+          state.segments = savedConfig.segments;
+          
+          // Apply saved configuration by sending it to the device
+          try {
+            await fetch(`http://${device.ipAddress}/json/state`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ seg: savedConfig.segments }),
+            });
+            console.log('Applied saved segment configuration to device');
+          } catch (error) {
+            console.error('Error applying saved configuration to device:', error);
+          }
+        }
+        
         setDeviceState(state);
       }
       
@@ -236,6 +259,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           ...state,
           segments: prev?.segments || []
         }));
+        
+        // Whenever state changes, save the configuration
+        if (device && state) {
+          saveConfiguration(device.ipAddress, {
+            segments: state.segments || [],
+            deviceState: state,
+            deviceInfo: deviceInfo || null
+          });
+        }
       });
       
       setDevices(prev => 
@@ -684,6 +716,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       // Force fetch device state to update with new segment
       await fetchDeviceState();
       
+      // Save the updated configuration
+      if (deviceState) {
+        saveConfiguration(activeDevice.ipAddress, {
+          segments: deviceState.segments || [],
+          deviceState,
+          deviceInfo: deviceInfo || null
+        });
+      }
+      
       return;
     } catch (error) {
       console.error('Error adding segment:', error);
@@ -704,6 +745,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       // Force fetch device state to update without this segment
       await fetchDeviceState();
+      
+      // Save the updated configuration
+      if (deviceState) {
+        saveConfiguration(activeDevice.ipAddress, {
+          segments: deviceState.segments || [],
+          deviceState,
+          deviceInfo: deviceInfo || null
+        });
+      }
       
       return;
     } catch (error) {

@@ -42,6 +42,36 @@
   color: #888;
 }
 
+/* Configuration UI styles */
+.config-indicator {
+  position: relative;
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.config-indicator.saved {
+  background-color: #10B981;
+}
+
+.config-indicator.unsaved {
+  background-color: #F59E0B;
+}
+
+.save-button {
+  transition: all 0.2s ease;
+}
+
+.save-button:hover {
+  transform: scale(1.05);
+}
+
+.save-button:active {
+  transform: scale(0.95);
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   body {

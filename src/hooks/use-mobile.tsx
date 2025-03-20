@@ -17,9 +17,20 @@ export function useIsMobile() {
     // Add event listener for resize
     window.addEventListener("resize", checkMobile)
     
+    // Load saved setting if available
+    const savedMobileSetting = localStorage.getItem('preferMobileView')
+    if (savedMobileSetting) {
+      setIsMobile(savedMobileSetting === 'true')
+    }
+    
     // Clean up
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
+
+  const setMobilePreference = (prefer: boolean) => {
+    localStorage.setItem('preferMobileView', prefer.toString())
+    setIsMobile(prefer)
+  }
 
   return !!isMobile
 }

@@ -1,10 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bluetooth, Plus, Power, Trash2 } from 'lucide-react';
+import { Bluetooth, Plus, Power, Trash2, Save, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { loadConfiguration, saveConfiguration, deleteConfiguration } from '@/services/configService';
+import { toast } from 'sonner';
 
 interface DeviceManagerProps {
   className?: string;
@@ -18,12 +20,30 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
     removeDevice, 
     setActiveDevice,
     togglePower,
-    deviceState
+    deviceState,
+    deviceInfo
   } = useWLED();
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState('');
   const [newDeviceIp, setNewDeviceIp] = useState('');
+  const [devicesWithConfig, setDevicesWithConfig] = useState<Record<string, boolean>>({});
+
+  // Check which devices have saved configurations
+  useEffect(() => {
+    const checkSavedConfigs = () => {
+      const configs: Record<string, boolean> = {};
+      
+      devices.forEach(device => {
+        const savedConfig = loadConfiguration(device.ipAddress);
+        configs[device.id] = !!savedConfig;
+      });
+      
+      setDevicesWithConfig(configs);
+    };
+    
+    checkSavedConfigs();
+  }, [devices]);
 
   const handleAddDevice = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +53,38 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
       setNewDeviceIp('');
       setShowAddForm(false);
     }
+  };
+
+  const handleSaveDeviceConfig = (deviceId: string, ipAddress: string) => {
+    if (deviceState && deviceInfo) {
+      saveConfiguration(ipAddress, {
+        segments: deviceState.segments || [],
+        deviceState,
+        deviceInfo
+      });
+      
+      // Update the devices with config state
+      setDevicesWithConfig(prev => ({
+        ...prev,
+        [deviceId]: true
+      }));
+      
+      toast.success('Configuration saved successfully');
+    } else {
+      toast.error('No device state to save');
+    }
+  };
+
+  const handleResetDeviceConfig = (deviceId: string, ipAddress: string) => {
+    deleteConfiguration(ipAddress);
+    
+    // Update the devices with config state
+    setDevicesWithConfig(prev => ({
+      ...prev,
+      [deviceId]: false
+    }));
+    
+    toast.success('Configuration reset successfully');
   };
 
   return (
@@ -112,28 +164,59 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
                     )}
                   />
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium">{device.name}</span>
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium">{device.name}</span>
+                      {devicesWithConfig[device.id] && (
+                        <span className="ml-2 inline-block h-2 w-2 rounded-full bg-blue-400" title="Has saved configuration" />
+                      )}
+                    </div>
                     <span className="text-xs text-white/50">{device.ipAddress}</span>
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-1">
                   {device.id === activeDevice?.id && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-7 w-7 p-0"
-                      onClick={() => togglePower()}
-                    >
-                      <Power 
-                        size={15}
-                        className={cn(
-                          "transition-colors",
-                          deviceState?.on ? "text-white" : "text-white/40"
-                        )}
-                      />
-                      <span className="sr-only">Toggle Power</span>
-                    </Button>
+                    <>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 w-7 p-0 save-button"
+                        title="Save configuration"
+                        onClick={() => handleSaveDeviceConfig(device.id, device.ipAddress)}
+                      >
+                        <Save size={15} className="text-cyan-300" />
+                        <span className="sr-only">Save Config</span>
+                      </Button>
+                      
+                      {devicesWithConfig[device.id] && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 w-7 p-0"
+                          title="Reset configuration"
+                          onClick={() => handleResetDeviceConfig(device.id, device.ipAddress)}
+                        >
+                          <RotateCcw size={15} className="text-amber-300" />
+                          <span className="sr-only">Reset Config</span>
+                        </Button>
+                      )}
+                      
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 w-7 p-0"
+                        onClick={() => togglePower()}
+                      >
+                        <Power 
+                          size={15}
+                          className={cn(
+                            "transition-colors",
+                            deviceState?.on ? "text-white" : "text-white/40"
+                          )}
+                        />
+                        <span className="sr-only">Toggle Power</span>
+                      </Button>
+                    </>
                   )}
                   
                   {device.id !== activeDevice?.id && (
