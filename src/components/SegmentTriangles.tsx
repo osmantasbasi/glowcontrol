@@ -1,80 +1,14 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Palette, Power, SlidersHorizontal } from 'lucide-react';
+import { Plus, Triangle, Move } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useWLED } from '@/context/WLEDContext';
-import ColorPicker from './ColorPicker';
-import { Slider } from '@/components/ui/slider';
-import { Input } from '@/components/ui/input';
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
-import BrightnessSlider from './BrightnessSlider';
-
-interface WLEDSegment {
-  id: number;
-  start: number;
-  stop: number;
-  len: number;
-  grp: number;
-  spc: number;
-  of: number;
-  on: boolean;
-  frz: boolean;
-  bri: number;
-  cct: number;
-  set: number;
-  col: [number, number, number][];
-  fx: number;
-  sx: number;
-  ix: number;
-  pal: number;
-  c1: number;
-  c2: number;
-  c3: number;
-  sel: boolean;
-  rev: boolean;
-  mi: boolean;
-  o1: boolean;
-  o2: boolean;
-  o3: boolean;
-  si: number;
-  m12: number;
-}
-
-interface Segment {
-  id: number;
-  color: { r: number; g: number; b: number };
-  color2?: { r: number; g: number; b: number };
-  color3?: { r: number; g: number; b: number };
-  effect: number;
-  effectSpeed?: number;
-  effectIntensity?: number;
-  position: { x: number; y: number };
-  rotation: number;
-  leds: { start: number; end: number };
-  brightness?: number;
-  on?: boolean;
-  palette?: number;
-  start?: number;
-  stop?: number;
-  len?: number;
-  col?: [number, number, number][];
-}
-
-interface SegmentTrianglesProps {
-  className?: string;
-  segments: Segment[];
-  setSegments: React.Dispatch<React.SetStateAction<Segment[]>>;
-  selectedSegment: Segment | null;
-  setSelectedSegment: React.Dispatch<React.SetStateAction<Segment | null>>;
-  editMode?: 'segment' | 'color' | 'effect';
-  updateWLEDSegments?: (segmentData: Partial<Segment>[]) => Promise<void>;
-}
-
-const TRIANGLE_SIZE = 90; // Fixed triangle size
-const LEDS_PER_SEGMENT = 30;
+import { Segment, SegmentTrianglesProps } from '@/types/segments';
+import { calculateNextLedRange, recalculateLedRanges, broadcastSegmentUpdate, TRIANGLE_SIZE } from '@/utils/segmentUtils';
+import TriangleComponent from './Triangle';
+import SegmentControls from './SegmentControls';
 
 const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ 
   className, 
@@ -103,6 +37,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [selectedSegments, setSelectedSegments] = useState<number[]>([]);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
   
+  // Load segments from localStorage and listen for changes
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'wledSegments' && e.newValue) {
@@ -116,10 +51,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     };
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [setSegments]);
-
-  useEffect(() => {
+    
     const savedSegments = localStorage.getItem('wledSegments');
     if (savedSegments) {
       try {
@@ -129,19 +61,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         console.error('Error loading segments:', e);
       }
     }
+
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, [setSegments]);
 
+  // Save segments to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('wledSegments', JSON.stringify(segments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: segments,
-      bubbles: true 
-    });
-    window.dispatchEvent(event);
-    document.dispatchEvent(event);
+    broadcastSegmentUpdate(segments);
   }, [segments]);
 
+  // Listen for segmentsUpdated events
   useEffect(() => {
     const handleSegmentsUpdated = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -159,56 +88,17 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     };
   }, [setSegments]);
 
-  const calculateNextLedRange = (): { start: number; end: number } => {
-    if (segments.length === 0) {
-      return { start: 0, end: LEDS_PER_SEGMENT - 1 };
+  // Update UI controls when selected segment changes
+  useEffect(() => {
+    if (selectedSegment) {
+      setLedStart(selectedSegment.leds.start.toString());
+      setLedEnd(selectedSegment.leds.end.toString());
+      setRotationValue(Math.round(selectedSegment.rotation).toString());
+      setEffectSpeed(selectedSegment.effectSpeed ?? 128);
+      setEffectIntensity(selectedSegment.effectIntensity ?? 128);
+      setSegmentBrightness(selectedSegment.brightness ?? 255);
     }
-    
-    const segmentIndex = segments.length;
-    const start = segmentIndex * LEDS_PER_SEGMENT;
-    const end = start + LEDS_PER_SEGMENT - 1;
-    
-    const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
-    return { 
-      start: Math.min(start, maxLed), 
-      end: Math.min(end, maxLed) 
-    };
-  };
-
-  const recalculateLedRanges = () => {
-    if (segments.length === 0) return;
-    
-    const sortedSegments = [...segments].sort((a, b) => a.leds.start - b.leds.start);
-    
-    const updatedSegments = sortedSegments.map((segment, index) => {
-      const start = index * LEDS_PER_SEGMENT;
-      const end = start + LEDS_PER_SEGMENT - 1;
-      
-      return {
-        ...segment,
-        leds: { start, end }
-      };
-    });
-    
-    setSegments(updatedSegments);
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true 
-    });
-    window.dispatchEvent(event);
-    document.dispatchEvent(event);
-    
-    updatedSegments.forEach((segment, index) => {
-      updateSegment(index, {
-        id: index,
-        start: segment.leds.start,
-        stop: segment.leds.end,
-        len: segment.leds.end - segment.leds.start + 1
-      });
-    });
-  };
+  }, [selectedSegment]);
 
   const handleAddSegment = () => {
     try {
@@ -217,7 +107,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         return;
       }
       
-      const ledRange = calculateNextLedRange();
+      const ledRange = calculateNextLedRange(segments, deviceInfo?.ledCount);
       const segmentId = segments.length;
       
       const newSegment: Segment = {
@@ -239,14 +129,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       const updatedSegments = [...segments, newSegment];
       setSegments(updatedSegments);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true
-      });
-      window.dispatchEvent(event);
-      document.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       updateSegment(segmentId, {
         id: segmentId,
@@ -295,18 +178,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       
       setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
       
-      localStorage.setItem('wledSegments', JSON.stringify(reindexedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: reindexedSegments,
-        bubbles: true 
-      });
-      document.dispatchEvent(event);
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(reindexedSegments);
       
       try {
         setTimeout(() => {
-          recalculateLedRanges();
+          recalculateLedRanges(reindexedSegments, setSegments, updateSegment);
         }, 50);
       } catch (error) {
         console.error("Error removing segment:", error);
@@ -389,13 +265,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         });
         
         setSegments(updatedSegments);
-        localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-        
-        const event = new CustomEvent('segmentsUpdated', { 
-          detail: updatedSegments,
-          bubbles: true 
-        });
-        window.dispatchEvent(event);
+        broadcastSegmentUpdate(updatedSegments);
         
         setColor(color.r, color.g, color.b);
         
@@ -468,13 +338,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSegments(updatedSegments);
       setSelectedSegment(updatedSegment);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       setColor(color.r, color.g, color.b);
       
@@ -497,13 +361,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         );
         
         setSegments(updatedSegments);
-        localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-        
-        const event = new CustomEvent('segmentsUpdated', { 
-          detail: updatedSegments,
-          bubbles: true 
-        });
-        window.dispatchEvent(event);
+        broadcastSegmentUpdate(updatedSegments);
         
         setEffect(effectId);
         
@@ -530,13 +388,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSegments(updatedSegments);
       setSelectedSegment(updatedSegment);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       setEffect(effectId);
       
@@ -562,13 +414,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSegments(updatedSegments);
       setSelectedSegment(updatedSegment);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       updateSegment(selectedSegment.id, { pal: paletteId });
     } catch (error) {
@@ -593,13 +439,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSelectedSegment(updatedSegment);
       setEffectSpeed(speed);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       updateSegment(selectedSegment.id, { sx: speed });
     } catch (error) {
@@ -624,13 +464,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSelectedSegment(updatedSegment);
       setEffectIntensity(intensity);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       updateSegment(selectedSegment.id, { ix: intensity });
     } catch (error) {
@@ -656,13 +490,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSegments(updatedSegments);
       setSelectedSegment(updatedSegment);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       updateSegment(selectedSegment.id, { on: newOnState });
       
@@ -672,17 +500,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       toast.error("Error toggling segment power");
     }
   };
-
-  useEffect(() => {
-    if (selectedSegment) {
-      setLedStart(selectedSegment.leds.start.toString());
-      setLedEnd(selectedSegment.leds.end.toString());
-      setRotationValue(Math.round(selectedSegment.rotation).toString());
-      setEffectSpeed(selectedSegment.effectSpeed ?? 128);
-      setEffectIntensity(selectedSegment.effectIntensity ?? 128);
-      setSegmentBrightness(selectedSegment.brightness ?? 255);
-    }
-  }, [selectedSegment]);
 
   const handleLEDRangeChange = (values: number[]) => {
     try {
@@ -703,13 +520,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setLedStart(leds.start.toString());
       setLedEnd(leds.end.toString());
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true 
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       updateSegment(selectedSegment.id, { 
         start: leds.start, 
@@ -756,13 +567,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSelectedSegment(updatedSegment);
       setSegmentBrightness(brightness);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       updateSegment(selectedSegment.id, { bri: brightness });
     } catch (error) {
@@ -821,13 +626,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSegments(updatedSegments);
       setSelectedSegment(updatedSegment);
       
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true 
-      });
-      window.dispatchEvent(event);
+      broadcastSegmentUpdate(updatedSegments);
       
       if (field === 'ledStart' || field === 'ledEnd') {
         updateSegment(selectedSegment.id, { 
@@ -943,16 +742,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       }
       
       setSegments(updatedSegments);
-      
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-      
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true 
-      });
-      window.dispatchEvent(event);
-      document.dispatchEvent(event);
-      
+      broadcastSegmentUpdate(updatedSegments);
       setDraggedSegment(null);
     } catch (error) {
       console.error("Error in drop handler:", error);
@@ -1018,14 +808,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSelectedSegment(updatedSegment);
     setRotationValue(Math.round(newRotation).toString());
     
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true 
-    });
-    window.dispatchEvent(event);
-    document.dispatchEvent(event);
+    broadcastSegmentUpdate(updatedSegments);
   };
 
   const handleRotateEnd = () => {
@@ -1080,14 +863,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSelectedSegment(updatedSegment);
     setRotationValue(Math.round(updatedRotation).toString());
     
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true 
-    });
-    window.dispatchEvent(event);
-    document.dispatchEvent(event);
+    broadcastSegmentUpdate(updatedSegments);
     
     e.preventDefault();
   };
@@ -1099,114 +875,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     } else if (selectedSegment) {
       setSelectedSegments([selectedSegment.id]);
     }
-  };
-
-  const renderTriangle = (segment: Segment) => {
-    const isSelected = selectedSegment?.id === segment.id;
-    const isMultiSelected = selectedSegments.includes(segment.id);
-    
-    const strokeColor = isMultiSelected 
-      ? "rgba(128, 0, 255, 0.8)" 
-      : isSelected 
-        ? "rgba(0, 122, 255, 0.8)" 
-        : "rgba(255, 255, 255, 0.7)";
-    
-    const strokeWidth = isSelected || isMultiSelected ? 2 : 1.5;
-    
-    const breathingAnimation = isSelected || isMultiSelected
-      ? "animate-pulse" 
-      : "";
-    
-    return (
-      <div
-        key={segment.id}
-        className={cn(
-          "absolute cursor-move transform-gpu",
-          breathingAnimation
-        )}
-        style={{
-          left: `${segment.position.x}%`,
-          top: `${segment.position.y}%`,
-          width: `${TRIANGLE_SIZE}px`,
-          height: `${TRIANGLE_SIZE}px`,
-          marginLeft: `-${TRIANGLE_SIZE / 2}px`,
-          marginTop: `-${TRIANGLE_SIZE / 2}px`,
-          transform: `rotate(${segment.rotation}deg)`,
-          zIndex: isSelected ? 10 : 1,
-          transition: "transform 0.2s, stroke 0.3s"
-        }}
-        draggable={true}
-        onDragStart={(e) => handleDragStart(e, segment)}
-        onMouseDown={(e) => handleMouseDown(e, segment)}
-        onClick={(e) => handleSegmentClick(segment, e)}
-        onKeyDown={(e) => handleKeyDown(e, segment)}
-        tabIndex={0}
-      >
-        <svg width="100%" height="100%" viewBox="0 0 24 24">
-          <polygon 
-            points="12,2 22,22 2,22" 
-            fill={`rgb(${segment.color.r},${segment.color.g},${segment.color.b})`}
-            stroke={strokeColor}
-            strokeWidth={strokeWidth}
-            className={cn(
-              segment.on === false ? "opacity-30" : "opacity-100"
-            )}
-          />
-          
-          {isSelected && (
-            <>
-              <circle 
-                cx="12" cy="2" r="0.8" 
-                fill="white" 
-                className="cursor-pointer" 
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => handleRotateStart(e, segment)} 
-              />
-              <line 
-                x1="12" y1="2" x2="12" y2="4" 
-                stroke="white" 
-                strokeWidth="0.5" 
-              />
-            </>
-          )}
-        </svg>
-        
-        {isSelected && (
-          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 flex space-x-1">
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-6 w-6 bg-background/80 backdrop-blur-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleTogglePower(segment.id);
-              }}
-            >
-              <Power className={segment.on === false ? "text-muted-foreground" : "text-green-500"} size={14} />
-            </Button>
-            
-            <Button
-              size="icon"
-              variant="outline" 
-              className="h-6 w-6 bg-background/80 backdrop-blur-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                handleRemoveSegment(segment.id, e);
-              }}
-            >
-              <Trash className="text-red-500" size={14} />
-            </Button>
-          </div>
-        )}
-        
-        {(isSelected || isMultiSelected) && (
-          <div className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs bg-background/80 backdrop-blur-sm px-1 rounded text-white">
-            {segment.id}
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -1235,43 +903,25 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         </div>
         
         {selectedSegment && editMode === 'segment' && (
-          <div className="flex items-center gap-2">
-            <div className="flex flex-col">
-              <div className="text-xs text-muted-foreground">Start</div>
-              <Input
-                type="number"
-                value={ledStart}
-                min={0}
-                max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
-                onChange={(e) => handleLEDInputChange('start', e.target.value)}
-                className="h-8 w-16"
-              />
-            </div>
-            
-            <div className="flex flex-col">
-              <div className="text-xs text-muted-foreground">End</div>
-              <Input
-                type="number"
-                value={ledEnd}
-                min={parseInt(ledStart)}
-                max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
-                onChange={(e) => handleLEDInputChange('end', e.target.value)}
-                className="h-8 w-16"
-              />
-            </div>
-            
-            <div className="flex flex-col">
-              <div className="text-xs text-muted-foreground">Rotation</div>
-              <Input
-                type="number"
-                value={rotationValue}
-                min={0}
-                max={359}
-                onChange={(e) => handleRotationInputChange(e.target.value)}
-                className="h-8 w-16"
-              />
-            </div>
-          </div>
+          <SegmentControls
+            segment={selectedSegment}
+            editMode={editMode}
+            ledStart={ledStart}
+            ledEnd={ledEnd}
+            rotationValue={rotationValue}
+            effectSpeed={effectSpeed}
+            effectIntensity={effectIntensity}
+            segmentBrightness={segmentBrightness}
+            colorTabActive={colorTabActive}
+            onLEDInputChange={handleLEDInputChange}
+            onRotationInputChange={handleRotationInputChange}
+            onEffectSpeedChange={handleEffectSpeedChange}
+            onEffectIntensityChange={handleEffectIntensityChange}
+            onSegmentBrightnessChange={handleSegmentBrightnessChange}
+            onColorChange={handleColorChange}
+            setColorTabActive={setColorTabActive}
+            deviceLedCount={deviceInfo?.ledCount}
+          />
         )}
       </div>
       
@@ -1288,90 +938,68 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         onMouseMove={handleRotateMove}
         onMouseUp={handleRotateEnd}
       >
-        {segments.map(segment => renderTriangle(segment))}
+        {segments.map(segment => (
+          <TriangleComponent
+            key={segment.id}
+            segment={segment}
+            isSelected={selectedSegment?.id === segment.id}
+            isMultiSelected={selectedSegments.includes(segment.id)}
+            onDragStart={handleDragStart}
+            onMouseDown={handleMouseDown}
+            onClick={handleSegmentClick}
+            onKeyDown={handleKeyDown}
+            onRotateStart={handleRotateStart}
+            onTogglePower={handleTogglePower}
+            onRemove={handleRemoveSegment}
+          />
+        ))}
       </div>
       
       {editMode === 'color' && selectedSegment && (
-        <div className="mt-4">
-          <Tabs value={colorTabActive} onValueChange={setColorTabActive}>
-            <TabsList className="grid grid-cols-3">
-              <TabsTrigger value="color1">Color 1</TabsTrigger>
-              <TabsTrigger value="color2">Color 2</TabsTrigger>
-              <TabsTrigger value="color3">Color 3</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="color1" className="mt-2">
-              <ColorPicker 
-                color={selectedSegment.color} 
-                onChange={handleColorChange}
-              />
-            </TabsContent>
-            
-            <TabsContent value="color2" className="mt-2">
-              <ColorPicker 
-                color={selectedSegment.color2 || { r: 0, g: 255, b: 0 }} 
-                onChange={handleColorChange}
-              />
-            </TabsContent>
-            
-            <TabsContent value="color3" className="mt-2">
-              <ColorPicker 
-                color={selectedSegment.color3 || { r: 0, g: 0, b: 255 }} 
-                onChange={handleColorChange}
-              />
-            </TabsContent>
-          </Tabs>
-        </div>
+        <SegmentControls
+          segment={selectedSegment}
+          editMode="color"
+          ledStart={ledStart}
+          ledEnd={ledEnd}
+          rotationValue={rotationValue}
+          effectSpeed={effectSpeed}
+          effectIntensity={effectIntensity}
+          segmentBrightness={segmentBrightness}
+          colorTabActive={colorTabActive}
+          onLEDInputChange={handleLEDInputChange}
+          onRotationInputChange={handleRotationInputChange}
+          onEffectSpeedChange={handleEffectSpeedChange}
+          onEffectIntensityChange={handleEffectIntensityChange}
+          onSegmentBrightnessChange={handleSegmentBrightnessChange}
+          onColorChange={handleColorChange}
+          setColorTabActive={setColorTabActive}
+          deviceLedCount={deviceInfo?.ledCount}
+        />
       )}
       
       {editMode === 'effect' && selectedSegment && (
-        <div className="mt-4 space-y-4">
-          <div>
-            <Label htmlFor="brightness">Brightness</Label>
-            <BrightnessSlider
-              value={segmentBrightness}
-              onChange={handleSegmentBrightnessChange}
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor="speed">Effect Speed</Label>
-            <Slider
-              id="speed"
-              value={[effectSpeed]}
-              min={0}
-              max={255}
-              step={1}
-              onValueChange={(value) => handleEffectSpeedChange(value[0])}
-            />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
-              <span>Slow</span>
-              <span>{effectSpeed}</span>
-              <span>Fast</span>
-            </div>
-          </div>
-          
-          <div>
-            <Label htmlFor="intensity">Effect Intensity</Label>
-            <Slider
-              id="intensity"
-              value={[effectIntensity]}
-              min={0}
-              max={255}
-              step={1}
-              onValueChange={(value) => handleEffectIntensityChange(value[0])}
-            />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
-              <span>Low</span>
-              <span>{effectIntensity}</span>
-              <span>High</span>
-            </div>
-          </div>
-        </div>
+        <SegmentControls
+          segment={selectedSegment}
+          editMode="effect"
+          ledStart={ledStart}
+          ledEnd={ledEnd}
+          rotationValue={rotationValue}
+          effectSpeed={effectSpeed}
+          effectIntensity={effectIntensity}
+          segmentBrightness={segmentBrightness}
+          colorTabActive={colorTabActive}
+          onLEDInputChange={handleLEDInputChange}
+          onRotationInputChange={handleRotationInputChange}
+          onEffectSpeedChange={handleEffectSpeedChange}
+          onEffectIntensityChange={handleEffectIntensityChange}
+          onSegmentBrightnessChange={handleSegmentBrightnessChange}
+          onColorChange={handleColorChange}
+          setColorTabActive={setColorTabActive}
+          deviceLedCount={deviceInfo?.ledCount}
+        />
       )}
     </div>
   );
 };
 
 export default SegmentTriangles;
-
