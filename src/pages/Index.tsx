@@ -1,3 +1,4 @@
+
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect } from 'react';
@@ -86,6 +87,62 @@ const SegmentEditor = () => {
       setAllSegmentsOn(allOn);
     }
   }, [segments]);
+
+  // Add the missing handler functions
+  const handleToggleAllSegments = () => {
+    const newState = !allSegmentsOn;
+    const updatedSegments = segments.map(seg => ({
+      ...seg,
+      on: newState
+    }));
+    
+    setSegments(updatedSegments);
+    setAllSegmentsOn(newState);
+    toggleAllSegments(newState);
+  };
+
+  const handleColorChange = (color: {r: number, g: number, b: number}) => {
+    setCurrentColor(color);
+    
+    if (selectedSegment) {
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, color: color } 
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment({...selectedSegment, color});
+      setColor(color.r, color.g, color.b);
+    }
+  };
+
+  const handleEffectChange = (effectId: number) => {
+    if (selectedSegment) {
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, effect: effectId } 
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment({...selectedSegment, effect: effectId});
+      setEffect(effectId, selectedSegment.effectSpeed, selectedSegment.effectIntensity);
+    }
+  };
+
+  const handlePaletteChange = (paletteId: number) => {
+    if (selectedSegment) {
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, palette: paletteId } 
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment({...selectedSegment, palette: paletteId});
+    }
+  };
 
   if (connectionError) {
     return (
