@@ -1,14 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { getWledApi, initializeWledApi, WLEDInfo } from '../services/wledApi';
+import { getWledApi, initializeWledApi, WLEDInfo, WLEDState as ApiWLEDState } from '../services/wledApi';
 import { toast } from 'sonner';
 
-interface WLEDState {
-  on?: boolean;
-  brightness?: number;
-  color?: { r: number; g: number; b: number };
-  effect?: number;
-  speed?: number;
-  intensity?: number;
+interface WLEDState extends Omit<ApiWLEDState, 'seg'> {
   seg?: Segment[];
 }
 
@@ -24,30 +18,31 @@ interface Segment {
   start: number;
   stop: number;
   len: number;
-  grp: number;
-  spc: number;
-  of: number;
+  grp?: number;
+  spc?: number;
+  of?: number;
   on: boolean;
-  frz: boolean;
+  frz?: boolean;
   bri: number;
-  cct: number;
-  set: number;
+  cct?: number;
+  set?: number;
   col: [number, number, number][];
   fx: number;
   sx: number;
   ix: number;
-  pal: number;
-  c1: number;
-  c2: number;
-  c3: number;
-  sel: boolean;
-  rev: boolean;
-  mi: boolean;
-  o1: boolean;
-  o2: boolean;
-  o3: boolean;
-  si: number;
-  m12: number;
+  pal?: number;
+  c1?: number;
+  c2?: number;
+  c3?: number;
+  sel?: boolean;
+  rev?: boolean;
+  mi?: boolean;
+  o1?: boolean;
+  o2?: boolean;
+  o3?: boolean;
+  si?: number;
+  m12?: number;
+  [key: string]: any;
 }
 
 interface WLEDContextType {
@@ -137,10 +132,12 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         
         const data = await response.json();
         
-        setDeviceState(data.state);
+        const stateData: WLEDState = data.state;
+        setDeviceState(stateData);
         
         if (data.state && data.state.seg) {
-          setSegments(data.state.seg);
+          const segData = data.state.seg as Segment[];
+          setSegments(segData);
         }
         
         if (!deviceInfo && data.info) {
@@ -224,9 +221,12 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       api.connectWebSocket();
       
       api.onUpdate((state) => {
-        setDeviceState(state);
+        const convertedState: WLEDState = state;
+        setDeviceState(convertedState);
+        
         if (state && state.seg) {
-          setSegments(state.seg);
+          const segData = state.seg as Segment[];
+          setSegments(segData);
         }
       });
       

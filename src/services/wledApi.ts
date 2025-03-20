@@ -1,3 +1,4 @@
+
 // WLED API service
 
 type WLEDState = {
@@ -11,19 +12,39 @@ type WLEDState = {
   effect: number;
   speed: number;
   intensity: number;
-  seg?: {
-    id: number;
-    start: number;
-    stop: number;
-    len: number;
-    col: [number, number, number][];
-    fx: number;
-    sx: number;
-    ix: number;
-    on: boolean;
-    bri: number;
-    [key: string]: any;
-  }[];
+  seg?: SegmentData[];
+};
+
+type SegmentData = {
+  id: number;
+  start: number;
+  stop: number;
+  len: number;
+  col: [number, number, number][];
+  fx: number;
+  sx: number;
+  ix: number;
+  on: boolean;
+  bri: number;
+  grp?: number;
+  spc?: number;
+  of?: number;
+  frz?: boolean;
+  cct?: number;
+  set?: number;
+  pal?: number;
+  c1?: number;
+  c2?: number;
+  c3?: number;
+  sel?: boolean;
+  rev?: boolean;
+  mi?: boolean;
+  o1?: boolean;
+  o2?: boolean;
+  o3?: boolean;
+  si?: number;
+  m12?: number;
+  [key: string]: any;
 };
 
 type WLEDInfo = {
