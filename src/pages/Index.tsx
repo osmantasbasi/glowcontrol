@@ -1,13 +1,13 @@
 
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ColorPicker from '@/components/ColorPicker';
 import EffectSelector from '@/components/EffectSelector';
 import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Layers, Triangle, Palette } from 'lucide-react';
+import { Layers, Triangle, Palette, Settings } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 
 interface Segment {
@@ -23,8 +23,19 @@ const SegmentEditor = () => {
   const { deviceState, deviceInfo, setColor, setEffect } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
-  const [segments, setSegments] = useState<Segment[]>([]);
+  
+  // Store segments in localStorage to persist them
+  const [segments, setSegments] = useState<Segment[]>(() => {
+    const savedSegments = localStorage.getItem('wledSegments');
+    return savedSegments ? JSON.parse(savedSegments) : [];
+  });
+  
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+
+  // Save segments to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('wledSegments', JSON.stringify(segments));
+  }, [segments]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
@@ -77,6 +88,10 @@ const SegmentEditor = () => {
             <TabsTrigger value="effect" className="data-[state=active]:bg-white/10">
               <Layers size={14} className="mr-1" />
               Effect
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="data-[state=active]:bg-white/10">
+              <Settings size={14} className="mr-1" />
+              Settings
             </TabsTrigger>
           </TabsList>
         </div>
@@ -137,6 +152,43 @@ const SegmentEditor = () => {
               setSelectedSegment={setSelectedSegment}
               editMode="effect"
             />
+          </div>
+        </TabsContent>
+        
+        <TabsContent 
+          value="settings" 
+          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+        >
+          <div className="glass p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-white/70 mb-4">LED Configuration</h3>
+            
+            <div className="space-y-4">
+              <div className="text-sm space-y-2">
+                <p className="text-white/70">Device Information</p>
+                {deviceInfo ? (
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <span className="text-white/50">Device Name:</span>
+                    <span>{deviceInfo.name}</span>
+                    <span className="text-white/50">LED Count:</span>
+                    <span>{deviceInfo.ledCount}</span>
+                    <span className="text-white/50">Firmware:</span>
+                    <span>{deviceInfo.version}</span>
+                  </div>
+                ) : (
+                  <p className="text-white/50">No device connected</p>
+                )}
+              </div>
+              
+              <div className="text-sm space-y-2">
+                <p className="text-white/70">Segment Information</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <span className="text-white/50">Total Segments:</span>
+                  <span>{segments.length}</span>
+                  <span className="text-white/50">Selected Segment:</span>
+                  <span>{selectedSegment ? segments.findIndex(s => s.id === selectedSegment.id) + 1 : 'None'}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </TabsContent>
       </Tabs>
