@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Palette, Power, SlidersHorizontal } from 'lucide-react';
@@ -57,6 +58,11 @@ interface Segment {
   brightness?: number;
   on?: boolean;
   palette?: number;
+  // Add properties to match WLED API
+  start?: number;
+  stop?: number;
+  len?: number;
+  col?: [number, number, number][];
 }
 
 interface SegmentTrianglesProps {
@@ -66,6 +72,7 @@ interface SegmentTrianglesProps {
   selectedSegment: Segment | null;
   setSelectedSegment: React.Dispatch<React.SetStateAction<Segment | null>>;
   editMode?: 'segment' | 'color' | 'effect';
+  updateWLEDSegments?: (segmentData: Partial<Segment>[]) => Promise<void>;
 }
 
 const TRIANGLE_SIZE = 90; // Fixed triangle size
@@ -77,7 +84,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   setSegments, 
   selectedSegment, 
   setSelectedSegment,
-  editMode = 'segment'
+  editMode = 'segment',
+  updateWLEDSegments
 }) => {
   const { deviceInfo, deviceState, setColor, setEffect, updateSegment, getSegments } = useWLED();
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
@@ -1151,6 +1159,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 
   const renderTriangle = (segment: Segment) => {
     try {
+      const isSelected = selectedSegment?.id === segment.id;
+      const isMultiSelected = isMultiSelectMode && selectedSegments.includes(segment.id);
+      
       return (
         <Popover key={segment.id}>
           <PopoverTrigger asChild>
@@ -1161,8 +1172,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               onClick={(e) => handleSegmentClick(segment, e)}
               className={cn(
                 "absolute cursor-move transition-all duration-200 hover:z-10",
-                selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
-                isMultiSelectMode && selectedSegments.includes(segment.id) ? "ring-2 ring-purple-400 z-20" : "",
+                isSelected && "z-20",
+                isMultiSelected ? "ring-2 ring-purple-400 z-20" : "",
                 segment.on === false && "opacity-40"
               )}
               style={{
@@ -1178,10 +1189,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 <Triangle 
                   size={TRIANGLE_SIZE} 
                   fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
-                  color="rgba(0, 0, 0, 0.5)"
-                  strokeWidth={1}
+                  color={isSelected ? "#33C3F0" : "rgba(0, 0, 0, 0.5)"}
+                  strokeWidth={isSelected ? 3 : 1}
                   className={cn(
                     "drop-shadow-lg transition-all",
+                    isSelected && "animate-pulse",
                     segment.effect === 1 && "animate-pulse",
                     segment.effect === 2 && "animate-fade-in",
                     segment.effect === 3 && "animate-spin",
@@ -1189,6 +1201,20 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     segment.on === false && "opacity-40"
                   )}
                 />
+                {isSelected && (
+                  <div className="absolute inset-0 pointer-events-none">
+                    <svg width={TRIANGLE_SIZE} height={TRIANGLE_SIZE} viewBox="0 0 24 24">
+                      <polygon 
+                        points="12,2 22,22 2,22" 
+                        fill="none" 
+                        stroke="#33C3F0" 
+                        strokeWidth="1.5"
+                        strokeDasharray="3,2" 
+                        className="animate-pulse" 
+                      />
+                    </svg>
+                  </div>
+                )}
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-white">
                   {segments.indexOf(segment) + 1}
                 </div>
