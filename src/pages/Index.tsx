@@ -9,6 +9,7 @@ import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, Triangle, Palette, Settings } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
+import { toast } from 'sonner';
 
 interface Segment {
   id: number;
@@ -33,15 +34,24 @@ const SegmentEditor = () => {
   
   // Store segments in localStorage to persist them
   const [segments, setSegments] = useState<Segment[]>(() => {
-    const savedSegments = localStorage.getItem('wledSegments');
-    return savedSegments ? JSON.parse(savedSegments) : [];
+    try {
+      const savedSegments = localStorage.getItem('wledSegments');
+      return savedSegments ? JSON.parse(savedSegments) : [];
+    } catch (error) {
+      console.error('Error loading segments from localStorage:', error);
+      return [];
+    }
   });
   
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
   // Save segments to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('wledSegments', JSON.stringify(segments));
+    try {
+      localStorage.setItem('wledSegments', JSON.stringify(segments));
+    } catch (error) {
+      console.error('Error saving segments to localStorage:', error);
+    }
   }, [segments]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
@@ -55,11 +65,17 @@ const SegmentEditor = () => {
       ));
     }
     
-    const timeoutId = setTimeout(() => {
-      setColor(color.r, color.g, color.b);
-    }, 50);
-    
-    return () => clearTimeout(timeoutId);
+    try {
+      if (deviceState) {
+        const timeoutId = setTimeout(() => {
+          setColor(color.r, color.g, color.b);
+        }, 50);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      console.error('Error setting color:', error);
+    }
   };
 
   const handleEffectChange = (effectId: number) => {
@@ -70,7 +86,13 @@ const SegmentEditor = () => {
           : seg
       ));
       
-      setEffect(effectId);
+      try {
+        if (deviceState) {
+          setEffect(effectId);
+        }
+      } catch (error) {
+        console.error('Error setting effect:', error);
+      }
     }
   };
 

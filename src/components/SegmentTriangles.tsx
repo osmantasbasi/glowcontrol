@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power } from 'lucide-react';
@@ -53,9 +52,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Form input states for temporary values
-  const [ledStart, setLedStart] = useState<string>('');
-  const [ledEnd, setLedEnd] = useState<string>('');
-  const [rotationValue, setRotationValue] = useState<string>('');
+  const [ledStart, setLedStart] = useState<string>('0');
+  const [ledEnd, setLedEnd] = useState<string>('30');
+  const [rotationValue, setRotationValue] = useState<string>('0');
   const [speedValue, setSpeedValue] = useState<string>('128');
   const [intensityValue, setIntensityValue] = useState<string>('128');
   
@@ -116,8 +115,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedSegment(segment);
-    setColor(segment.color.r, segment.color.g, segment.color.b);
-    setEffect(segment.effect);
+    
+    try {
+      // Only call these if we have a valid device connection
+      if (deviceState) {
+        setColor(segment.color.r, segment.color.g, segment.color.b);
+        setEffect(segment.effect);
+      }
+    } catch (error) {
+      console.log('Error handling segment click:', error);
+    }
   };
 
   const handleContainerClick = (e: React.MouseEvent) => {
@@ -145,11 +152,18 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     if (slot === 1) {
       setSelectedSegment({ ...selectedSegment, color });
-      setColor(color.r, color.g, color.b);
       
-      const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
-      if (segmentIndex !== -1) {
-        setSegmentColor(segmentIndex, color.r, color.g, color.b);
+      try {
+        if (deviceState) {
+          setColor(color.r, color.g, color.b);
+          
+          const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
+          if (segmentIndex !== -1) {
+            setSegmentColor(segmentIndex, color.r, color.g, color.b);
+          }
+        }
+      } catch (error) {
+        console.log('Error handling color change:', error);
       }
     } else if (slot === 2 && selectedSegment.color2) {
       setSelectedSegment({ ...selectedSegment, color2: color });
@@ -169,11 +183,17 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     setSelectedSegment({ ...selectedSegment, effect: effectId });
     
-    setEffect(effectId);
-    
-    const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
-    if (segmentIndex !== -1) {
-      setSegmentEffect(segmentIndex, effectId, selectedSegment.speed, selectedSegment.intensity);
+    try {
+      if (deviceState) {
+        setEffect(effectId);
+        
+        const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
+        if (segmentIndex !== -1) {
+          setSegmentEffect(segmentIndex, effectId, selectedSegment.speed, selectedSegment.intensity);
+        }
+      }
+    } catch (error) {
+      console.log('Error handling effect change:', error);
     }
   };
 
@@ -197,6 +217,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setRotationValue(Math.round(selectedSegment.rotation).toString());
       setSpeedValue(selectedSegment.speed.toString());
       setIntensityValue(selectedSegment.intensity.toString());
+    } else {
+      // Set default values when no segment is selected
+      setLedStart('0');
+      setLedEnd('30');
+      setRotationValue('0');
+      setSpeedValue('128');
+      setIntensityValue('128');
     }
   }, [selectedSegment]);
 
@@ -315,10 +342,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     });
     
     // Update the effect with new speed and intensity if those were changed
-    if (field === 'speed' || field === 'intensity') {
-      const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
-      if (segmentIndex !== -1) {
-        setSegmentEffect(segmentIndex, selectedSegment.effect, speed, intensity);
+    if ((field === 'speed' || field === 'intensity') && deviceState) {
+      try {
+        const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
+        if (segmentIndex !== -1) {
+          setSegmentEffect(segmentIndex, selectedSegment.effect, speed, intensity);
+        }
+      } catch (error) {
+        console.log('Error updating segment effect:', error);
       }
     }
   };
@@ -337,7 +368,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       brightness: value
     });
     
-    setBrightness(value);
+    try {
+      if (deviceState) {
+        setBrightness(value);
+      }
+    } catch (error) {
+      console.log('Error setting brightness:', error);
+    }
   };
 
   const handlePowerToggle = (on: boolean) => {

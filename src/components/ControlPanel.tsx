@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import BrightnessSlider from './BrightnessSlider';
-import EffectSelector from './EffectSelector';
 import DeviceManager from './DeviceManager';
 import StripPreview from './StripPreview';
 import { Button } from '@/components/ui/button';
@@ -22,11 +21,18 @@ const ControlPanel: React.FC = () => {
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
-    const timeoutId = setTimeout(() => {
-      setColor(color.r, color.g, color.b);
-    }, 50);
     
-    return () => clearTimeout(timeoutId);
+    try {
+      if (deviceState) {
+        const timeoutId = setTimeout(() => {
+          setColor(color.r, color.g, color.b);
+        }, 50);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      console.error('Error setting color:', error);
+    }
   };
 
   return (
