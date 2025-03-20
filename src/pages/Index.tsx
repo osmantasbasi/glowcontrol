@@ -53,6 +53,23 @@ const SegmentEditor = () => {
     }
   }, [segments]);
 
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const isTriangleClick = (e.target as Element)?.closest('.triangle-wrapper');
+      const isControlClick = (e.target as Element)?.closest('button, input, select, .tabs-list, .glass-card');
+      
+      if (!isTriangleClick && !isControlClick) {
+        setSelectedSegment(null);
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, []);
+
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
     

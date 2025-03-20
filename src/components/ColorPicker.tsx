@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -99,6 +100,15 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
       ctx.fill();
     }
     
+    // Add black color in center
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius * 0.15, 0, Math.PI * 2, false);
+    ctx.fillStyle = 'black';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
     // Draw current color selection
     const hueRadians = (h * Math.PI) / 180;
     const distance = s * radius;
@@ -180,12 +190,21 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     const dx = x - centerX;
     const dy = centerY - y;
     
+    // Check if click is in the black center circle
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const radius = Math.min(centerX, centerY) - 5;
+    
+    if (distance <= radius * 0.15) {
+      // Clicked on black
+      onChange({ r: 0, g: 0, b: 0 });
+      return;
+    }
+    
     // Calculate hue and saturation from position
     let angle = Math.atan2(dy, dx) * (180 / Math.PI);
     if (angle < 0) angle += 360;
     
     const centerToPointDistance = Math.sqrt(dx * dx + dy * dy);
-    const radius = Math.min(centerX, centerY) - 5;
     let saturation = Math.min(1, centerToPointDistance / radius);
     
     // Convert HSV to RGB

@@ -1,4 +1,3 @@
-
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -169,4 +168,14 @@
 .triangle-config-button:hover {
   background-color: rgba(155, 135, 245, 0.5);
   transform: scale(1.1);
+}
+
+.triangle-rotate-button {
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.triangle-wrapper:hover .triangle-rotate-button,
+.triangle-selected .triangle-rotate-button {
+  opacity: 1;
 }

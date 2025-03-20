@@ -1054,7 +1054,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       e.stopPropagation();
                       handleRotateStart(segment, e);
                     }}
-                    className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all"
+                    className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all triangle-rotate-button"
                   >
                     <RotateCw size={12} className="text-white" />
                   </Button>
@@ -1086,3 +1086,4 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
+
