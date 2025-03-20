@@ -6,15 +6,9 @@ interface ColorPickerProps {
   color: { r: number; g: number; b: number };
   onChange: (color: { r: number; g: number; b: number }) => void;
   className?: string;
-  size?: number;
 }
 
-const ColorPicker: React.FC<ColorPickerProps> = ({ 
-  color, 
-  onChange, 
-  className,
-  size = 200
-}) => {
+const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className }) => {
   const [isDragging, setIsDragging] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -114,21 +108,21 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
     
     // Outer circle (white or black depending on background)
     ctx.beginPath();
-    ctx.arc(x, y, 6, 0, 2 * Math.PI, false);
+    ctx.arc(x, y, 8, 0, 2 * Math.PI, false);
     ctx.fillStyle = v > 0.5 ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.3)';
     ctx.fill();
     
     // Inner circle (current color)
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, 2 * Math.PI, false);
+    ctx.arc(x, y, 6, 0, 2 * Math.PI, false);
     ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
     ctx.fill();
     
     // Border
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, 2 * Math.PI, false);
+    ctx.arc(x, y, 6, 0, 2 * Math.PI, false);
     ctx.strokeStyle = 'white';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
   }, [color.r, color.g, color.b, h, s, v]);
   
@@ -241,9 +235,9 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
       
       if (!canvas || !container) return;
       
-      const containerSize = Math.min(container.clientWidth, size);
-      canvas.width = containerSize;
-      canvas.height = containerSize;
+      const size = Math.min(container.clientWidth, 300);
+      canvas.width = size;
+      canvas.height = size;
       
       drawColorWheel();
     };
@@ -254,7 +248,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
     return () => {
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [drawColorWheel, size]);
+  }, [drawColorWheel]);
   
   // Draw color wheel when color changes
   useEffect(() => {
@@ -292,10 +286,10 @@ const ColorPicker: React.FC<ColorPickerProps> = ({
         className="rounded-full shadow-lg cursor-pointer"
       />
       <div 
-        className="w-16 h-16 absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-4 rounded-md glass"
+        className="w-20 h-20 absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-5 rounded-md glass animate-pulse-glow"
         style={{
           backgroundColor: `rgb(${color.r}, ${color.g}, ${color.b})`,
-          boxShadow: `0 0 10px rgba(${color.r}, ${color.g}, ${color.b}, 0.5)`
+          boxShadow: `0 0 20px rgba(${color.r}, ${color.g}, ${color.b}, 0.5)`
         }}
       />
     </div>

@@ -45,16 +45,10 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01", "ss02", "cv01", "cv02", "cv03";
-    -webkit-tap-highlight-color: transparent;
   }
   
   html {
     @apply scroll-smooth;
-    touch-action: manipulation;
-  }
-  
-  input, button, select, textarea {
-    @apply focus:outline-none;
   }
 }
 
@@ -86,28 +80,6 @@
   .track-active {
     @apply absolute h-full bg-gradient-to-r from-white/70 to-white rounded-full transition-all duration-200;
   }
-  
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
-  
-  .touch-action-none {
-    touch-action: none;
-  }
-  
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-in-out;
-  }
-  
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
 }
 
 ::-webkit-scrollbar {
@@ -138,82 +110,4 @@
   margin: 0;
   padding: 0;
   text-align: left;
-  min-height: 100vh;
-  height: 100%;
-}
-
-@media (max-width: 768px) {
-  .glass-card {
-    border-radius: 12px;
-    margin-left: 0.5rem;
-    margin-right: 0.5rem;
-    width: calc(100% - 1rem);
-  }
-  
-  input, button, select {
-    min-height: 44px; /* Better touch targets */
-  }
-  
-  :root {
-    --radius: 0.75rem;
-  }
-  
-  .tabs-container {
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    padding-bottom: 2px; /* Prevent text being cut off */
-  }
-  
-  .tabs-container::-webkit-scrollbar {
-    display: none;
-  }
-  
-  .compact-mobile {
-    padding: 0.5rem !important;
-  }
-  
-  .mobile-full-width {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-  
-  .mobile-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .triangle-canvas {
-    height: 250px !important;
-  }
-  
-  /* Mobile-specific styles */
-  .glass-card.overflow-hidden {
-    margin-left: 0;
-    margin-right: 0;
-    width: 100%;
-  }
-  
-  .mobile-bottom-drawer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 50;
-    margin: 0;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-  }
-  
-  .mobile-spacing {
-    padding: 0.5rem !important;
-  }
-  
-  .mobile-touch-target {
-    min-height: 44px;
-    min-width: 44px;
-  }
 }
