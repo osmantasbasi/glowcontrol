@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -150,7 +151,7 @@
   }
   
   input, button, select {
-    min-height: 44px;
+    min-height: 44px; /* Better touch targets */
   }
   
   :root {
@@ -161,6 +162,7 @@
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    padding-bottom: 2px; /* Prevent text being cut off */
   }
   
   .tabs-container::-webkit-scrollbar {
@@ -174,6 +176,8 @@
   .mobile-full-width {
     width: 100% !important;
     max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
   
   .mobile-center {
@@ -184,5 +188,32 @@
   
   .triangle-canvas {
     height: 250px !important;
+  }
+  
+  /* Mobile-specific styles */
+  .glass-card.overflow-hidden {
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+  }
+  
+  .mobile-bottom-drawer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    margin: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  
+  .mobile-spacing {
+    padding: 0.5rem !important;
+  }
+  
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
   }
 }
