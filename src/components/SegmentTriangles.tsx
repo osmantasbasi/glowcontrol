@@ -87,7 +87,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 }) => {
   const { deviceInfo, deviceState, setColor, setEffect, updateSegment, getSegments } = useWLED();
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
-  const [isRotating, setIsRotating] = useState(false);
+  const [isRotating, setIsRotating] = useState(isRotating);
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
   const [startMousePosition, setStartMousePosition] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -913,5 +913,4 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           if (selectedSegments.includes(seg.id)) {
             return {
               ...seg,
-              position: {
-                x
+              position:
