@@ -22,14 +22,18 @@ const PopoverContent = React.forwardRef<
         className
       )}
       onInteractOutside={(e) => {
-        // Close the popover when clicking outside of it
-        e.preventDefault()
-        const popover = document.querySelector('[data-state="open"]') as HTMLElement
-        if (popover) {
-          const trigger = popover.parentElement?.querySelector('[data-radix-trigger]')
-          if (trigger) {
-            (trigger as HTMLElement).click()
+        try {
+          // Close the popover when clicking outside of it
+          e.preventDefault()
+          const popover = document.querySelector('[data-state="open"]')
+          if (popover) {
+            const trigger = popover.parentElement?.querySelector('[data-radix-trigger]')
+            if (trigger) {
+              (trigger as HTMLElement).click()
+            }
           }
+        } catch (error) {
+          console.error('Error handling outside click:', error)
         }
       }}
       {...props}
