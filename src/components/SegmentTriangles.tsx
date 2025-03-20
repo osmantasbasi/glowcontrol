@@ -273,10 +273,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const segmentIndex = segments.findIndex(s => s.id === id);
     if (segmentIndex === -1) return;
     
-    // Create a copy of segments without the one to be removed
     const updatedSegments = segments.filter(segment => segment.id !== id);
     
-    // Reindex segments to ensure IDs remain sequential
     const reindexedSegments = updatedSegments.map((seg, index) => ({
       ...seg,
       id: index
@@ -288,13 +286,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setSelectedSegment(null);
     }
     
-    // Clear from multi-selection if present
     setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
     
-    // Update localStorage
     localStorage.setItem('wledSegments', JSON.stringify(reindexedSegments));
     
-    // Dispatch events
     const event = new CustomEvent('segmentsUpdated', { 
       detail: reindexedSegments,
       bubbles: true 
@@ -303,7 +298,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     window.dispatchEvent(event);
     
     try {
-      // Recalculate LED ranges after a short delay to ensure state updates
       setTimeout(() => {
         recalculateLedRanges();
       }, 50);
@@ -912,4 +906,457 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         if (draggedIndex === -1) return;
         
         const draggedPos = segments[draggedIndex].position;
-        const offsetX
+        const offsetX = x - draggedPos.x;
+        const offsetY = y - draggedPos.y;
+        
+        updatedSegments = segments.map(seg => {
+          if (selectedSegments.includes(seg.id)) {
+            return {
+              ...seg,
+              position: {
+                x: Math.max(0, Math.min(100, seg.position.x + offsetX)),
+                y: Math.max(0, Math.min(100, seg.position.y + offsetY))
+              }
+            };
+          }
+          return seg;
+        });
+      } else {
+        const draggedIndex = segments.findIndex(seg => seg.id === segmentId);
+        if (draggedIndex === -1) return;
+        
+        updatedSegments[draggedIndex] = {
+          ...segments[draggedIndex],
+          position: { x, y }
+        };
+      }
+      
+      setSegments(updatedSegments);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true 
+      });
+      window.dispatchEvent(event);
+      document.dispatchEvent(event);
+      
+      setDraggedSegment(null);
+    } catch (error) {
+      console.error("Error in drop handler:", error);
+      toast.error("Error moving segment");
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent, segment: Segment) => {
+    if (e.button !== 0) return; // Only handle left mouse button
+    e.stopPropagation();
+    
+    if (isRotating) {
+      setIsRotating(false);
+      return;
+    }
+    
+    setSelectedSegment(segment);
+  };
+
+  const handleRotateStart = (e: React.MouseEvent, segment: Segment) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    setIsRotating(true);
+    setSelectedSegment(segment);
+    setRotationStartAngle(segment.rotation);
+    setStartMousePosition({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleRotateMove = (e: React.MouseEvent) => {
+    if (!isRotating || !selectedSegment || !containerRef.current) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const centerX = rect.left + (rect.width / 2);
+    const centerY = rect.top + (rect.height / 2);
+    
+    const startAngle = Math.atan2(
+      startMousePosition.y - centerY,
+      startMousePosition.x - centerX
+    );
+    
+    const currentAngle = Math.atan2(
+      e.clientY - centerY,
+      e.clientX - centerX
+    );
+    
+    const angleDiff = (currentAngle - startAngle) * (180 / Math.PI);
+    let newRotation = (rotationStartAngle + angleDiff) % 360;
+    if (newRotation < 0) newRotation += 360;
+    
+    const updatedSegment = {
+      ...selectedSegment,
+      rotation: newRotation
+    };
+    
+    const updatedSegments = segments.map(seg => 
+      seg.id === selectedSegment.id 
+        ? updatedSegment
+        : seg
+    );
+    
+    setSegments(updatedSegments);
+    setSelectedSegment(updatedSegment);
+    setRotationValue(Math.round(newRotation).toString());
+    
+    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true 
+    });
+    window.dispatchEvent(event);
+    document.dispatchEvent(event);
+  };
+
+  const handleRotateEnd = () => {
+    setIsRotating(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, segment: Segment) => {
+    if (!selectedSegment || selectedSegment.id !== segment.id) return;
+    
+    let updatedPosition = { ...segment.position };
+    let updatedRotation = segment.rotation;
+    
+    const step = e.shiftKey ? 10 : 1;
+    
+    switch (e.key) {
+      case 'ArrowUp':
+        updatedPosition.y = Math.max(0, updatedPosition.y - step);
+        break;
+      case 'ArrowDown':
+        updatedPosition.y = Math.min(100, updatedPosition.y + step);
+        break;
+      case 'ArrowLeft':
+        updatedPosition.x = Math.max(0, updatedPosition.x - step);
+        break;
+      case 'ArrowRight':
+        updatedPosition.x = Math.min(100, updatedPosition.x + step);
+        break;
+      case '[':
+        updatedRotation = (updatedRotation - step) % 360;
+        if (updatedRotation < 0) updatedRotation += 360;
+        break;
+      case ']':
+        updatedRotation = (updatedRotation + step) % 360;
+        break;
+      default:
+        return;
+    }
+    
+    const updatedSegment = {
+      ...segment,
+      position: updatedPosition,
+      rotation: updatedRotation
+    };
+    
+    const updatedSegments = segments.map(seg => 
+      seg.id === segment.id 
+        ? updatedSegment
+        : seg
+    );
+    
+    setSegments(updatedSegments);
+    setSelectedSegment(updatedSegment);
+    setRotationValue(Math.round(updatedRotation).toString());
+    
+    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+    
+    const event = new CustomEvent('segmentsUpdated', { 
+      detail: updatedSegments,
+      bubbles: true 
+    });
+    window.dispatchEvent(event);
+    document.dispatchEvent(event);
+    
+    e.preventDefault();
+  };
+
+  const toggleMultiSelectMode = () => {
+    setIsMultiSelectMode(!isMultiSelectMode);
+    if (isMultiSelectMode) {
+      setSelectedSegments([]);
+    } else if (selectedSegment) {
+      setSelectedSegments([selectedSegment.id]);
+    }
+  };
+
+  const renderTriangle = (segment: Segment) => {
+    const isSelected = selectedSegment?.id === segment.id;
+    const isMultiSelected = selectedSegments.includes(segment.id);
+    
+    const strokeColor = isMultiSelected 
+      ? "rgba(128, 0, 255, 0.8)" 
+      : isSelected 
+        ? "rgba(0, 122, 255, 0.8)" 
+        : "rgba(255, 255, 255, 0.7)";
+    
+    const strokeWidth = isSelected || isMultiSelected ? 2 : 1.5;
+    
+    const breathingAnimation = isSelected || isMultiSelected
+      ? "animate-pulse" 
+      : "";
+    
+    return (
+      <div
+        key={segment.id}
+        className={cn(
+          "absolute cursor-move transform-gpu",
+          breathingAnimation
+        )}
+        style={{
+          left: `${segment.position.x}%`,
+          top: `${segment.position.y}%`,
+          width: `${TRIANGLE_SIZE}px`,
+          height: `${TRIANGLE_SIZE}px`,
+          marginLeft: `-${TRIANGLE_SIZE / 2}px`,
+          marginTop: `-${TRIANGLE_SIZE / 2}px`,
+          transform: `rotate(${segment.rotation}deg)`,
+          zIndex: isSelected ? 10 : 1,
+          transition: "transform 0.2s, stroke 0.3s"
+        }}
+        draggable={true}
+        onDragStart={(e) => handleDragStart(e, segment)}
+        onMouseDown={(e) => handleMouseDown(e, segment)}
+        onClick={(e) => handleSegmentClick(segment, e)}
+        onKeyDown={(e) => handleKeyDown(e, segment)}
+        tabIndex={0}
+      >
+        <svg width="100%" height="100%" viewBox="0 0 24 24">
+          <polygon 
+            points="12,2 22,22 2,22" 
+            fill={`rgb(${segment.color.r},${segment.color.g},${segment.color.b})`}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            className={cn(
+              segment.on === false ? "opacity-30" : "opacity-100"
+            )}
+          />
+          
+          {isSelected && (
+            <>
+              <circle 
+                cx="12" cy="2" r="0.8" 
+                fill="white" 
+                className="cursor-pointer" 
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => handleRotateStart(e, segment)} 
+              />
+              <line 
+                x1="12" y1="2" x2="12" y2="4" 
+                stroke="white" 
+                strokeWidth="0.5" 
+              />
+            </>
+          )}
+        </svg>
+        
+        {isSelected && (
+          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 flex space-x-1">
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-6 w-6 bg-background/80 backdrop-blur-sm"
+              onClick={(e) => handleTogglePower(segment.id)}
+            >
+              <Power className={segment.on === false ? "text-muted-foreground" : "text-green-500"} size={14} />
+            </Button>
+            
+            <Button
+              size="icon"
+              variant="outline" 
+              className="h-6 w-6 bg-background/80 backdrop-blur-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                handleRemoveSegment(segment.id, e);
+              }}
+            >
+              <Trash className="text-red-500" size={14} />
+            </Button>
+          </div>
+        )}
+        
+        {(isSelected || isMultiSelected) && (
+          <div className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs bg-background/80 backdrop-blur-sm px-1 rounded text-white">
+            {segment.id}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className={cn("relative w-full h-full flex flex-col", className)}>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleAddSegment}
+            className="flex items-center gap-1"
+          >
+            <Plus size={16} />
+            Add Triangle
+          </Button>
+          
+          <Button
+            size="sm"
+            variant={isMultiSelectMode ? "default" : "outline"}
+            onClick={toggleMultiSelectMode}
+            className="flex items-center gap-1"
+          >
+            <Triangle size={16} />
+            {isMultiSelectMode ? "Multi Select: ON" : "Multi Select"}
+          </Button>
+        </div>
+        
+        {selectedSegment && editMode === 'segment' && (
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col">
+              <div className="text-xs text-muted-foreground">Start</div>
+              <Input
+                type="number"
+                value={ledStart}
+                min={0}
+                max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                onChange={(e) => handleLEDInputChange('start', e.target.value)}
+                className="h-8 w-16"
+              />
+            </div>
+            
+            <div className="flex flex-col">
+              <div className="text-xs text-muted-foreground">End</div>
+              <Input
+                type="number"
+                value={ledEnd}
+                min={parseInt(ledStart)}
+                max={deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300}
+                onChange={(e) => handleLEDInputChange('end', e.target.value)}
+                className="h-8 w-16"
+              />
+            </div>
+            
+            <div className="flex flex-col">
+              <div className="text-xs text-muted-foreground">Rotation</div>
+              <Input
+                type="number"
+                value={rotationValue}
+                min={0}
+                max={359}
+                onChange={(e) => handleRotationInputChange(e.target.value)}
+                className="h-8 w-16"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <div 
+        ref={containerRef}
+        className={cn(
+          "relative flex-1 border border-border rounded-lg overflow-hidden bg-gradient-to-br from-background to-muted/50",
+          "cursor-default touch-none"
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={handleContainerClick}
+        onMouseMove={handleRotateMove}
+        onMouseUp={handleRotateEnd}
+      >
+        {segments.map(segment => renderTriangle(segment))}
+      </div>
+      
+      {editMode === 'color' && selectedSegment && (
+        <div className="mt-4">
+          <Tabs value={colorTabActive} onValueChange={setColorTabActive}>
+            <TabsList className="grid grid-cols-3">
+              <TabsTrigger value="color1">Color 1</TabsTrigger>
+              <TabsTrigger value="color2">Color 2</TabsTrigger>
+              <TabsTrigger value="color3">Color 3</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="color1" className="mt-2">
+              <ColorPicker 
+                color={selectedSegment.color} 
+                onChange={handleColorChange}
+              />
+            </TabsContent>
+            
+            <TabsContent value="color2" className="mt-2">
+              <ColorPicker 
+                color={selectedSegment.color2 || { r: 0, g: 255, b: 0 }} 
+                onChange={handleColorChange}
+              />
+            </TabsContent>
+            
+            <TabsContent value="color3" className="mt-2">
+              <ColorPicker 
+                color={selectedSegment.color3 || { r: 0, g: 0, b: 255 }} 
+                onChange={handleColorChange}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      )}
+      
+      {editMode === 'effect' && selectedSegment && (
+        <div className="mt-4 space-y-4">
+          <div>
+            <Label htmlFor="brightness">Brightness</Label>
+            <BrightnessSlider
+              value={segmentBrightness}
+              onChange={handleSegmentBrightnessChange}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="speed">Effect Speed</Label>
+            <Slider
+              id="speed"
+              value={[effectSpeed]}
+              min={0}
+              max={255}
+              step={1}
+              onValueChange={(value) => handleEffectSpeedChange(value[0])}
+            />
+            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <span>Slow</span>
+              <span>{effectSpeed}</span>
+              <span>Fast</span>
+            </div>
+          </div>
+          
+          <div>
+            <Label htmlFor="intensity">Effect Intensity</Label>
+            <Slider
+              id="intensity"
+              value={[effectIntensity]}
+              min={0}
+              max={255}
+              step={1}
+              onValueChange={(value) => handleEffectIntensityChange(value[0])}
+            />
+            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <span>Low</span>
+              <span>{effectIntensity}</span>
+              <span>High</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SegmentTriangles;
