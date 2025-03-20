@@ -7,9 +7,14 @@ import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
-import { Layers, Triangle, Palette, Power, SlidersHorizontal, Settings, Cog } from 'lucide-react';
+import { 
+  Layers, Triangle, Palette, Power, SlidersHorizontal, 
+  Settings, Cog, ChevronUp, ChevronDown 
+} from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 
 interface Segment {
   id: number;
@@ -33,6 +38,7 @@ const SegmentEditor = () => {
   const [activeTab, setActiveTab] = useState<string>('segments');
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const savedSegments = localStorage.getItem('wledSegments');
@@ -116,29 +122,29 @@ const SegmentEditor = () => {
   };
 
   return (
-    <div className="glass-card overflow-hidden animate-fade-in mt-8">
+    <div className="glass-card overflow-hidden animate-fade-in mt-4 md:mt-8">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between p-4">
-          <TabsList className="glass">
+        <div className="flex items-center justify-between p-2 md:p-4">
+          <TabsList className="glass w-full overflow-x-auto scrollbar-none">
             <TabsTrigger value="segments" className="data-[state=active]:bg-white/10">
               <Triangle size={14} className="mr-1" />
-              Segments
+              <span className="whitespace-nowrap">Segments</span>
             </TabsTrigger>
             <TabsTrigger value="color" className="data-[state=active]:bg-white/10">
               <Palette size={14} className="mr-1" />
-              Color
+              <span className="whitespace-nowrap">Color</span>
             </TabsTrigger>
             <TabsTrigger value="effect" className="data-[state=active]:bg-white/10">
               <Layers size={14} className="mr-1" />
-              Effect
+              <span className="whitespace-nowrap">Effect</span>
             </TabsTrigger>
             <TabsTrigger value="palette" className="data-[state=active]:bg-white/10">
               <Palette size={14} className="mr-1" />
-              Palette
+              <span className="whitespace-nowrap">Palette</span>
             </TabsTrigger>
             <TabsTrigger value="config" className="data-[state=active]:bg-white/10">
               <Cog size={14} className="mr-1" />
-              Config
+              <span className="whitespace-nowrap">Config</span>
             </TabsTrigger>
           </TabsList>
           
@@ -147,7 +153,7 @@ const SegmentEditor = () => {
               variant="ghost" 
               size="icon"
               className={cn(
-                "h-8 w-8 rounded-full",
+                "h-8 w-8 rounded-full ml-2 flex-shrink-0",
                 selectedSegment.on === false ? "bg-black/30 text-white/40" : "bg-white/10 text-white"
               )}
               onClick={() => {
@@ -169,7 +175,7 @@ const SegmentEditor = () => {
         
         <TabsContent 
           value="segments" 
-          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+          className="p-2 pt-0 md:p-4 md:pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
         >
           <div className="text-center text-sm text-white/70 mb-4">
             Select, drag, or rotate segments to position them
@@ -184,7 +190,7 @@ const SegmentEditor = () => {
         
         <TabsContent 
           value="color" 
-          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+          className="p-2 pt-0 md:p-4 md:pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
         >
           <div className="text-center text-sm text-white/70 mb-4">
             Select segments above first, then pick a color to apply
@@ -194,6 +200,7 @@ const SegmentEditor = () => {
               color={selectedSegment?.color || currentColor}
               onChange={handleColorChange} 
               className="w-full max-w-[300px]"
+              size={isMobile ? 250 : 300}
             />
           </div>
           <div className="mt-4">
@@ -209,7 +216,7 @@ const SegmentEditor = () => {
         
         <TabsContent 
           value="effect" 
-          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+          className="p-2 pt-0 md:p-4 md:pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
         >
           <div className="text-center text-sm text-white/70 mb-4">
             Select segments above first, then choose an effect to apply
@@ -323,7 +330,7 @@ const SegmentEditor = () => {
         
         <TabsContent 
           value="palette" 
-          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+          className="p-2 pt-0 md:p-4 md:pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
         >
           <div className="text-center text-sm text-white/70 mb-4">
             Select segments above first, then choose a palette to apply
@@ -332,7 +339,7 @@ const SegmentEditor = () => {
           {deviceInfo?.palettes ? (
             <div className="glass p-4 rounded-lg">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {deviceInfo.palettes.slice(0, 16).map((palette, index) => (
+                {deviceInfo.palettes.slice(0, isMobile ? 8 : 16).map((palette, index) => (
                   <button
                     key={index}
                     onClick={() => handlePaletteChange(index)}
@@ -344,12 +351,12 @@ const SegmentEditor = () => {
                     )}
                   >
                     <Palette size={20} className="mb-2 text-cyan-300" />
-                    <span className="text-xs">{palette}</span>
+                    <span className="text-xs break-words">{palette}</span>
                   </button>
                 ))}
               </div>
               
-              {deviceInfo.palettes.length > 16 && (
+              {deviceInfo.palettes.length > (isMobile ? 8 : 16) && (
                 <div className="mt-4">
                   <select
                     value={selectedSegment?.palette ?? 0}
@@ -384,7 +391,7 @@ const SegmentEditor = () => {
         
         <TabsContent 
           value="config" 
-          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+          className="p-2 pt-0 md:p-4 md:pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
         >
           <div className="text-center text-sm text-white/70 mb-4">
             Configure advanced settings for your WLED setup
@@ -494,16 +501,63 @@ const SegmentEditor = () => {
 };
 
 const Index = () => {
+  const isMobile = useIsMobile();
+  const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-purple-800 to-blue-900">
       <div className="absolute top-[-10%] right-0 w-[80%] h-[500px] rounded-3xl opacity-50 bg-indigo-600/30 blur-[100px] -z-10" />
       <div className="absolute bottom-[-10%] left-0 w-[80%] h-[500px] rounded-3xl opacity-30 bg-cyan-500/30 blur-[100px] -z-10" />
       
       <WLEDProvider>
-        <ControlPanel />
-        <div className="w-full max-w-5xl mx-auto px-4 pb-8">
-          <SegmentEditor />
-        </div>
+        {isMobile ? (
+          <>
+            <div className="sticky top-0 z-20 w-full backdrop-blur-md bg-black/40 border-b border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <h1 className="text-xl font-medium gradient-text">GlowControl</h1>
+                
+                <Drawer open={isControlPanelOpen} onOpenChange={setIsControlPanelOpen}>
+                  <DrawerTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full bg-white/10">
+                      {isControlPanelOpen ? (
+                        <ChevronDown className="h-5 w-5" />
+                      ) : (
+                        <ChevronUp className="h-5 w-5" />
+                      )}
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent className="glass-card p-4 max-h-[85vh] overflow-y-auto">
+                    <div className="mb-2 flex justify-between items-center">
+                      <h2 className="text-lg font-medium gradient-text">Device Manager</h2>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-7 w-7 rounded-full"
+                        onClick={() => setIsControlPanelOpen(false)}
+                      >
+                        <ChevronDown className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <div className="pb-10">
+                      <ControlPanel />
+                    </div>
+                  </DrawerContent>
+                </Drawer>
+              </div>
+            </div>
+            
+            <div className="w-full px-2 pb-8 pt-4">
+              <SegmentEditor />
+            </div>
+          </>
+        ) : (
+          <>
+            <ControlPanel />
+            <div className="w-full max-w-5xl mx-auto px-4 pb-8">
+              <SegmentEditor />
+            </div>
+          </>
+        )}
       </WLEDProvider>
     </div>
   );
