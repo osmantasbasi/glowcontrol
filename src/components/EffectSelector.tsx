@@ -48,7 +48,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
         ))}
       </div>
       
-      {deviceInfo.effects.length > 20 && (
+      {deviceInfo.effects.length > 0 && (
         <div>
           <select
             value={deviceState?.effect || 0}

@@ -7,20 +7,27 @@ import EffectSelector from '@/components/EffectSelector';
 import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Layers, Triangle, Palette } from 'lucide-react';
+import { Layers, Triangle, Palette, Power, SlidersHorizontal } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 
 interface Segment {
   id: number;
   color: { r: number; g: number; b: number };
+  color2?: { r: number; g: number; b: number };
+  color3?: { r: number; g: number; b: number };
   effect: number;
+  effectSpeed?: number;
+  effectIntensity?: number;
   position: { x: number; y: number };
   rotation: number;
   leds: { start: number; end: number };
+  brightness?: number;
+  on?: boolean;
+  palette?: number;
 }
 
 const SegmentEditor = () => {
-  const { deviceState, deviceInfo, setColor, setEffect } = useWLED();
+  const { deviceState, deviceInfo, setColor, setEffect, setBrightness, togglePower } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -98,6 +105,16 @@ const SegmentEditor = () => {
     }
   };
 
+  const handlePaletteChange = (paletteId: number) => {
+    if (selectedSegment) {
+      setSegments(segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, palette: paletteId } 
+          : seg
+      ));
+    }
+  };
+
   // Handle clicking outside triangles to deselect
   const handleBackgroundClick = () => {
     setSelectedSegment(null);
@@ -120,7 +137,35 @@ const SegmentEditor = () => {
               <Layers size={14} className="mr-1" />
               Effect
             </TabsTrigger>
+            <TabsTrigger value="palette" className="data-[state=active]:bg-white/10">
+              <Palette size={14} className="mr-1" />
+              Palette
+            </TabsTrigger>
           </TabsList>
+          
+          {selectedSegment && (
+            <Button
+              variant="ghost" 
+              size="icon"
+              className={cn(
+                "h-8 w-8 rounded-full",
+                selectedSegment.on === false ? "bg-black/30 text-white/40" : "bg-white/10 text-white"
+              )}
+              onClick={() => {
+                const newState = !(selectedSegment.on ?? true);
+                const updatedSegments = segments.map(seg => 
+                  seg.id === selectedSegment.id 
+                    ? { ...seg, on: newState } 
+                    : seg
+                );
+                setSegments(updatedSegments);
+                setSelectedSegment({...selectedSegment, on: newState});
+                togglePower(newState);
+              }}
+            >
+              <Power size={16} />
+            </Button>
+          )}
         </div>
         
         <TabsContent 
@@ -171,6 +216,162 @@ const SegmentEditor = () => {
             Select segments above first, then choose an effect to apply
           </div>
           <EffectSelector onEffectSelect={handleEffectChange} />
+          
+          {selectedSegment && (
+            <div className="mt-6 space-y-4">
+              <div className="glass p-4 rounded-lg">
+                <h3 className="text-sm font-medium text-white/70 mb-3">Effect Settings</h3>
+                
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-white/70">Speed</span>
+                      <span className="text-xs text-white/50">{selectedSegment.effectSpeed ?? 128}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <SlidersHorizontal size={14} className="text-cyan-300" />
+                      <Slider 
+                        value={[selectedSegment.effectSpeed ?? 128]}
+                        min={0}
+                        max={255}
+                        step={1}
+                        onValueChange={(values) => {
+                          if (values.length > 0) {
+                            const newSpeed = values[0];
+                            const updatedSegments = segments.map(seg => 
+                              seg.id === selectedSegment.id 
+                                ? { ...seg, effectSpeed: newSpeed } 
+                                : seg
+                            );
+                            setSegments(updatedSegments);
+                            setSelectedSegment({...selectedSegment, effectSpeed: newSpeed});
+                            setEffect(selectedSegment.effect, newSpeed, selectedSegment.effectIntensity);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-white/70">Intensity</span>
+                      <span className="text-xs text-white/50">{selectedSegment.effectIntensity ?? 128}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <SlidersHorizontal size={14} className="text-cyan-300" />
+                      <Slider 
+                        value={[selectedSegment.effectIntensity ?? 128]}
+                        min={0}
+                        max={255}
+                        step={1}
+                        onValueChange={(values) => {
+                          if (values.length > 0) {
+                            const newIntensity = values[0];
+                            const updatedSegments = segments.map(seg => 
+                              seg.id === selectedSegment.id 
+                                ? { ...seg, effectIntensity: newIntensity } 
+                                : seg
+                            );
+                            setSegments(updatedSegments);
+                            setSelectedSegment({...selectedSegment, effectIntensity: newIntensity});
+                            setEffect(selectedSegment.effect, selectedSegment.effectSpeed, newIntensity);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-white/70">Brightness</span>
+                      <span className="text-xs text-white/50">{selectedSegment.brightness ?? 255}</span>
+                    </div>
+                    <Slider 
+                      value={[selectedSegment.brightness ?? 255]}
+                      min={0}
+                      max={255}
+                      step={1}
+                      onValueChange={(values) => {
+                        if (values.length > 0) {
+                          const newBrightness = values[0];
+                          const updatedSegments = segments.map(seg => 
+                            seg.id === selectedSegment.id 
+                              ? { ...seg, brightness: newBrightness } 
+                              : seg
+                          );
+                          setSegments(updatedSegments);
+                          setSelectedSegment({...selectedSegment, brightness: newBrightness});
+                          setBrightness(newBrightness);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-4">
+                <SegmentTriangles 
+                  segments={segments}
+                  setSegments={setSegments}
+                  selectedSegment={selectedSegment}
+                  setSelectedSegment={setSelectedSegment}
+                  editMode="effect"
+                />
+              </div>
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent 
+          value="palette" 
+          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+        >
+          <div className="text-center text-sm text-white/70 mb-4">
+            Select segments above first, then choose a palette to apply
+          </div>
+          
+          {deviceInfo?.palettes ? (
+            <div className="glass p-4 rounded-lg">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {deviceInfo.palettes.slice(0, 16).map((palette, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handlePaletteChange(index)}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-3 rounded-lg border text-center",
+                      selectedSegment?.palette === index
+                        ? "bg-white/20 border-cyan-400 text-white"
+                        : "bg-black/20 border-white/10 text-white/70 hover:bg-white/10 hover:border-white/20"
+                    )}
+                  >
+                    <Palette size={20} className="mb-2 text-cyan-300" />
+                    <span className="text-xs">{palette}</span>
+                  </button>
+                ))}
+              </div>
+              
+              {deviceInfo.palettes.length > 16 && (
+                <div className="mt-4">
+                  <select
+                    value={selectedSegment?.palette ?? 0}
+                    onChange={(e) => handlePaletteChange(parseInt(e.target.value))}
+                    className="w-full p-2 rounded bg-black/20 text-sm border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                  >
+                    {deviceInfo.palettes.map((palette, index) => (
+                      <option key={index} value={index}>
+                        {palette}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center text-sm text-white/50 p-4">
+              No palettes available. Connect to a WLED device to see available palettes.
+            </div>
+          )}
+          
           <div className="mt-4">
             <SegmentTriangles 
               segments={segments}
