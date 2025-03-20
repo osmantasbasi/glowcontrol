@@ -1,4 +1,3 @@
-
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect } from 'react';
@@ -10,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { 
   Layers, Triangle, Palette, Power, SlidersHorizontal, 
-  Settings, Cog, ChevronUp, ChevronDown 
+  Settings, Cog, ChevronUp, ChevronDown, ZapOff, Zap
 } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 import { cn } from '@/lib/utils';
@@ -34,11 +33,12 @@ interface Segment {
 }
 
 const SegmentEditor = () => {
-  const { deviceState, deviceInfo, setColor, setEffect, setBrightness, togglePower } = useWLED();
+  const { deviceState, deviceInfo, setColor, setEffect, setBrightness, togglePower, toggleAllSegments } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
   const [segments, setSegments] = useState<Segment[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+  const [allSegmentsOn, setAllSegmentsOn] = useState<boolean>(true);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -76,6 +76,13 @@ const SegmentEditor = () => {
     });
     document.dispatchEvent(event);
     window.dispatchEvent(event);
+  }, [segments]);
+
+  useEffect(() => {
+    if (segments.length > 0) {
+      const allOn = segments.every(seg => seg.on !== false);
+      setAllSegmentsOn(allOn);
+    }
   }, [segments]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
@@ -122,6 +129,10 @@ const SegmentEditor = () => {
     setSelectedSegment(null);
   };
 
+  const handleToggleAllSegments = () => {
+    toggleAllSegments(!allSegmentsOn);
+  };
+
   return (
     <div className="glass-card overflow-hidden animate-fade-in mt-4 md:mt-8">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -148,6 +159,20 @@ const SegmentEditor = () => {
               <span className="whitespace-nowrap">Config</span>
             </TabsTrigger>
           </TabsList>
+          
+          <Button
+            variant="ghost" 
+            size="icon"
+            className={cn(
+              "h-8 w-8 rounded-full ml-2 flex-shrink-0",
+              allSegmentsOn 
+                ? "bg-white/10 text-white hover:bg-white/20" 
+                : "bg-black/30 text-white/40 hover:bg-black/40"
+            )}
+            onClick={handleToggleAllSegments}
+          >
+            {allSegmentsOn ? <Power size={16} /> : <ZapOff size={16} />}
+          </Button>
           
           {selectedSegment && (
             <Button

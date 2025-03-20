@@ -62,6 +62,7 @@ interface WLEDContextType {
   setSegmentEffect: (segmentId: number, effectId: number, speed?: number, intensity?: number) => Promise<void>;
   getSegments: () => Segment[];
   updateSegment: (segmentId: number, segmentData: Partial<Segment>) => Promise<void>;
+  toggleAllSegments: (on?: boolean) => Promise<void>;
 }
 
 const WLEDContext = createContext<WLEDContextType | undefined>(undefined);
@@ -357,6 +358,52 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
+  const toggleAllSegments = async (on?: boolean) => {
+    try {
+      if (!activeDevice) return;
+      
+      const currentSegments = getSegments();
+      const newState = on === undefined ? !(currentSegments[0]?.on ?? true) : on;
+      
+      const payload = {
+        seg: currentSegments.map(seg => ({
+          id: seg.id,
+          on: newState
+        }))
+      };
+      
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to toggle segments');
+      
+      const updatedSegments = currentSegments.map(seg => ({
+        ...seg,
+        on: newState
+      }));
+      
+      setSegments(updatedSegments);
+      
+      if (deviceState) {
+        setDeviceState({
+          ...deviceState,
+          seg: updatedSegments
+        });
+      }
+      
+      toast.success(`All segments turned ${newState ? 'on' : 'off'}`);
+      
+    } catch (error) {
+      console.error('Error toggling all segments:', error);
+      toast.error('Failed to toggle segments');
+    }
+  };
+
   const setSegmentColor = async (segmentId: number, r: number, g: number, b: number) => {
     try {
       if (!activeDevice) return;
@@ -480,6 +527,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         setSegmentEffect,
         getSegments,
         updateSegment,
+        toggleAllSegments,
       }}
     >
       {children}
