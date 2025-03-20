@@ -8,26 +8,29 @@ interface BrightnessSliderProps {
   value: number;
   onChange: (value: number) => void;
   className?: string;
+  showLabel?: boolean;
 }
 
 const BrightnessSlider: React.FC<BrightnessSliderProps> = ({ 
   value, 
   onChange,
-  className
+  className,
+  showLabel = true
 }) => {
   const handleChange = (newValue: number[]) => {
     onChange(newValue[0]);
   };
 
   return (
-    <div className={cn("w-full flex flex-col space-y-2", className)}>
-      <div className="flex items-center justify-between">
-        <label className="text-sm text-white/70">Brightness</label>
-        <div className="text-sm font-medium">{Math.round((value / 255) * 100)}%</div>
-      </div>
+    <div className={cn("w-full flex flex-col space-y-1", className)}>
+      {showLabel && (
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-white/70">Brightness</label>
+        </div>
+      )}
       
-      <div className="flex items-center space-x-4">
-        <Sun size={16} className="text-cyan-300" />
+      <div className="flex items-center space-x-2">
+        <Sun size={14} className="text-cyan-300" />
         
         <Slider
           value={[value]}
@@ -35,10 +38,10 @@ const BrightnessSlider: React.FC<BrightnessSliderProps> = ({
           max={255}
           step={1}
           onValueChange={handleChange}
-          className="flex-1"
+          className="flex-1 h-1.5"
         />
         
-        <Sun size={20} className="text-cyan-300" />
+        <Sun size={18} className="text-cyan-300" />
       </div>
     </div>
   );

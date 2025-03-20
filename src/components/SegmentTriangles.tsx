@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Palette, Power, SlidersHorizontal } from 'lucide-react';
@@ -7,10 +8,41 @@ import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
+import BrightnessSlider from './BrightnessSlider';
+
+interface WLEDSegment {
+  id: number;
+  start: number;
+  stop: number;
+  len: number;
+  grp: number;
+  spc: number;
+  of: number;
+  on: boolean;
+  frz: boolean;
+  bri: number;
+  cct: number;
+  set: number;
+  col: [number, number, number][];
+  fx: number;
+  sx: number;
+  ix: number;
+  pal: number;
+  c1: number;
+  c2: number;
+  c3: number;
+  sel: boolean;
+  rev: boolean;
+  mi: boolean;
+  o1: boolean;
+  o2: boolean;
+  o3: boolean;
+  si: number;
+  m12: number;
+}
 
 interface Segment {
   id: number;
@@ -48,7 +80,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   setSelectedSegment,
   editMode = 'segment'
 }) => {
-  const { deviceInfo, deviceState, setColor, setEffect, setSegmentColor, setSegmentEffect, setBrightness, togglePower } = useWLED();
+  const { deviceInfo, deviceState, setColor, setEffect, updateSegment, getSegments } = useWLED();
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [rotationStartAngle, setRotationStartAngle] = useState(0);
@@ -162,6 +194,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     });
     window.dispatchEvent(event);
     document.dispatchEvent(event);
+    
+    // Also update the actual WLED segments
+    updatedSegments.forEach((segment, index) => {
+      updateSegment(index, {
+        id: index,
+        start: segment.leds.start,
+        stop: segment.leds.end,
+        len: segment.leds.end - segment.leds.start + 1
+      });
+    });
   };
 
   const handleAddSegment = () => {
@@ -171,9 +213,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
     
     const ledRange = calculateNextLedRange();
+    const segmentId = segments.length;
     
     const newSegment: Segment = {
-      id: Date.now(),
+      id: segmentId,
       color: { r: 255, g: 0, b: 0 },
       color2: { r: 0, g: 255, b: 0 },
       color3: { r: 0, g: 0, b: 255 },
@@ -200,6 +243,21 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     window.dispatchEvent(event);
     document.dispatchEvent(event);
     
+    // Add the segment to the actual WLED device
+    updateSegment(segmentId, {
+      id: segmentId,
+      start: ledRange.start,
+      stop: ledRange.end,
+      len: ledRange.end - ledRange.start + 1,
+      on: true,
+      col: [[255, 0, 0], [0, 255, 0], [0, 0, 255]],
+      fx: 0,
+      sx: 128,
+      ix: 128,
+      bri: 255,
+      pal: 0
+    });
+    
     toast.success("New segment added");
   };
 
@@ -209,8 +267,18 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       e.preventDefault();
     }
     
+    const segmentIndex = segments.findIndex(s => s.id === id);
+    if (segmentIndex === -1) return;
+    
     const updatedSegments = segments.filter(segment => segment.id !== id);
-    setSegments(updatedSegments);
+    
+    // Reassign IDs sequentially
+    const reindexedSegments = updatedSegments.map((seg, index) => ({
+      ...seg,
+      id: index
+    }));
+    
+    setSegments(reindexedSegments);
     
     if (selectedSegment?.id === id) {
       setSelectedSegment(null);
@@ -218,37 +286,48 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
     
+    // Update localStorage
+    localStorage.setItem('wledSegments', JSON.stringify(reindexedSegments));
+    
+    // Dispatch event
     const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
+      detail: reindexedSegments,
       bubbles: true 
     });
     document.dispatchEvent(event);
     window.dispatchEvent(event);
     
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    setTimeout(() => {
-      recalculateLedRanges();
-    }, 50);
+    // Update WLED device
+    try {
+      // For now, just recalculate the LED ranges to make sure everything is in order
+      setTimeout(() => {
+        recalculateLedRanges();
+      }, 50);
+    } catch (error) {
+      console.error("Error removing segment:", error);
+    }
     
     toast.success("Segment removed");
   };
 
   const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    if (isMultiSelectMode) {
-      if (selectedSegments.includes(segment.id)) {
-        setSelectedSegments(prevSelected => prevSelected.filter(id => id !== segment.id));
-      } else {
-        setSelectedSegments(prevSelected => [...prevSelected, segment.id]);
-      }
-    } else {
-      setSelectedSegment(segment);
+    try {
+      e.stopPropagation();
       
-      try {
+      if (isMultiSelectMode) {
+        if (selectedSegments.includes(segment.id)) {
+          setSelectedSegments(prevSelected => prevSelected.filter(id => id !== segment.id));
+        } else {
+          setSelectedSegments(prevSelected => [...prevSelected, segment.id]);
+        }
+      } else {
+        setSelectedSegment(segment);
+        
         if (segment.color) {
-          setColor(segment.color.r, segment.color.g, segment.color.b);
+          const r = segment.color.r;
+          const g = segment.color.g;
+          const b = segment.color.b;
+          setColor(r, g, b);
         }
         
         if (segment.effect !== undefined) {
@@ -266,9 +345,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         if (segment.brightness !== undefined) {
           setSegmentBrightness(segment.brightness);
         }
-      } catch (error) {
-        console.error("Error handling segment click:", error);
       }
+    } catch (error) {
+      console.error("Error handling segment click:", error);
+      toast.error("Error selecting segment");
     }
   };
 
@@ -283,241 +363,308 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleColorChange = (color: { r: number; g: number; b: number }) => {
-    if (isMultiSelectMode && selectedSegments.length > 0) {
-      const updatedSegments = segments.map(seg => {
-        if (selectedSegments.includes(seg.id)) {
-          if (colorTabActive === 'color1') {
-            return { ...seg, color };
-          } else if (colorTabActive === 'color2') {
-            return { ...seg, color2: color };
-          } else if (colorTabActive === 'color3') {
-            return { ...seg, color3: color };
+    try {
+      if (isMultiSelectMode && selectedSegments.length > 0) {
+        const updatedSegments = segments.map(seg => {
+          if (selectedSegments.includes(seg.id)) {
+            if (colorTabActive === 'color1') {
+              return { ...seg, color };
+            } else if (colorTabActive === 'color2') {
+              return { ...seg, color2: color };
+            } else if (colorTabActive === 'color3') {
+              return { ...seg, color3: color };
+            }
+            return seg;
           }
           return seg;
-        }
-        return seg;
-      });
+        });
+        
+        setSegments(updatedSegments);
+        localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+        
+        const event = new CustomEvent('segmentsUpdated', { 
+          detail: updatedSegments,
+          bubbles: true 
+        });
+        window.dispatchEvent(event);
+        
+        // Update color for WLED
+        setColor(color.r, color.g, color.b);
+        
+        // Update each selected segment in WLED
+        selectedSegments.forEach(segId => {
+          const segmentIndex = segments.findIndex(seg => seg.id === segId);
+          if (segmentIndex !== -1) {
+            const colorIndex = colorTabActive === 'color1' ? 0 : colorTabActive === 'color2' ? 1 : 2;
+            updateSegment(segmentIndex, {
+              col: [
+                ...(Array(colorIndex).fill([0, 0, 0])),
+                [color.r, color.g, color.b]
+              ] as [number, number, number][]
+            });
+          }
+        });
+        
+        return;
+      }
       
-      setSegments(updatedSegments);
-      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      if (!selectedSegment) return;
       
-      const event = new CustomEvent('segmentsUpdated', { 
-        detail: updatedSegments,
-        bubbles: true 
-      });
-      window.dispatchEvent(event);
+      let updatedSegment;
+      let wledColorUpdate: [number, number, number][][] = [];
       
-      setColor(color.r, color.g, color.b);
+      if (colorTabActive === 'color1') {
+        updatedSegment = { ...selectedSegment, color };
+        wledColorUpdate = [
+          [color.r, color.g, color.b], 
+          selectedSegment.color2 ? [selectedSegment.color2.r, selectedSegment.color2.g, selectedSegment.color2.b] : [0, 0, 0],
+          selectedSegment.color3 ? [selectedSegment.color3.r, selectedSegment.color3.g, selectedSegment.color3.b] : [0, 0, 0]
+        ] as [number, number, number][][];
+      } else if (colorTabActive === 'color2') {
+        updatedSegment = { ...selectedSegment, color2: color };
+        wledColorUpdate = [
+          [selectedSegment.color.r, selectedSegment.color.g, selectedSegment.color.b],
+          [color.r, color.g, color.b],
+          selectedSegment.color3 ? [selectedSegment.color3.r, selectedSegment.color3.g, selectedSegment.color3.b] : [0, 0, 0]
+        ] as [number, number, number][][];
+      } else if (colorTabActive === 'color3') {
+        updatedSegment = { ...selectedSegment, color3: color };
+        wledColorUpdate = [
+          [selectedSegment.color.r, selectedSegment.color.g, selectedSegment.color.b],
+          selectedSegment.color2 ? [selectedSegment.color2.r, selectedSegment.color2.g, selectedSegment.color2.b] : [0, 0, 0],
+          [color.r, color.g, color.b]
+        ] as [number, number, number][][];
+      } else {
+        updatedSegment = { ...selectedSegment, color };
+        wledColorUpdate = [
+          [color.r, color.g, color.b],
+          [0, 0, 0],
+          [0, 0, 0]
+        ] as [number, number, number][][];
+      }
       
-      selectedSegments.forEach(segId => {
-        const segmentIndex = segments.findIndex(seg => seg.id === segId);
-        if (segmentIndex !== -1) {
-          setSegmentColor(segmentIndex, color.r, color.g, color.b);
-        }
-      });
-      
-      return;
-    }
-    
-    if (!selectedSegment) return;
-    
-    let updatedSegment;
-    if (colorTabActive === 'color1') {
-      updatedSegment = { ...selectedSegment, color };
-    } else if (colorTabActive === 'color2') {
-      updatedSegment = { ...selectedSegment, color2: color };
-    } else if (colorTabActive === 'color3') {
-      updatedSegment = { ...selectedSegment, color3: color };
-    } else {
-      updatedSegment = { ...selectedSegment, color };
-    }
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? updatedSegment
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment(updatedSegment);
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    window.dispatchEvent(event);
-    
-    setColor(color.r, color.g, color.b);
-    
-    const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
-    if (segmentIndex !== -1) {
-      setSegmentColor(segmentIndex, color.r, color.g, color.b);
-    }
-  };
-
-  const handleEffectChange = (effectId: number) => {
-    if (isMultiSelectMode && selectedSegments.length > 0) {
       const updatedSegments = segments.map(seg => 
-        selectedSegments.includes(seg.id) 
-          ? { ...seg, effect: effectId } 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
           : seg
       );
       
       setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      
       localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
       
       const event = new CustomEvent('segmentsUpdated', { 
         detail: updatedSegments,
-        bubbles: true 
+        bubbles: true
       });
       window.dispatchEvent(event);
       
+      // Set selected color
+      setColor(color.r, color.g, color.b);
+      
+      // Update WLED segment
+      updateSegment(selectedSegment.id, {
+        col: wledColorUpdate[0] ? wledColorUpdate : [[color.r, color.g, color.b]]
+      });
+    } catch (error) {
+      console.error("Error handling color change:", error);
+      toast.error("Error updating color");
+    }
+  };
+
+  const handleEffectChange = (effectId: number) => {
+    try {
+      if (isMultiSelectMode && selectedSegments.length > 0) {
+        const updatedSegments = segments.map(seg => 
+          selectedSegments.includes(seg.id) 
+            ? { ...seg, effect: effectId } 
+            : seg
+        );
+        
+        setSegments(updatedSegments);
+        localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+        
+        const event = new CustomEvent('segmentsUpdated', { 
+          detail: updatedSegments,
+          bubbles: true 
+        });
+        window.dispatchEvent(event);
+        
+        // Update effect for the device
+        setEffect(effectId);
+        
+        // Update each selected segment
+        selectedSegments.forEach(segId => {
+          const segmentIndex = segments.findIndex(seg => seg.id === segId);
+          if (segmentIndex !== -1) {
+            updateSegment(segmentIndex, { fx: effectId });
+          }
+        });
+        
+        return;
+      }
+      
+      if (!selectedSegment) return;
+      
+      const updatedSegment = { ...selectedSegment, effect: effectId };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true
+      });
+      window.dispatchEvent(event);
+      
+      // Update effect for the device
       setEffect(effectId);
       
-      selectedSegments.forEach(segId => {
-        const segmentIndex = segments.findIndex(seg => seg.id === segId);
-        if (segmentIndex !== -1) {
-          setSegmentEffect(segmentIndex, effectId);
-        }
-      });
-      
-      return;
-    }
-    
-    if (!selectedSegment) return;
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, effect: effectId } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({ ...selectedSegment, effect: effectId });
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    window.dispatchEvent(event);
-    
-    setEffect(effectId);
-    
-    const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
-    if (segmentIndex !== -1) {
-      setSegmentEffect(segmentIndex, effectId);
+      // Update WLED segment
+      updateSegment(selectedSegment.id, { fx: effectId });
+    } catch (error) {
+      console.error("Error handling effect change:", error);
+      toast.error("Error updating effect");
     }
   };
 
   const handlePaletteChange = (paletteId: number) => {
-    if (!selectedSegment) return;
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, palette: paletteId } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({ ...selectedSegment, palette: paletteId });
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    window.dispatchEvent(event);
-    
-    // If there's a method to set palette in the WLED API, call it here
+    try {
+      if (!selectedSegment) return;
+      
+      const updatedSegment = { ...selectedSegment, palette: paletteId };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true
+      });
+      window.dispatchEvent(event);
+      
+      // Update WLED segment
+      updateSegment(selectedSegment.id, { pal: paletteId });
+    } catch (error) {
+      console.error("Error handling palette change:", error);
+      toast.error("Error updating palette");
+    }
   };
 
   const handleEffectSpeedChange = (speed: number) => {
-    if (!selectedSegment) return;
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, effectSpeed: speed } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({ ...selectedSegment, effectSpeed: speed });
-    setEffectSpeed(speed);
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    window.dispatchEvent(event);
-    
-    // Set effect with updated speed
-    const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
-    if (segmentIndex !== -1) {
-      setSegmentEffect(segmentIndex, selectedSegment.effect, speed, selectedSegment.effectIntensity);
+    try {
+      if (!selectedSegment) return;
+      
+      const updatedSegment = { ...selectedSegment, effectSpeed: speed };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      setEffectSpeed(speed);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true
+      });
+      window.dispatchEvent(event);
+      
+      // Update WLED segment
+      updateSegment(selectedSegment.id, { sx: speed });
+    } catch (error) {
+      console.error("Error handling effect speed change:", error);
+      toast.error("Error updating effect speed");
     }
   };
 
   const handleEffectIntensityChange = (intensity: number) => {
-    if (!selectedSegment) return;
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, effectIntensity: intensity } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({ ...selectedSegment, effectIntensity: intensity });
-    setEffectIntensity(intensity);
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    window.dispatchEvent(event);
-    
-    // Set effect with updated intensity
-    const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
-    if (segmentIndex !== -1) {
-      setSegmentEffect(segmentIndex, selectedSegment.effect, selectedSegment.effectSpeed, intensity);
+    try {
+      if (!selectedSegment) return;
+      
+      const updatedSegment = { ...selectedSegment, effectIntensity: intensity };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      setEffectIntensity(intensity);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true
+      });
+      window.dispatchEvent(event);
+      
+      // Update WLED segment
+      updateSegment(selectedSegment.id, { ix: intensity });
+    } catch (error) {
+      console.error("Error handling effect intensity change:", error);
+      toast.error("Error updating effect intensity");
     }
   };
 
   const handleTogglePower = (segmentId: number) => {
-    if (!selectedSegment) return;
-    
-    const newOnState = !(selectedSegment.on ?? true);
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === segmentId 
-        ? { ...seg, on: newOnState } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({ ...selectedSegment, on: newOnState });
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    window.dispatchEvent(event);
-    
-    // Toggle power for this segment if API supports it
-    togglePower(newOnState);
-    
-    toast.success(newOnState ? "Segment turned on" : "Segment turned off");
+    try {
+      if (!selectedSegment) return;
+      
+      const newOnState = !(selectedSegment.on ?? true);
+      
+      const updatedSegment = { ...selectedSegment, on: newOnState };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === segmentId 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true
+      });
+      window.dispatchEvent(event);
+      
+      // Update WLED segment
+      updateSegment(selectedSegment.id, { on: newOnState });
+      
+      toast.success(newOnState ? "Segment turned on" : "Segment turned off");
+    } catch (error) {
+      console.error("Error toggling power:", error);
+      toast.error("Error toggling segment power");
+    }
   };
 
   useEffect(() => {
@@ -532,28 +679,42 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   }, [selectedSegment]);
 
   const handleLEDRangeChange = (values: number[]) => {
-    if (!selectedSegment || values.length !== 2) return;
-    
-    const leds = { start: values[0], end: values[1] };
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, leds } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({ ...selectedSegment, leds });
-    setLedStart(leds.start.toString());
-    setLedEnd(leds.end.toString());
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true 
-    });
-    window.dispatchEvent(event);
+    try {
+      if (!selectedSegment || values.length !== 2) return;
+      
+      const leds = { start: values[0], end: values[1] };
+      
+      const updatedSegment = { ...selectedSegment, leds };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      setLedStart(leds.start.toString());
+      setLedEnd(leds.end.toString());
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true 
+      });
+      window.dispatchEvent(event);
+      
+      // Update WLED segment
+      updateSegment(selectedSegment.id, { 
+        start: leds.start, 
+        stop: leds.end,
+        len: leds.end - leds.start + 1
+      });
+    } catch (error) {
+      console.error("Error handling LED range change:", error);
+      toast.error("Error updating LED range");
+    }
   };
 
   const handleLEDInputChange = (type: 'start' | 'end', value: string) => {
@@ -575,94 +736,113 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleSegmentBrightnessChange = (brightness: number) => {
-    if (!selectedSegment) return;
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, brightness } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({ ...selectedSegment, brightness });
-    setSegmentBrightness(brightness);
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    window.dispatchEvent(event);
-    
-    // Set brightness for this segment
-    setBrightness(brightness);
+    try {
+      if (!selectedSegment) return;
+      
+      const updatedSegment = { ...selectedSegment, brightness };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      setSegmentBrightness(brightness);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true
+      });
+      window.dispatchEvent(event);
+      
+      // Update WLED segment
+      updateSegment(selectedSegment.id, { bri: brightness });
+    } catch (error) {
+      console.error("Error handling segment brightness change:", error);
+      toast.error("Error updating segment brightness");
+    }
   };
 
   const updateSegmentSettings = (field: 'ledStart' | 'ledEnd' | 'rotation', value: string) => {
-    if (!selectedSegment) return;
-    
-    const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
-    
-    let leds = { ...selectedSegment.leds };
-    let rotation = selectedSegment.rotation;
-    
-    if (field === 'ledStart') {
-      const start = value === '' ? 0 : parseInt(value, 10);
-      if (!isNaN(start)) {
-        const validStart = Math.min(Math.max(0, start), maxLed);
-        leds.start = validStart;
-        
-        if (validStart > leds.end) {
-          leds.end = validStart;
-          setLedEnd(validStart.toString());
+    try {
+      if (!selectedSegment) return;
+      
+      const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
+      
+      let leds = { ...selectedSegment.leds };
+      let rotation = selectedSegment.rotation;
+      
+      if (field === 'ledStart') {
+        const start = value === '' ? 0 : parseInt(value, 10);
+        if (!isNaN(start)) {
+          const validStart = Math.min(Math.max(0, start), maxLed);
+          leds.start = validStart;
+          
+          if (validStart > leds.end) {
+            leds.end = validStart;
+            setLedEnd(validStart.toString());
+          }
+        }
+      } else if (field === 'ledEnd') {
+        const end = value === '' ? 0 : parseInt(value, 10);
+        if (!isNaN(end)) {
+          const validEnd = Math.min(Math.max(leds.start, end), maxLed);
+          leds.end = validEnd;
+        }
+      } else if (field === 'rotation') {
+        const newRotation = value === '' ? 0 : parseInt(value, 10);
+        if (!isNaN(newRotation)) {
+          let validRotation = newRotation % 360;
+          if (validRotation < 0) validRotation += 360;
+          rotation = validRotation;
         }
       }
-    } else if (field === 'ledEnd') {
-      const end = value === '' ? 0 : parseInt(value, 10);
-      if (!isNaN(end)) {
-        const validEnd = Math.min(Math.max(leds.start, end), maxLed);
-        leds.end = validEnd;
+      
+      const updatedSegment = {
+        ...selectedSegment,
+        leds,
+        rotation
+      };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true 
+      });
+      window.dispatchEvent(event);
+      
+      // Update WLED segment if we're changing LED settings
+      if (field === 'ledStart' || field === 'ledEnd') {
+        updateSegment(selectedSegment.id, { 
+          start: leds.start, 
+          stop: leds.end,
+          len: leds.end - leds.start + 1
+        });
       }
-    } else if (field === 'rotation') {
-      const newRotation = value === '' ? 0 : parseInt(value, 10);
-      if (!isNaN(newRotation)) {
-        let validRotation = newRotation % 360;
-        if (validRotation < 0) validRotation += 360;
-        rotation = validRotation;
-      }
+    } catch (error) {
+      console.error("Error updating segment settings:", error);
+      toast.error("Error updating segment settings");
     }
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, leds, rotation } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({
-      ...selectedSegment,
-      leds,
-      rotation
-    });
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true 
-    });
-    window.dispatchEvent(event);
-  };
-
-  const handleBrightnessChange = (value: number) => {
-    setBrightness(value);
   };
 
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
-    e.stopPropagation();
-    
     try {
+      e.stopPropagation();
+      
       if (isMultiSelectMode && selectedSegments.length > 0) {
         if (selectedSegments.includes(segment.id)) {
           e.dataTransfer.setData("multiSelect", "true");
@@ -697,6 +877,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       }, 100);
     } catch (error) {
       console.error("Error in drag start:", error);
+      toast.error("Error starting drag operation");
     }
   };
 
@@ -712,140 +893,157 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove('bg-cyan-500/10');
-    
-    const isMultiDrop = e.dataTransfer.getData("multiSelect") === "true";
-    const segmentId = parseInt(e.dataTransfer.getData("segmentId"));
-    const rotation = parseFloat(e.dataTransfer.getData("segmentRotation")) || 0;
-    
-    const container = containerRef.current?.getBoundingClientRect();
-    if (!container) return;
-    
-    const x = Math.round(((e.clientX - container.left) / container.width) * 100);
-    const y = Math.round(((e.clientY - container.top) / container.height) * 100);
-    
-    let updatedSegments = [...segments];
-    
-    if (isMultiDrop && selectedSegments.length > 0) {
-      const draggedIndex = segments.findIndex(seg => seg.id === segmentId);
-      if (draggedIndex === -1) return;
+    try {
+      e.preventDefault();
+      e.currentTarget.classList.remove('bg-cyan-500/10');
       
-      const draggedPos = segments[draggedIndex].position;
-      const offsetX = x - draggedPos.x;
-      const offsetY = y - draggedPos.y;
+      const isMultiDrop = e.dataTransfer.getData("multiSelect") === "true";
+      const segmentId = parseInt(e.dataTransfer.getData("segmentId"));
+      const rotation = parseFloat(e.dataTransfer.getData("segmentRotation")) || 0;
       
-      updatedSegments = segments.map(seg => {
-        if (selectedSegments.includes(seg.id)) {
-          return {
-            ...seg,
-            position: {
-              x: Math.round(Math.min(Math.max(0, seg.position.x + offsetX), 100)),
-              y: Math.round(Math.min(Math.max(0, seg.position.y + offsetY), 100))
-            }
-          };
+      const container = containerRef.current?.getBoundingClientRect();
+      if (!container) return;
+      
+      const x = Math.round(((e.clientX - container.left) / container.width) * 100);
+      const y = Math.round(((e.clientY - container.top) / container.height) * 100);
+      
+      let updatedSegments = [...segments];
+      
+      if (isMultiDrop && selectedSegments.length > 0) {
+        const draggedIndex = segments.findIndex(seg => seg.id === segmentId);
+        if (draggedIndex === -1) return;
+        
+        const draggedPos = segments[draggedIndex].position;
+        const offsetX = x - draggedPos.x;
+        const offsetY = y - draggedPos.y;
+        
+        updatedSegments = segments.map(seg => {
+          if (selectedSegments.includes(seg.id)) {
+            return {
+              ...seg,
+              position: {
+                x: Math.round(Math.min(Math.max(0, seg.position.x + offsetX), 100)),
+                y: Math.round(Math.min(Math.max(0, seg.position.y + offsetY), 100))
+              }
+            };
+          }
+          return seg;
+        });
+      } else {
+        updatedSegments = segments.map(seg => 
+          seg.id === segmentId 
+            ? { ...seg, position: { x, y }, rotation } 
+            : seg
+        );
+        
+        if (selectedSegment?.id === segmentId) {
+          setSelectedSegment({ ...selectedSegment, position: { x, y }, rotation });
         }
-        return seg;
-      });
-    } else {
-      updatedSegments = segments.map(seg => 
-        seg.id === segmentId 
-          ? { ...seg, position: { x, y }, rotation } 
-          : seg
-      );
-      
-      if (selectedSegment?.id === segmentId) {
-        setSelectedSegment({ ...selectedSegment, position: { x, y }, rotation });
       }
+      
+      setSegments(updatedSegments);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true
+      });
+      document.dispatchEvent(event);
+      window.dispatchEvent(event);
+      
+      setDraggedSegment(null);
+    } catch (error) {
+      console.error("Error handling drop:", error);
+      toast.error("Error dropping segment");
     }
-    
-    setSegments(updatedSegments);
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    document.dispatchEvent(event);
-    window.dispatchEvent(event);
-    
-    setDraggedSegment(null);
   };
 
   const handleRotateStart = (segment: Segment, e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    setSelectedSegment(segment);
-    setIsRotating(true);
-    
-    const triangleElements = document.querySelectorAll(`[data-segment-id="${segment.id}"]`);
-    if (triangleElements.length) {
+    try {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      setSelectedSegment(segment);
+      setIsRotating(true);
+      
+      const triangleElements = document.querySelectorAll(`[data-segment-id="${segment.id}"]`);
+      if (triangleElements.length) {
+        const triangleElement = triangleElements[0] as HTMLElement;
+        const rect = triangleElement.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        const initialAngle = Math.atan2(
+          e.clientY - centerY,
+          e.clientX - centerX
+        );
+        
+        setRotationStartAngle(initialAngle);
+        setStartMousePosition({ x: e.clientX, y: e.clientY });
+      }
+      
+      document.addEventListener('mousemove', handleRotateMove);
+      document.addEventListener('mouseup', handleRotateEnd);
+    } catch (error) {
+      console.error("Error starting rotation:", error);
+      toast.error("Error starting rotation");
+    }
+  };
+
+  const handleRotateMove = (e: MouseEvent) => {
+    try {
+      if (!isRotating || !selectedSegment) return;
+      
+      const triangleElements = document.querySelectorAll(`[data-segment-id="${selectedSegment.id}"]`);
+      if (!triangleElements.length) return;
+      
       const triangleElement = triangleElements[0] as HTMLElement;
       const rect = triangleElement.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
       
-      const initialAngle = Math.atan2(
+      const currentAngle = Math.atan2(
         e.clientY - centerY,
         e.clientX - centerX
       );
       
-      setRotationStartAngle(initialAngle);
-      setStartMousePosition({ x: e.clientX, y: e.clientY });
+      const angleDiff = (currentAngle - rotationStartAngle) * (180 / Math.PI);
+      
+      let newRotation = selectedSegment.rotation + angleDiff;
+      
+      newRotation = newRotation % 360;
+      if (newRotation < 0) newRotation += 360;
+      
+      const updatedSegment = {
+        ...selectedSegment,
+        rotation: newRotation
+      };
+      
+      const updatedSegments = segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? updatedSegment
+          : seg
+      );
+      
+      setSegments(updatedSegments);
+      setSelectedSegment(updatedSegment);
+      
+      setRotationValue(Math.round(newRotation).toString());
+      setRotationStartAngle(currentAngle);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true 
+      });
+      document.dispatchEvent(event);
+      window.dispatchEvent(event);
+    } catch (error) {
+      console.error("Error during rotation:", error);
+      handleRotateEnd();
     }
-    
-    document.addEventListener('mousemove', handleRotateMove);
-    document.addEventListener('mouseup', handleRotateEnd);
-  };
-
-  const handleRotateMove = (e: MouseEvent) => {
-    if (!isRotating || !selectedSegment) return;
-    
-    const triangleElements = document.querySelectorAll(`[data-segment-id="${selectedSegment.id}"]`);
-    if (!triangleElements.length) return;
-    
-    const triangleElement = triangleElements[0] as HTMLElement;
-    const rect = triangleElement.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    const currentAngle = Math.atan2(
-      e.clientY - centerY,
-      e.clientX - centerX
-    );
-    
-    const angleDiff = (currentAngle - rotationStartAngle) * (180 / Math.PI);
-    
-    let newRotation = selectedSegment.rotation + angleDiff;
-    
-    newRotation = newRotation % 360;
-    if (newRotation < 0) newRotation += 360;
-    
-    const updatedSegments = segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, rotation: newRotation } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    setSelectedSegment({
-      ...selectedSegment,
-      rotation: newRotation
-    });
-    
-    setRotationValue(Math.round(newRotation).toString());
-    setRotationStartAngle(currentAngle);
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true 
-    });
-    document.dispatchEvent(event);
-    window.dispatchEvent(event);
   };
 
   const handleRotateEnd = () => {
@@ -910,23 +1108,25 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       }
       
       if (newX !== x || newY !== y) {
+        const updatedSegment = {
+          ...selectedSegment,
+          position: { x: newX, y: newY }
+        };
+        
         const updatedSegments = segments.map(seg => 
           seg.id === selectedSegment.id 
-            ? { ...seg, position: { x: newX, y: newY } } 
+            ? updatedSegment
             : seg
         );
         
         setSegments(updatedSegments);
-        setSelectedSegment({
-          ...selectedSegment,
-          position: { x: newX, y: newY }
-        });
+        setSelectedSegment(updatedSegment);
         
         localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
         
         const event = new CustomEvent('segmentsUpdated', { 
           detail: updatedSegments,
-          bubbles: true 
+          bubbles: true
         });
         document.dispatchEvent(event);
         window.dispatchEvent(event);
@@ -1001,8 +1201,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
             <PopoverContent className="w-64 glass border-0 backdrop-blur-lg p-3">
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -1014,6 +1213,9 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     >
                       <Power size={14} />
                     </Button>
+                    <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
+                  </div>
+                  <div className="flex gap-2">
                     <div className="flex flex-col space-y-1">
                       <Button 
                         variant="ghost" 
@@ -1021,18 +1223,23 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         className="h-6 w-6 rounded-full hover:bg-white/10"
                         onClick={() => {
                           const newY = Math.max(0, segment.position.y - 1);
+                          const updatedSegment = {
+                            ...segment,
+                            position: { ...segment.position, y: newY }
+                          };
+                          
                           const updatedSegments = segments.map(seg => 
                             seg.id === segment.id 
-                              ? { ...seg, position: { ...seg.position, y: newY } } 
+                              ? updatedSegment
                               : seg
                           );
+                          
                           setSegments(updatedSegments);
+                          
                           if (selectedSegment?.id === segment.id) {
-                            setSelectedSegment({
-                              ...selectedSegment,
-                              position: { ...selectedSegment.position, y: newY }
-                            });
+                            setSelectedSegment(updatedSegment);
                           }
+                          
                           localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                           
                           const event = new CustomEvent('segmentsUpdated', { 
@@ -1051,18 +1258,23 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         className="h-6 w-6 rounded-full hover:bg-white/10"
                         onClick={() => {
                           const newY = Math.min(100, segment.position.y + 1);
+                          const updatedSegment = {
+                            ...segment,
+                            position: { ...segment.position, y: newY }
+                          };
+                          
                           const updatedSegments = segments.map(seg => 
                             seg.id === segment.id 
-                              ? { ...seg, position: { ...seg.position, y: newY } } 
+                              ? updatedSegment
                               : seg
                           );
+                          
                           setSegments(updatedSegments);
+                          
                           if (selectedSegment?.id === segment.id) {
-                            setSelectedSegment({
-                              ...selectedSegment,
-                              position: { ...selectedSegment.position, y: newY }
-                            });
+                            setSelectedSegment(updatedSegment);
                           }
+                          
                           localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                           
                           const event = new CustomEvent('segmentsUpdated', { 
@@ -1083,18 +1295,23 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         className="h-6 w-6 rounded-full hover:bg-white/10"
                         onClick={() => {
                           const newX = Math.max(0, segment.position.x - 1);
+                          const updatedSegment = {
+                            ...segment,
+                            position: { ...segment.position, x: newX }
+                          };
+                          
                           const updatedSegments = segments.map(seg => 
                             seg.id === segment.id 
-                              ? { ...seg, position: { ...seg.position, x: newX } } 
+                              ? updatedSegment
                               : seg
                           );
+                          
                           setSegments(updatedSegments);
+                          
                           if (selectedSegment?.id === segment.id) {
-                            setSelectedSegment({
-                              ...selectedSegment,
-                              position: { ...selectedSegment.position, x: newX }
-                            });
+                            setSelectedSegment(updatedSegment);
                           }
+                          
                           localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                           
                           const event = new CustomEvent('segmentsUpdated', { 
@@ -1113,18 +1330,23 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         className="h-6 w-6 rounded-full hover:bg-white/10"
                         onClick={() => {
                           const newX = Math.min(100, segment.position.x + 1);
+                          const updatedSegment = {
+                            ...segment,
+                            position: { ...segment.position, x: newX }
+                          };
+                          
                           const updatedSegments = segments.map(seg => 
                             seg.id === segment.id 
-                              ? { ...seg, position: { ...seg.position, x: newX } } 
+                              ? updatedSegment
                               : seg
                           );
+                          
                           setSegments(updatedSegments);
+                          
                           if (selectedSegment?.id === segment.id) {
-                            setSelectedSegment({
-                              ...selectedSegment,
-                              position: { ...selectedSegment.position, x: newX }
-                            });
+                            setSelectedSegment(updatedSegment);
                           }
+                          
                           localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                           
                           const event = new CustomEvent('segmentsUpdated', { 
@@ -1153,6 +1375,16 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 </div>
                 
                 <div className="space-y-2">
+                  <h5 className="text-xs text-white/70">Brightness</h5>
+                  <BrightnessSlider
+                    value={segment.brightness ?? segmentBrightness}
+                    onChange={handleSegmentBrightnessChange}
+                    showLabel={false}
+                    className="mb-4"
+                  />
+                </div>
+                
+                <div className="space-y-2">
                   <h5 className="text-xs text-white/70">Color</h5>
                   <Tabs defaultValue="color1" onValueChange={setColorTabActive}>
                     <TabsList className="w-full glass">
@@ -1174,6 +1406,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         color={segment.color}
                         onChange={handleColorChange}
                         className="w-full"
+                        size={180}
                       />
                     </TabsContent>
                     <TabsContent value="color2">
@@ -1181,6 +1414,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         color={segment.color2 || {r: 0, g: 255, b: 0}}
                         onChange={handleColorChange}
                         className="w-full"
+                        size={180}
                       />
                     </TabsContent>
                     <TabsContent value="color3">
@@ -1188,6 +1422,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                         color={segment.color3 || {r: 0, g: 0, b: 255}}
                         onChange={handleColorChange}
                         className="w-full"
+                        size={180}
                       />
                     </TabsContent>
                   </Tabs>
@@ -1212,7 +1447,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       <div className="space-y-1">
                         <div className="flex justify-between">
                           <Label className="text-xs text-white/70">Speed</Label>
-                          <span className="text-xs text-white/50">{effectSpeed}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <SlidersHorizontal size={14} className="text-cyan-300" />
@@ -1234,7 +1468,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       <div className="space-y-1">
                         <div className="flex justify-between">
                           <Label className="text-xs text-white/70">Intensity</Label>
-                          <span className="text-xs text-white/50">{effectIntensity}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <SlidersHorizontal size={14} className="text-cyan-300" />
@@ -1324,19 +1557,24 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       onValueChange={(values) => {
                         if (values.length > 0) {
                           const newRotation = values[0];
+                          const updatedSegment = {
+                            ...segment,
+                            rotation: newRotation
+                          };
+                          
                           const updatedSegments = segments.map(seg => 
                             seg.id === segment.id 
-                              ? { ...seg, rotation: newRotation } 
+                              ? updatedSegment
                               : seg
                           );
+                          
                           setSegments(updatedSegments);
+                          
                           if (selectedSegment?.id === segment.id) {
-                            setSelectedSegment({
-                              ...selectedSegment,
-                              rotation: newRotation
-                            });
+                            setSelectedSegment(updatedSegment);
                             setRotationValue(Math.round(newRotation).toString());
                           }
+                          
                           localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
                           
                           const event = new CustomEvent('segmentsUpdated', { 
@@ -1349,27 +1587,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       }}
                       className="flex-1"
                     />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <h5 className="text-xs text-white/70">Brightness</h5>
-                  <Slider
-                    value={[segment.brightness ?? segmentBrightness]}
-                    min={1}
-                    max={255}
-                    step={1}
-                    onValueChange={(values) => {
-                      if (values.length > 0) {
-                        handleSegmentBrightnessChange(values[0]);
-                      }
-                    }}
-                    className="mt-2"
-                  />
-                  <div className="flex justify-between text-xs text-white/50">
-                    <span>Min</span>
-                    <span>{segment.brightness ?? segmentBrightness}</span>
-                    <span>Max</span>
                   </div>
                 </div>
               </div>
@@ -1454,23 +1671,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       )}
     </div>
   );
-};
-
-const handleDragOver = (e: React.DragEvent) => {
-  e.preventDefault();
-};
-
-const handleDragLeave = (e: React.DragEvent) => {
-  e.currentTarget.classList.remove('bg-cyan-500/10');
-};
-
-const handleDrop = (e: React.DragEvent) => {
-  e.preventDefault();
-  e.currentTarget.classList.remove('bg-cyan-500/10');
-};
-
-const handleDragStart = (e: React.DragEvent, segment: any) => {
-  e.stopPropagation();
 };
 
 export default SegmentTriangles;
