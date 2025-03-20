@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power, X } from 'lucide-react';
@@ -593,7 +594,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   data-segment-id={segment.id}
                   draggable={showControls}
                   onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
-                  onClick={(e) => handleSegmentClick(segment, e)}
+                  onClick={() => handleSegmentClick(segment)}
                   className={cn(
                     "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
                     selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
