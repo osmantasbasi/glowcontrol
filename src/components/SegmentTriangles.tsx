@@ -211,101 +211,112 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleAddSegment = () => {
-    if (segments.length >= 12) {
-      toast.error("Maximum of 12 triangles reached");
-      return;
+    try {
+      if (segments.length >= 12) {
+        toast.error("Maximum of 12 triangles reached");
+        return;
+      }
+      
+      const ledRange = calculateNextLedRange();
+      const segmentId = segments.length;
+      
+      const newSegment: Segment = {
+        id: segmentId,
+        color: { r: 255, g: 0, b: 0 },
+        color2: { r: 0, g: 255, b: 0 },
+        color3: { r: 0, g: 0, b: 255 },
+        effect: 0,
+        effectSpeed: 128,
+        effectIntensity: 128,
+        position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 },
+        rotation: 0,
+        leds: ledRange,
+        brightness: 255,
+        on: true,
+        palette: 0
+      };
+      
+      const updatedSegments = [...segments, newSegment];
+      setSegments(updatedSegments);
+      
+      localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: updatedSegments,
+        bubbles: true
+      });
+      window.dispatchEvent(event);
+      document.dispatchEvent(event);
+      
+      updateSegment(segmentId, {
+        id: segmentId,
+        start: ledRange.start,
+        stop: ledRange.end,
+        len: ledRange.end - ledRange.start + 1,
+        on: true,
+        col: [[255, 0, 0], [0, 255, 0], [0, 0, 255]],
+        fx: 0,
+        sx: 128,
+        ix: 128,
+        bri: 255,
+        pal: 0
+      });
+      
+      toast.success("New segment added");
+      console.log("New segment added:", newSegment);
+    } catch (error) {
+      console.error("Error adding segment:", error);
+      toast.error("Failed to add segment");
     }
-    
-    const ledRange = calculateNextLedRange();
-    const segmentId = segments.length;
-    
-    const newSegment: Segment = {
-      id: segmentId,
-      color: { r: 255, g: 0, b: 0 },
-      color2: { r: 0, g: 255, b: 0 },
-      color3: { r: 0, g: 0, b: 255 },
-      effect: 0,
-      effectSpeed: 128,
-      effectIntensity: 128,
-      position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 },
-      rotation: 0,
-      leds: ledRange,
-      brightness: 255,
-      on: true,
-      palette: 0
-    };
-    
-    const updatedSegments = [...segments, newSegment];
-    setSegments(updatedSegments);
-    
-    localStorage.setItem('wledSegments', JSON.stringify(updatedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: updatedSegments,
-      bubbles: true
-    });
-    window.dispatchEvent(event);
-    document.dispatchEvent(event);
-    
-    updateSegment(segmentId, {
-      id: segmentId,
-      start: ledRange.start,
-      stop: ledRange.end,
-      len: ledRange.end - ledRange.start + 1,
-      on: true,
-      col: [[255, 0, 0], [0, 255, 0], [0, 0, 255]],
-      fx: 0,
-      sx: 128,
-      ix: 128,
-      bri: 255,
-      pal: 0
-    });
-    
-    toast.success("New segment added");
   };
 
   const handleRemoveSegment = (id: number, e?: React.MouseEvent) => {
-    if (e) {
-      e.stopPropagation();
-      e.preventDefault();
-    }
-    
-    const segmentIndex = segments.findIndex(s => s.id === id);
-    if (segmentIndex === -1) return;
-    
-    const updatedSegments = segments.filter(segment => segment.id !== id);
-    
-    const reindexedSegments = updatedSegments.map((seg, index) => ({
-      ...seg,
-      id: index
-    }));
-    
-    setSegments(reindexedSegments);
-    
-    if (selectedSegment?.id === id) {
-      setSelectedSegment(null);
-    }
-    
-    setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
-    
-    localStorage.setItem('wledSegments', JSON.stringify(reindexedSegments));
-    
-    const event = new CustomEvent('segmentsUpdated', { 
-      detail: reindexedSegments,
-      bubbles: true 
-    });
-    document.dispatchEvent(event);
-    window.dispatchEvent(event);
-    
     try {
-      setTimeout(() => {
-        recalculateLedRanges();
-      }, 50);
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      
+      const segmentIndex = segments.findIndex(s => s.id === id);
+      if (segmentIndex === -1) return;
+      
+      const updatedSegments = segments.filter(segment => segment.id !== id);
+      
+      const reindexedSegments = updatedSegments.map((seg, index) => ({
+        ...seg,
+        id: index
+      }));
+      
+      setSegments(reindexedSegments);
+      
+      if (selectedSegment?.id === id) {
+        setSelectedSegment(null);
+      }
+      
+      setSelectedSegments(prevSelected => prevSelected.filter(segId => segId !== id));
+      
+      localStorage.setItem('wledSegments', JSON.stringify(reindexedSegments));
+      
+      const event = new CustomEvent('segmentsUpdated', { 
+        detail: reindexedSegments,
+        bubbles: true 
+      });
+      document.dispatchEvent(event);
+      window.dispatchEvent(event);
+      
+      try {
+        setTimeout(() => {
+          recalculateLedRanges();
+        }, 50);
+      } catch (error) {
+        console.error("Error removing segment:", error);
+      }
+      
+      toast.success("Segment removed");
     } catch (error) {
       console.error("Error removing segment:", error);
+      toast.error("Failed to remove segment");
     }
-    
-    toast.success("Segment removed");
   };
 
   const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
@@ -1166,7 +1177,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               size="icon"
               variant="outline"
               className="h-6 w-6 bg-background/80 backdrop-blur-sm"
-              onClick={(e) => handleTogglePower(segment.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTogglePower(segment.id);
+              }}
             >
               <Power className={segment.on === false ? "text-muted-foreground" : "text-green-500"} size={14} />
             </Button>
@@ -1360,3 +1374,4 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
+
