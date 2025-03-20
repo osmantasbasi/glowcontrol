@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power, X } from 'lucide-react';
@@ -58,8 +57,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [speedValue, setSpeedValue] = useState<string>('128');
   const [intensityValue, setIntensityValue] = useState<string>('128');
   
-  const LEDS_PER_SEGMENT = 31;
-  const MAX_SEGMENTS = 10;
+  const LEDS_PER_SEGMENT = 30; // Changed to 30 to match WLED standard
+  const MAX_SEGMENTS = 16; // Maximum segments supported by WLED
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [activeColorSlot, setActiveColorSlot] = useState(1);
 
@@ -68,7 +67,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       return { start: 0, end: LEDS_PER_SEGMENT - 1 };
     }
     
+    // Find the maximum end value across all segments
     const highestEnd = Math.max(...segments.map(seg => seg.leds?.end || 0));
+    
+    // Start from the next LED after the highest end
     const start = highestEnd + 1;
     const end = start + LEDS_PER_SEGMENT - 1;
     
@@ -87,25 +89,87 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     const ledRange = calculateNextLedRange();
     
+    // Use the next sequential ID
+    const nextId = segments.length > 0 
+      ? Math.max(...segments.map(seg => seg.id || 0)) + 1 
+      : 0;
+    
     const newSegment: Segment = {
-      id: segments.length, // Use sequential ID numbers for WLED compatibility
+      id: nextId,
       color: { r: 255, g: 0, b: 0 },
       color2: { r: 0, g: 255, b: 0 },
       color3: { r: 0, g: 0, b: 255 },
       effect: 0,
       position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 },
       rotation: 0,
-      leds: ledRange,
+      leds: {
+        start: ledRange.start,
+        end: ledRange.end,
+      },
       brightness: 255,
       on: true,
       speed: 128,
       intensity: 128,
       palette: 0
     };
+    
     setSegments([...segments, newSegment]);
+    
+    // Also send to WLED device to create the segment
+    try {
+      const payload = {
+        seg: [{
+          id: nextId,
+          start: ledRange.start,
+          stop: ledRange.end + 1, // WLED uses stop as exclusive
+          len: ledRange.end - ledRange.start + 1,
+          col: [
+            [255, 0, 0],
+            [0, 255, 0],
+            [0, 0, 255]
+          ],
+          fx: 0,
+          sx: 128,
+          ix: 128,
+          pal: 0,
+          bri: 255,
+          on: true
+        }]
+      };
+      
+      fetch(`http://${deviceInfo?.name || 'localhost'}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }).catch(err => console.log("Error creating segment:", err));
+    } catch (error) {
+      console.error("Error creating new segment:", error);
+    }
   };
 
   const handleRemoveSegment = (id: number) => {
+    // Delete from WLED first
+    try {
+      const payload = {
+        seg: [{
+          id: id,
+          stop: 0 // Setting stop to 0 is how you delete a segment in WLED
+        }]
+      };
+      
+      fetch(`http://${deviceInfo?.name || 'localhost'}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }).catch(err => console.log("Error deleting segment:", err));
+    } catch (error) {
+      console.error("Error deleting segment:", error);
+    }
+    
     setSegments(segments.filter(segment => segment.id !== id));
     if (selectedSegment?.id === id) {
       setSelectedSegment(null);
@@ -191,6 +255,25 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     ));
     
     setSelectedSegment({ ...selectedSegment, palette: paletteId });
+    
+    try {
+      const payload = {
+        seg: [{
+          id: selectedSegment.id,
+          pal: paletteId
+        }]
+      };
+      
+      fetch(`http://${deviceInfo?.name || 'localhost'}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }).catch(err => console.log("Error setting palette:", err));
+    } catch (error) {
+      console.error("Error setting palette:", error);
+    }
   };
 
   useEffect(() => {
@@ -934,7 +1017,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               data-segment-id={segment.id}
               draggable={showControls}
               onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
-              onClick={() => handleSegmentClick(segment)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSegmentClick(segment);
+              }}
               className={cn(
                 "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
                 selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
@@ -962,7 +1048,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   )}
                 />
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
-                  {segments.indexOf(segment) + 1}
+                  {segment.id}
                 </div>
                 
                 {showControls && (

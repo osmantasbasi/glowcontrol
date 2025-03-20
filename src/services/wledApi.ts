@@ -1,3 +1,4 @@
+
 // WLED API service
 
 type WLEDState = {
@@ -11,6 +12,7 @@ type WLEDState = {
   effect: number;
   speed: number;
   intensity: number;
+  segments?: any[]; // Store full segment data
 };
 
 type WLEDInfo = {
@@ -52,22 +54,24 @@ class WLEDApi {
 
   async getState(): Promise<WLEDState> {
     try {
-      const response = await fetch(`${this.baseUrl}/json/state`);
+      // Fetch both state and segments in a single request
+      const response = await fetch(`${this.baseUrl}/json`);
       if (!response.ok) throw new Error('Failed to fetch WLED state');
       
       const data = await response.json();
       
       return {
-        on: data.on || false,
-        brightness: data.bri || 0,
+        on: data.state?.on || false,
+        brightness: data.state?.bri || 0,
         color: {
-          r: data.seg?.[0]?.col?.[0]?.[0] || 255,
-          g: data.seg?.[0]?.col?.[0]?.[1] || 255,
-          b: data.seg?.[0]?.col?.[0]?.[2] || 255,
+          r: data.state?.seg?.[0]?.col?.[0]?.[0] || 255,
+          g: data.state?.seg?.[0]?.col?.[0]?.[1] || 255,
+          b: data.state?.seg?.[0]?.col?.[0]?.[2] || 255,
         },
-        effect: data.seg?.[0]?.fx || 0,
-        speed: data.seg?.[0]?.sx || 128,
-        intensity: data.seg?.[0]?.ix || 128,
+        effect: data.state?.seg?.[0]?.fx || 0,
+        speed: data.state?.seg?.[0]?.sx || 128,
+        intensity: data.state?.seg?.[0]?.ix || 128,
+        segments: data.state?.seg || [],
       };
     } catch (error) {
       console.error('Error fetching WLED state:', error);
@@ -117,18 +121,24 @@ class WLEDApi {
     }
   }
 
-  async setSegmentColor(segmentId: number, r: number, g: number, b: number): Promise<void> {
+  async setSegmentColor(segmentId: number, r: number, g: number, b: number, slot: number = 0): Promise<void> {
     try {
       const payload: any = {
-        seg: []
+        seg: [{
+          id: segmentId,
+          col: []
+        }]
       };
       
-      // Fill the array up to the segment we want to modify
-      for (let i = 0; i <= segmentId; i++) {
-        if (i === segmentId) {
-          payload.seg.push({ id: segmentId, col: [[r, g, b]] });
+      // Create all slots up to the one we're setting
+      for (let i = 0; i <= slot; i++) {
+        if (i === slot) {
+          payload.seg[0].col[i] = [r, g, b];
         } else {
-          payload.seg.push(null); // Placeholder to keep array indexes aligned with segment IDs
+          // For other slots, get existing colors or set to black
+          const existingState = await this.getState();
+          const segment = existingState.segments?.find(s => s.id === segmentId);
+          payload.seg[0].col[i] = segment?.col?.[i] || [0, 0, 0];
         }
       }
       
@@ -152,26 +162,18 @@ class WLEDApi {
   async setSegmentEffect(segmentId: number, effectId: number, speed?: number, intensity?: number): Promise<void> {
     try {
       const payload: any = {
-        seg: []
+        seg: [{
+          id: segmentId,
+          fx: effectId
+        }]
       };
       
-      // Fill the array up to the segment we want to modify
-      for (let i = 0; i <= segmentId; i++) {
-        if (i === segmentId) {
-          const segmentData: any = { id: segmentId, fx: effectId };
-          
-          if (speed !== undefined) {
-            segmentData.sx = speed;
-          }
-          
-          if (intensity !== undefined) {
-            segmentData.ix = intensity;
-          }
-          
-          payload.seg.push(segmentData);
-        } else {
-          payload.seg.push(null); // Placeholder to keep array indexes aligned with segment IDs
-        }
+      if (speed !== undefined) {
+        payload.seg[0].sx = speed;
+      }
+      
+      if (intensity !== undefined) {
+        payload.seg[0].ix = intensity;
       }
       
       const response = await fetch(`${this.baseUrl}/json/state`, {
@@ -241,6 +243,7 @@ class WLEDApi {
               effect: data.state.seg?.[0]?.fx || 0,
               speed: data.state.seg?.[0]?.sx || 128,
               intensity: data.state.seg?.[0]?.ix || 128,
+              segments: data.state.seg || [],
             };
             
             this.onUpdateCallbacks.forEach(callback => callback(state));
