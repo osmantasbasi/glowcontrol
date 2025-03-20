@@ -15,7 +15,6 @@ import SegmentTriangles from '@/components/SegmentTriangles';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
-import { toast } from "sonner";
 
 interface Segment {
   id: number;
@@ -34,16 +33,7 @@ interface Segment {
 }
 
 const SegmentEditor = () => {
-  const { 
-    deviceState, 
-    deviceInfo, 
-    setColor, 
-    setEffect, 
-    setBrightness, 
-    togglePower, 
-    toggleAllSegments,
-    updateWLEDSegments
-  } = useWLED();
+  const { deviceState, deviceInfo, setColor, setEffect, setBrightness, togglePower, toggleAllSegments } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -140,28 +130,7 @@ const SegmentEditor = () => {
   };
 
   const handleToggleAllSegments = () => {
-    const newState = !allSegmentsOn;
-    toggleAllSegments(newState);
-    setAllSegmentsOn(newState);
-  };
-
-  const handleToggleSegment = (segment: Segment) => {
-    const newState = !(segment.on ?? true);
-    const updatedSegments = segments.map(seg => 
-      seg.id === segment.id 
-        ? { ...seg, on: newState } 
-        : seg
-    );
-    
-    setSegments(updatedSegments);
-    if (selectedSegment && selectedSegment.id === segment.id) {
-      setSelectedSegment({...selectedSegment, on: newState});
-    }
-    
-    updateWLEDSegments([{
-      id: segment.id,
-      on: newState
-    }]);
+    toggleAllSegments(!allSegmentsOn);
   };
 
   return (
@@ -213,7 +182,17 @@ const SegmentEditor = () => {
                 "h-8 w-8 rounded-full ml-2 flex-shrink-0",
                 selectedSegment.on === false ? "bg-black/30 text-white/40" : "bg-white/10 text-white"
               )}
-              onClick={() => handleToggleSegment(selectedSegment)}
+              onClick={() => {
+                const newState = !(selectedSegment.on ?? true);
+                const updatedSegments = segments.map(seg => 
+                  seg.id === selectedSegment.id 
+                    ? { ...seg, on: newState } 
+                    : seg
+                );
+                setSegments(updatedSegments);
+                setSelectedSegment({...selectedSegment, on: newState});
+                togglePower(newState);
+              }}
             >
               <Power size={16} />
             </Button>
@@ -232,7 +211,6 @@ const SegmentEditor = () => {
             setSegments={setSegments}
             selectedSegment={selectedSegment}
             setSelectedSegment={setSelectedSegment}
-            updateWLEDSegments={updateWLEDSegments}
             className="triangle-canvas"
           />
         </TabsContent>
@@ -502,9 +480,6 @@ const SegmentEditor = () => {
                   variant="outline" 
                   size="sm" 
                   className="h-7 text-xs"
-                  onClick={() => {
-                    toast.success('Segment IDs toggled');
-                  }}
                 >
                   Enabled
                 </Button>
@@ -514,9 +489,6 @@ const SegmentEditor = () => {
                 <span className="text-white/70">Canvas Size</span>
                 <select 
                   className="bg-black/20 border border-white/10 rounded p-1 text-xs focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                  onChange={(e) => {
-                    toast.success(`Canvas size set to ${e.target.value}`);
-                  }}
                 >
                   <option value="small">Small</option>
                   <option value="medium">Medium (Default)</option>
@@ -533,12 +505,6 @@ const SegmentEditor = () => {
               <Button 
                 variant="outline" 
                 className="w-full justify-start text-sm"
-                onClick={() => {
-                  localStorage.removeItem('wledSegments');
-                  setSegments([]);
-                  setSelectedSegment(null);
-                  toast.success('All settings reset');
-                }}
               >
                 <SlidersHorizontal size={14} className="mr-2" />
                 Reset All Settings
@@ -547,12 +513,6 @@ const SegmentEditor = () => {
               <Button 
                 variant="outline" 
                 className="w-full justify-start text-sm"
-                onClick={() => {
-                  setSegments([]);
-                  setSelectedSegment(null);
-                  localStorage.removeItem('wledSegments');
-                  toast.success('Segment data cleared');
-                }}
               >
                 <Palette size={14} className="mr-2" />
                 Clear Segment Data
@@ -633,4 +593,3 @@ const Index = () => {
 };
 
 export default Index;
-
