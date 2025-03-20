@@ -1164,8 +1164,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 <Triangle 
                   size={TRIANGLE_SIZE} 
                   fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
-                  color={isSelected ? "#33C3F0" : "rgba(0, 0, 0, 0.5)"}
-                  strokeWidth={isSelected ? 3 : 1.5}
+                  color={isSelected ? "#33C3F0" : isMultiSelected ? "#9b87f5" : "rgba(0, 0, 0, 0.5)"}
+                  strokeWidth={isSelected || isMultiSelected ? 2 : 1.5}
                   className={cn(
                     "drop-shadow-lg transition-all",
                     isSelected && "animate-pulse",
@@ -1176,34 +1176,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     segment.on === false && "opacity-40"
                   )}
                 />
-                {isSelected && (
-                  <div className="absolute inset-0 pointer-events-none">
-                    <svg width={TRIANGLE_SIZE} height={TRIANGLE_SIZE} viewBox="0 0 24 24">
-                      <polygon 
-                        points="12,2 22,22 2,22" 
-                        fill="none" 
-                        stroke="#E8E8EA" 
-                        strokeWidth="1.5"
-                        strokeDasharray="3,2" 
-                        className="animate-pulse" 
-                      />
-                    </svg>
-                  </div>
-                )}
-                {isMultiSelected && (
-                  <div className="absolute inset-0 pointer-events-none">
-                    <svg width={TRIANGLE_SIZE} height={TRIANGLE_SIZE} viewBox="0 0 24 24">
-                      <polygon 
-                        points="12,2 22,22 2,22" 
-                        fill="none" 
-                        stroke="#9b87f5" 
-                        strokeWidth="1.5"
-                        strokeDasharray="3,2" 
-                        className="animate-pulse" 
-                      />
-                    </svg>
-                  </div>
-                )}
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-white">
                   {segments.indexOf(segment) + 1}
                 </div>
