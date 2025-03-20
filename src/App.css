@@ -1,3 +1,4 @@
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -111,6 +112,18 @@
   stroke: rgba(255, 255, 255, 0.9) !important;
   stroke-width: 1.5px !important;
   filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+  animation: triangle-selected-breathe 2s infinite ease-in-out;
+}
+
+@keyframes triangle-selected-breathe {
+  0%, 100% { 
+    stroke-opacity: 0.8;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.4));
+  }
+  50% { 
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+  }
 }
 
 .triangle-multi-selected {
@@ -148,7 +161,8 @@
   cursor: pointer;
 }
 
-.triangle-wrapper:hover .triangle-config-button {
+.triangle-wrapper:hover .triangle-config-button,
+.triangle-selected .triangle-config-button {
   opacity: 1;
 }
 

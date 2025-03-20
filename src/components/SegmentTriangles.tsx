@@ -56,8 +56,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [speedValue, setSpeedValue] = useState<string>('128');
   const [intensityValue, setIntensityValue] = useState<string>('128');
   
-  const LEDS_PER_SEGMENT = 30; // Changed to 30 to match WLED standard
-  const MAX_SEGMENTS = 16; // Maximum segments supported by WLED
+  const LEDS_PER_SEGMENT = 30;
+  const MAX_SEGMENTS = 16;
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [activeColorSlot, setActiveColorSlot] = useState(0);
   const [multiSelectedSegments, setMultiSelectedSegments] = useState<number[]>([]);

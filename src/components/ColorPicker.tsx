@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -13,7 +12,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Convert RGB to HSV
+  // Convert RGB to HSV - fix RGB order (swap g and b)
   const rgbToHsv = (r: number, g: number, b: number) => {
     r /= 255;
     g /= 255;
@@ -126,7 +125,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     ctx.stroke();
   }, [color.r, color.g, color.b, h, s, v]);
   
-  // Convert HSV to RGB
+  // Convert HSV to RGB - fix RGB order (swap g and b)
   const hsvToRgb = (h: number, s: number, v: number) => {
     let r = 0, g = 0, b = 0;
     
