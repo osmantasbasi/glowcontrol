@@ -13,10 +13,17 @@ import SegmentTriangles from '@/components/SegmentTriangles';
 interface Segment {
   id: number;
   color: { r: number; g: number; b: number };
+  color2?: { r: number; g: number; b: number };
+  color3?: { r: number; g: number; b: number };
   effect: number;
   position: { x: number; y: number };
   rotation: number;
   leds: { start: number; end: number };
+  brightness: number;
+  on: boolean;
+  speed: number;
+  intensity: number;
+  palette: number;
 }
 
 const SegmentEditor = () => {
@@ -89,6 +96,10 @@ const SegmentEditor = () => {
               <Layers size={14} className="mr-1" />
               Effect
             </TabsTrigger>
+            <TabsTrigger value="palette" className="data-[state=active]:bg-white/10">
+              <Palette size={14} className="mr-1" />
+              Palette
+            </TabsTrigger>
             <TabsTrigger value="settings" className="data-[state=active]:bg-white/10">
               <Settings size={14} className="mr-1" />
               Settings
@@ -156,6 +167,55 @@ const SegmentEditor = () => {
         </TabsContent>
         
         <TabsContent 
+          value="palette" 
+          className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+        >
+          <div className="text-center text-sm text-white/70 mb-4">
+            Select segments above first, then choose a palette to apply
+          </div>
+          {deviceInfo?.palettes ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {deviceInfo.palettes.slice(0, 20).map((palette, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    if (selectedSegment) {
+                      setSegments(segments.map(seg => 
+                        seg.id === selectedSegment.id 
+                          ? { ...seg, palette: index } 
+                          : seg
+                      ));
+                    }
+                  }}
+                  className={cn(
+                    "flex flex-col items-center justify-center p-3 rounded-lg border transition-all",
+                    selectedSegment?.palette === index
+                      ? "bg-white/20 border-cyan-400 text-white"
+                      : "bg-black/20 border-white/10 text-white/70 hover:bg-white/10 hover:border-white/20"
+                  )}
+                >
+                  <Palette size={24} className="mb-2 text-cyan-300" />
+                  <span className="text-xs text-center">{palette}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 text-center text-sm text-white/50">
+              No palettes available. Please connect to a WLED device.
+            </div>
+          )}
+          <div className="mt-4">
+            <SegmentTriangles 
+              segments={segments}
+              setSegments={setSegments}
+              selectedSegment={selectedSegment}
+              setSelectedSegment={setSelectedSegment}
+              editMode="color"
+            />
+          </div>
+        </TabsContent>
+        
+        <TabsContent 
           value="settings" 
           className="p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
         >
@@ -194,6 +254,11 @@ const SegmentEditor = () => {
       </Tabs>
     </div>
   );
+};
+
+// Helper function to conditionally join class names
+const cn = (...classes: (string | boolean | undefined)[]) => {
+  return classes.filter(Boolean).join(' ');
 };
 
 const Index = () => {

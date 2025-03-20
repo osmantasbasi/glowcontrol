@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useWLED } from '@/context/WLEDContext';
@@ -10,14 +10,22 @@ import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 
 interface Segment {
   id: number;
   color: { r: number; g: number; b: number };
+  color2?: { r: number; g: number; b: number };
+  color3?: { r: number; g: number; b: number };
   effect: number;
   position: { x: number; y: number };
   rotation: number;
   leds: { start: number; end: number };
+  brightness: number;
+  on: boolean;
+  speed: number;
+  intensity: number;
+  palette: number;
 }
 
 interface SegmentTrianglesProps {
@@ -48,6 +56,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [ledStart, setLedStart] = useState<string>('');
   const [ledEnd, setLedEnd] = useState<string>('');
   const [rotationValue, setRotationValue] = useState<string>('');
+  const [speedValue, setSpeedValue] = useState<string>('128');
+  const [intensityValue, setIntensityValue] = useState<string>('128');
   
   const LEDS_PER_SEGMENT = 31;
   const MAX_SEGMENTS = 10;
@@ -81,10 +91,17 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     const newSegment: Segment = {
       id: Date.now(),
       color: { r: 255, g: 0, b: 0 },
+      color2: { r: 0, g: 255, b: 0 },
+      color3: { r: 0, g: 0, b: 255 },
       effect: 0,
       position: { x: Math.random() * 70 + 10, y: Math.random() * 70 + 10 },
       rotation: 0,
-      leds: ledRange
+      leds: ledRange,
+      brightness: 255,
+      on: true,
+      speed: 128,
+      intensity: 128,
+      palette: 0
     };
     setSegments([...segments, newSegment]);
   };
@@ -109,22 +126,35 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
   };
 
-  const handleColorChange = (color: { r: number; g: number; b: number }) => {
+  const handleColorChange = (color: { r: number; g: number; b: number }, slot: number = 1) => {
     if (!selectedSegment) return;
     
-    setSegments(segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, color } 
-        : seg
-    ));
+    setSegments(segments.map(seg => {
+      if (seg.id === selectedSegment.id) {
+        if (slot === 1) {
+          return { ...seg, color };
+        } else if (slot === 2) {
+          return { ...seg, color2: color };
+        } else if (slot === 3) {
+          return { ...seg, color3: color };
+        }
+        return seg;
+      }
+      return seg;
+    }));
     
-    setSelectedSegment({ ...selectedSegment, color });
-    
-    setColor(color.r, color.g, color.b);
-    
-    const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
-    if (segmentIndex !== -1) {
-      setSegmentColor(segmentIndex, color.r, color.g, color.b);
+    if (slot === 1) {
+      setSelectedSegment({ ...selectedSegment, color });
+      setColor(color.r, color.g, color.b);
+      
+      const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
+      if (segmentIndex !== -1) {
+        setSegmentColor(segmentIndex, color.r, color.g, color.b);
+      }
+    } else if (slot === 2 && selectedSegment.color2) {
+      setSelectedSegment({ ...selectedSegment, color2: color });
+    } else if (slot === 3 && selectedSegment.color3) {
+      setSelectedSegment({ ...selectedSegment, color3: color });
     }
   };
 
@@ -143,8 +173,20 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
     if (segmentIndex !== -1) {
-      setSegmentEffect(segmentIndex, effectId);
+      setSegmentEffect(segmentIndex, effectId, selectedSegment.speed, selectedSegment.intensity);
     }
+  };
+
+  const handlePaletteChange = (paletteId: number) => {
+    if (!selectedSegment) return;
+    
+    setSegments(segments.map(seg => 
+      seg.id === selectedSegment.id 
+        ? { ...seg, palette: paletteId } 
+        : seg
+    ));
+    
+    setSelectedSegment({ ...selectedSegment, palette: paletteId });
   };
 
   // Update input states when segment selection changes
@@ -153,6 +195,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setLedStart(selectedSegment.leds.start.toString());
       setLedEnd(selectedSegment.leds.end.toString());
       setRotationValue(Math.round(selectedSegment.rotation).toString());
+      setSpeedValue(selectedSegment.speed.toString());
+      setIntensityValue(selectedSegment.intensity.toString());
     }
   }, [selectedSegment]);
 
@@ -190,7 +234,19 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     updateSegmentSettings('rotation', value);
   };
 
-  const updateSegmentSettings = (field: 'ledStart' | 'ledEnd' | 'rotation', value: string) => {
+  const handleSpeedInputChange = (value: string) => {
+    if (!selectedSegment) return;
+    setSpeedValue(value);
+    updateSegmentSettings('speed', value);
+  };
+
+  const handleIntensityInputChange = (value: string) => {
+    if (!selectedSegment) return;
+    setIntensityValue(value);
+    updateSegmentSettings('intensity', value);
+  };
+
+  const updateSegmentSettings = (field: 'ledStart' | 'ledEnd' | 'rotation' | 'speed' | 'intensity', value: string) => {
     if (!selectedSegment) return;
     
     const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
@@ -198,6 +254,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     // Create a copy of current leds and rotation
     let leds = { ...selectedSegment.leds };
     let rotation = selectedSegment.rotation;
+    let speed = selectedSegment.speed;
+    let intensity = selectedSegment.intensity;
     
     // Update the appropriate field
     if (field === 'ledStart') {
@@ -229,24 +287,72 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         if (validRotation < 0) validRotation += 360;
         rotation = validRotation;
       }
+    } else if (field === 'speed') {
+      const newSpeed = value === '' ? 128 : parseInt(value, 10);
+      if (!isNaN(newSpeed)) {
+        speed = Math.min(Math.max(0, newSpeed), 255);
+      }
+    } else if (field === 'intensity') {
+      const newIntensity = value === '' ? 128 : parseInt(value, 10);
+      if (!isNaN(newIntensity)) {
+        intensity = Math.min(Math.max(0, newIntensity), 255);
+      }
     }
     
     // Update segment
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
-        ? { ...seg, leds, rotation } 
+        ? { ...seg, leds, rotation, speed, intensity } 
         : seg
     ));
     
     setSelectedSegment({
       ...selectedSegment,
       leds,
-      rotation
+      rotation,
+      speed,
+      intensity
     });
+    
+    // Update the effect with new speed and intensity if those were changed
+    if (field === 'speed' || field === 'intensity') {
+      const segmentIndex = segments.findIndex(seg => seg.id === selectedSegment.id);
+      if (segmentIndex !== -1) {
+        setSegmentEffect(segmentIndex, selectedSegment.effect, speed, intensity);
+      }
+    }
   };
 
   const handleBrightnessChange = (value: number) => {
+    if (!selectedSegment) return;
+    
+    setSegments(segments.map(seg => 
+      seg.id === selectedSegment.id 
+        ? { ...seg, brightness: value } 
+        : seg
+    ));
+    
+    setSelectedSegment({
+      ...selectedSegment,
+      brightness: value
+    });
+    
     setBrightness(value);
+  };
+
+  const handlePowerToggle = (on: boolean) => {
+    if (!selectedSegment) return;
+    
+    setSegments(segments.map(seg => 
+      seg.id === selectedSegment.id 
+        ? { ...seg, on } 
+        : seg
+    ));
+    
+    setSelectedSegment({
+      ...selectedSegment,
+      on
+    });
   };
 
   const handleDragStart = (e: React.DragEvent, segment: Segment) => {
@@ -260,12 +366,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     ghostElement.style.position = 'absolute';
     ghostElement.style.top = '-1000px';
     ghostElement.style.left = '-1000px';
-    ghostElement.innerHTML = `<svg width="50" height="50" viewBox="0 0 24 24">
-      <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.b},${segment.color.g},${segment.color.r})" stroke="rgba(0,0,0,0.5)" stroke-width="1" transform="rotate(${segment.rotation}, 12, 12)" />
+    ghostElement.innerHTML = `<svg width="80" height="80" viewBox="0 0 24 24">
+      <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color.r},${segment.color.g},${segment.color.b})" stroke="rgba(0,0,0,0.5)" stroke-width="1" transform="rotate(${segment.rotation}, 12, 12)" />
     </svg>`;
     document.body.appendChild(ghostElement);
     
-    e.dataTransfer.setDragImage(ghostElement, 25, 25);
+    e.dataTransfer.setDragImage(ghostElement, 40, 40);
     
     setTimeout(() => {
       document.body.removeChild(ghostElement);
@@ -476,7 +582,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 onClick={(e) => handleSegmentClick(segment, e)}
                 className={cn(
                   "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group",
-                  selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10"
+                  selectedSegment?.id === segment.id ? "ring-2 ring-cyan-300 z-20" : "z-10",
+                  !segment.on && "opacity-50"
                 )}
                 style={{
                   left: `${segment.position.x}%`,
@@ -487,8 +594,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               >
                 <div className="relative">
                   <Triangle 
-                    size={50} 
-                    fill={`rgb(${segment.color.b}, ${segment.color.g}, ${segment.color.r})`} 
+                    size={70} 
+                    fill={`rgb(${segment.color.r}, ${segment.color.g}, ${segment.color.b})`} 
                     color="rgba(0, 0, 0, 0.5)"
                     strokeWidth={1}
                     className={cn(
@@ -520,10 +627,17 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               </div>
             </PopoverTrigger>
             {showControls && (
-              <PopoverContent className="w-64 glass border-0 backdrop-blur-lg p-3">
+              <PopoverContent className="w-72 glass border-0 backdrop-blur-lg p-3">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        checked={selectedSegment?.on || false} 
+                        onCheckedChange={handlePowerToggle}
+                        className="data-[state=checked]:bg-cyan-500" 
+                      />
+                      <h4 className="font-medium text-sm">Segment #{segments.indexOf(segment) + 1}</h4>
+                    </div>
                     <div className="flex gap-2">
                       <Button 
                         variant="ghost" 
@@ -536,94 +650,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       >
                         <RotateCw size={14} className="text-cyan-300" />
                       </Button>
-                      <div className="flex flex-col space-y-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={() => {
-                            const newY = Math.max(0, segment.position.y - 1);
-                            setSegments(segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, position: { ...seg.position, y: newY } } 
-                                : seg
-                            ));
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                position: { ...selectedSegment.position, y: newY }
-                              });
-                            }
-                          }}
-                        >
-                          <ArrowUp size={14} className="text-cyan-300" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={() => {
-                            const newY = Math.min(100, segment.position.y + 1);
-                            setSegments(segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, position: { ...seg.position, y: newY } } 
-                                : seg
-                            ));
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                position: { ...selectedSegment.position, y: newY }
-                              });
-                            }
-                          }}
-                        >
-                          <ArrowDown size={14} className="text-cyan-300" />
-                        </Button>
-                      </div>
-                      <div className="flex flex-col space-y-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={() => {
-                            const newX = Math.max(0, segment.position.x - 1);
-                            setSegments(segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, position: { ...seg.position, x: newX } } 
-                                : seg
-                            ));
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                position: { ...selectedSegment.position, x: newX }
-                              });
-                            }
-                          }}
-                        >
-                          <ArrowLeft size={14} className="text-cyan-300" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 rounded-full hover:bg-white/10"
-                          onClick={() => {
-                            const newX = Math.min(100, segment.position.x + 1);
-                            setSegments(segments.map(seg => 
-                              seg.id === segment.id 
-                                ? { ...seg, position: { ...seg.position, x: newX } } 
-                                : seg
-                            ));
-                            if (selectedSegment?.id === segment.id) {
-                              setSelectedSegment({
-                                ...selectedSegment,
-                                position: { ...selectedSegment.position, x: newX }
-                              });
-                            }
-                          }}
-                        >
-                          <ArrowRight size={14} className="text-cyan-300" />
-                        </Button>
-                      </div>
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -636,12 +662,33 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   </div>
                   
                   <div className="space-y-2">
-                    <h5 className="text-xs text-white/70">Color</h5>
-                    <ColorPicker 
-                      color={segment.color}
-                      onChange={handleColorChange}
-                      className="w-full"
-                    />
+                    <h5 className="text-xs text-white/70">Colors</h5>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <div className="text-xs text-white/50 text-center">Primary</div>
+                        <ColorPicker 
+                          color={segment.color}
+                          onChange={(color) => handleColorChange(color, 1)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-white/50 text-center">Secondary</div>
+                        <ColorPicker 
+                          color={segment.color2 || { r: 0, g: 255, b: 0 }}
+                          onChange={(color) => handleColorChange(color, 2)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-white/50 text-center">Tertiary</div>
+                        <ColorPicker 
+                          color={segment.color3 || { r: 0, g: 0, b: 255 }}
+                          onChange={(color) => handleColorChange(color, 3)}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
                   </div>
                   
                   {deviceInfo?.effects && (
@@ -660,6 +707,75 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                       </select>
                     </div>
                   )}
+                  
+                  {deviceInfo?.palettes && (
+                    <div className="space-y-2">
+                      <h5 className="text-xs text-white/70">Palette</h5>
+                      <select
+                        value={segment.palette}
+                        onChange={(e) => handlePaletteChange(parseInt(e.target.value))}
+                        className="w-full p-2 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                      >
+                        {deviceInfo.palettes.map((palette, index) => (
+                          <option key={index} value={index}>
+                            {palette}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <h5 className="text-xs text-white/70">Effect Speed</h5>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        type="text"
+                        value={speedValue}
+                        onChange={(e) => handleSpeedInputChange(e.target.value)}
+                        className="w-16 h-8 text-sm bg-black/20 border-white/10"
+                        placeholder="128"
+                      />
+                      <Slider
+                        value={[segment.speed]}
+                        min={0}
+                        max={255}
+                        step={1}
+                        onValueChange={(values) => {
+                          if (values.length > 0) {
+                            const newSpeed = values[0];
+                            handleSpeedInputChange(newSpeed.toString());
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h5 className="text-xs text-white/70">Effect Intensity</h5>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        type="text"
+                        value={intensityValue}
+                        onChange={(e) => handleIntensityInputChange(e.target.value)}
+                        className="w-16 h-8 text-sm bg-black/20 border-white/10"
+                        placeholder="128"
+                      />
+                      <Slider
+                        value={[segment.intensity]}
+                        min={0}
+                        max={255}
+                        step={1}
+                        onValueChange={(values) => {
+                          if (values.length > 0) {
+                            const newIntensity = values[0];
+                            handleIntensityInputChange(newIntensity.toString());
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
                   
                   <div className="space-y-2">
                     <h5 className="text-xs text-white/70">LED Range</h5>
@@ -731,7 +847,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   <div className="space-y-2">
                     <h5 className="text-xs text-white/70">Brightness</h5>
                     <Slider
-                      value={[deviceState?.brightness || 128]}
+                      value={[segment.brightness]}
                       min={1}
                       max={255}
                       step={1}
@@ -744,7 +860,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     />
                     <div className="flex justify-between text-xs text-white/50">
                       <span>Min</span>
-                      <span>{deviceState?.brightness || 128}</span>
+                      <span>{segment.brightness}</span>
                       <span>Max</span>
                     </div>
                   </div>
@@ -756,7 +872,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 
         {segments.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-white/40">
-            <Triangle size={50} className="mb-2 text-cyan-300/30" />
+            <Triangle size={70} className="mb-2 text-cyan-300/30" />
             <p>Click the + button to add segments</p>
             <p className="text-xs mt-2">Drag triangles to position them</p>
           </div>
