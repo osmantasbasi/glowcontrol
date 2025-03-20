@@ -417,7 +417,7 @@ const SegmentEditor: React.FC = () => {
             Select segments above first, then choose a palette to apply
           </div>
           
-          {deviceInfo?.palettes ? (
+          {deviceInfo?.palettes && deviceInfo.palettes.length > 0 ? (
             <div className="glass p-4 rounded-lg">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                 {deviceInfo.palettes.slice(0, isMobile ? 8 : 16).map((palette, index) => (
@@ -497,11 +497,11 @@ const SegmentEditor: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-white/50">Effects:</span>
-                  <span>{deviceInfo.effects.length}</span>
+                  <span>{deviceInfo.effects ? deviceInfo.effects.length : 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-white/50">Palettes:</span>
-                  <span>{deviceInfo.palettes.length}</span>
+                  <span>{deviceInfo.palettes ? deviceInfo.palettes.length : 0}</span>
                 </div>
               </div>
             ) : (

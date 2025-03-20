@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { getWledApi, initializeWledApi, WLEDInfo, WLEDState as ApiWLEDState } from '../services/wledApi';
 import { toast } from 'sonner';
@@ -86,21 +87,25 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   useEffect(() => {
     const savedDevices = localStorage.getItem('wledDevices');
     if (savedDevices) {
-      const parsedDevices = JSON.parse(savedDevices);
-      setDevices(parsedDevices);
-      
-      if (parsedDevices.length > 0) {
-        const activeDeviceId = localStorage.getItem('activeWledDevice');
-        if (activeDeviceId) {
-          const device = parsedDevices.find((d: WLEDDevice) => d.id === activeDeviceId);
-          if (device) {
-            handleSetActiveDevice(device.id);
-          } else {
+      try {
+        const parsedDevices = JSON.parse(savedDevices);
+        setDevices(parsedDevices);
+        
+        if (parsedDevices.length > 0) {
+          const activeDeviceId = localStorage.getItem('activeWledDevice');
+          if (activeDeviceId) {
+            const device = parsedDevices.find((d: WLEDDevice) => d.id === activeDeviceId);
+            if (device) {
+              handleSetActiveDevice(device.id);
+            } else if (parsedDevices.length > 0) {
+              handleSetActiveDevice(parsedDevices[0].id);
+            }
+          } else if (parsedDevices.length > 0) {
             handleSetActiveDevice(parsedDevices[0].id);
           }
-        } else {
-          handleSetActiveDevice(parsedDevices[0].id);
         }
+      } catch (error) {
+        console.error("Error parsing saved devices:", error);
       }
     }
   }, []);
@@ -218,7 +223,13 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       setConnectionError(null);
       
       const device = devices.find(d => d.id === id);
-      if (!device) throw new Error('Device not found');
+      if (!device) {
+        console.log("Available devices:", devices);
+        console.log("Attempted to set active device with ID:", id);
+        setConnectionError("Device not found in list. Please add a WLED device first.");
+        setIsLoading(false);
+        return;
+      }
       
       setActiveDevice(device);
       
