@@ -1,4 +1,3 @@
-
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -105,4 +104,55 @@
   .tabs-list button {
     padding: 0.5rem;
   }
+}
+
+/* Triangle Selection and Config Button styles */
+.triangle-selected {
+  stroke: rgba(255, 255, 255, 0.9) !important;
+  stroke-width: 1.5px !important;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+}
+
+.triangle-multi-selected {
+  stroke: rgba(155, 135, 245, 0.9) !important;
+  stroke-width: 1.5px !important;
+  animation: breathe 2s infinite ease-in-out;
+}
+
+@keyframes breathe {
+  0%, 100% { 
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 2px rgba(155, 135, 245, 0.3));
+  }
+  50% { 
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 5px rgba(155, 135, 245, 0.7));
+  }
+}
+
+.triangle-config-button {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 30;
+  cursor: pointer;
+}
+
+.triangle-wrapper:hover .triangle-config-button {
+  opacity: 1;
+}
+
+.triangle-config-button:hover {
+  background-color: rgba(155, 135, 245, 0.5);
+  transform: scale(1.1);
 }
