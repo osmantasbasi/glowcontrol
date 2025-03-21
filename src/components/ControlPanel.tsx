@@ -13,7 +13,15 @@ import { toast } from 'sonner';
 import { saveConfiguration, loadConfiguration } from '@/services/configService';
 
 const ControlPanel: React.FC = () => {
-  const { deviceState, deviceInfo, togglePower, setColor, setBrightness, activeDevice } = useWLED();
+  const { 
+    deviceState, 
+    deviceInfo, 
+    togglePower, 
+    setColor, 
+    setBrightness, 
+    activeDevice,
+    applyConfiguration
+  } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 255, b: 255});
   const isMobile = useIsMobile();
   
@@ -29,9 +37,11 @@ const ControlPanel: React.FC = () => {
       const savedConfig = loadConfiguration(activeDevice.ipAddress);
       if (savedConfig) {
         console.log('Loaded saved configuration for', activeDevice.ipAddress);
+        // Apply the saved configuration to the device
+        applyConfiguration(savedConfig);
       }
     }
-  }, [activeDevice]);
+  }, [activeDevice, applyConfiguration]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);

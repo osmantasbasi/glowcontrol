@@ -21,17 +21,6 @@ export const saveConfiguration = (ipAddress: string, configuration: SavedConfigu
     // Save back to localStorage
     localStorage.setItem('wledConfigurations', JSON.stringify(configs));
     
-    // Create a blob and download it as a file
-    const blob = new Blob([JSON.stringify(configuration, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wled-config-${ipAddress.replace(/\./g, '-')}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
     console.log(`Configuration for ${ipAddress} saved successfully`);
   } catch (error) {
     console.error('Error saving configuration:', error);
