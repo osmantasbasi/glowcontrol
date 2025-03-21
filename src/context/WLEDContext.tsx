@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
 import { loadConfiguration, saveConfiguration } from '../services/configService';
@@ -38,6 +39,7 @@ interface WLEDContextType {
   addSegment: (startLed: number, endLed: number) => Promise<void>;
   deleteSegment: (segmentId: number) => Promise<void>;
   applyConfiguration: (config: SavedConfiguration) => Promise<void>;
+  saveCurrentConfiguration: () => void;
 }
 
 const WLEDContext = createContext<WLEDContextType | undefined>(undefined);
@@ -53,6 +55,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const [deviceInfo, setDeviceInfo] = useState<WLEDInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [pollingInterval, setPollingInterval] = useState<number | null>(null);
+  const isConfigurationLoading = useRef(false);
+  const shouldSaveConfig = useRef(false);
 
   useEffect(() => {
     const savedDevices = localStorage.getItem('wledDevices');
@@ -154,13 +158,40 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   }, [activeDevice]);
 
   useEffect(() => {
-    if (activeDevice && activeDevice.ipAddress) {
+    // Only load configuration when device changes, not on every deviceState change
+    if (activeDevice && activeDevice.ipAddress && !isConfigurationLoading.current) {
       const savedConfig = loadConfiguration(activeDevice.ipAddress);
       if (savedConfig) {
         console.log('Loaded saved configuration for', activeDevice.ipAddress);
+        isConfigurationLoading.current = true;
+        applyConfiguration(savedConfig).finally(() => {
+          isConfigurationLoading.current = false;
+        });
       }
     }
   }, [activeDevice]);
+
+  // Save configuration when segments change, but only if we're not loading a configuration
+  useEffect(() => {
+    if (activeDevice && deviceState && shouldSaveConfig.current && !isConfigurationLoading.current) {
+      saveCurrentConfiguration();
+      shouldSaveConfig.current = false;
+    }
+  }, [deviceState?.segments]);
+
+  const saveCurrentConfiguration = () => {
+    if (activeDevice && deviceState) {
+      // Only save if we're not loading a configuration
+      if (!isConfigurationLoading.current) {
+        saveConfiguration(activeDevice.ipAddress, {
+          segments: deviceState.segments || [],
+          deviceState,
+          deviceInfo: deviceInfo || null
+        });
+        console.log('Configuration saved for', activeDevice.ipAddress);
+      }
+    }
+  };
 
   const addDevice = (name: string, ipAddress: string) => {
     const newDevice: WLEDDevice = {
@@ -230,6 +261,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         };
         
         if (savedConfig && savedConfig.segments && savedConfig.segments.length > 0) {
+          isConfigurationLoading.current = true;
           state.segments = savedConfig.segments;
           
           try {
@@ -243,6 +275,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
             console.log('Applied saved segment configuration to device');
           } catch (error) {
             console.error('Error applying saved configuration to device:', error);
+          } finally {
+            isConfigurationLoading.current = false;
           }
         }
         
@@ -266,14 +300,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           ...state,
           segments: prev?.segments || []
         }));
-        
-        if (device && state) {
-          saveConfiguration(device.ipAddress, {
-            segments: state.segments || [],
-            deviceState: state,
-            deviceInfo: deviceInfo || null
-          });
-        }
       });
       
       setDevices(prev => 
@@ -446,6 +472,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           return seg;
         });
         
+        shouldSaveConfig.current = true;
+        
         setDeviceState({
           ...deviceState,
           segments: updatedSegments,
@@ -504,6 +532,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           return seg;
         });
         
+        shouldSaveConfig.current = true;
+        
         setDeviceState({
           ...deviceState,
           segments: updatedSegments,
@@ -549,6 +579,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           return seg;
         });
         
+        shouldSaveConfig.current = true;
+        
         setDeviceState({
           ...deviceState,
           segments: updatedSegments,
@@ -593,6 +625,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           }
           return seg;
         });
+        
+        shouldSaveConfig.current = true;
         
         setDeviceState({
           ...deviceState,
@@ -648,6 +682,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           return seg;
         });
         
+        shouldSaveConfig.current = true;
+        
         setDeviceState({
           ...deviceState,
           segments: updatedSegments,
@@ -678,6 +714,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           }
           return seg;
         });
+        
+        shouldSaveConfig.current = true;
         
         setDeviceState({
           ...deviceState,
@@ -710,13 +748,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       await fetchDeviceState();
       
-      if (deviceState) {
-        saveConfiguration(activeDevice.ipAddress, {
-          segments: deviceState.segments || [],
-          deviceState,
-          deviceInfo: deviceInfo || null
-        });
-      }
+      shouldSaveConfig.current = true;
       
       return;
     } catch (error) {
@@ -738,13 +770,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       await fetchDeviceState();
       
-      if (deviceState) {
-        saveConfiguration(activeDevice.ipAddress, {
-          segments: deviceState.segments || [],
-          deviceState,
-          deviceInfo: deviceInfo || null
-        });
-      }
+      shouldSaveConfig.current = true;
       
       return;
     } catch (error) {
@@ -760,6 +786,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
     
     try {
+      isConfigurationLoading.current = true;
+      
       if (config.segments && config.segments.length > 0) {
         const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
           method: 'POST',
@@ -789,6 +817,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error applying configuration:', error);
       toast.error('Failed to apply configuration');
+    } finally {
+      isConfigurationLoading.current = false;
     }
   };
 
@@ -816,6 +846,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         addSegment,
         deleteSegment,
         applyConfiguration,
+        saveCurrentConfiguration,
       }}
     >
       {children}

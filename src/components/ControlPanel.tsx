@@ -10,7 +10,6 @@ import { Power, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
-import { saveConfiguration, loadConfiguration } from '@/services/configService';
 
 const ControlPanel: React.FC = () => {
   const { 
@@ -20,7 +19,8 @@ const ControlPanel: React.FC = () => {
     setColor, 
     setBrightness, 
     activeDevice,
-    applyConfiguration
+    applyConfiguration,
+    saveCurrentConfiguration
   } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 255, b: 255});
   const isMobile = useIsMobile();
@@ -30,18 +30,6 @@ const ControlPanel: React.FC = () => {
       setCurrentColor(deviceState.color);
     }
   }, [deviceState]);
-
-  // Load saved configuration when active device changes
-  useEffect(() => {
-    if (activeDevice && activeDevice.ipAddress) {
-      const savedConfig = loadConfiguration(activeDevice.ipAddress);
-      if (savedConfig) {
-        console.log('Loaded saved configuration for', activeDevice.ipAddress);
-        // Apply the saved configuration to the device
-        applyConfiguration(savedConfig);
-      }
-    }
-  }, [activeDevice, applyConfiguration]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
@@ -61,15 +49,7 @@ const ControlPanel: React.FC = () => {
 
   const handleSaveConfiguration = () => {
     if (activeDevice && deviceState) {
-      // Get segments from the deviceState
-      const segments = deviceState.segments || [];
-      
-      saveConfiguration(activeDevice.ipAddress, {
-        segments,
-        deviceState,
-        deviceInfo: deviceInfo || null
-      });
-      
+      saveCurrentConfiguration();
       toast.success('Configuration saved successfully');
     } else {
       toast.error('No active device or device state to save');
