@@ -1,5 +1,4 @@
-
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
 import { loadConfiguration, saveConfiguration } from '../services/configService';
@@ -9,12 +8,6 @@ interface WLEDDevice {
   name: string;
   ipAddress: string;
   connected: boolean;
-}
-
-interface SavedConfiguration {
-  segments: any[];
-  deviceState: any;
-  deviceInfo: any;
 }
 
 interface WLEDContextType {
@@ -38,8 +31,6 @@ interface WLEDContextType {
   setSegmentPalette: (segmentId: number, paletteId: number) => Promise<void>;
   addSegment: (startLed: number, endLed: number) => Promise<void>;
   deleteSegment: (segmentId: number) => Promise<void>;
-  applyConfiguration: (config: SavedConfiguration) => Promise<void>;
-  saveCurrentConfiguration: () => void;
 }
 
 const WLEDContext = createContext<WLEDContextType | undefined>(undefined);
@@ -55,8 +46,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const [deviceInfo, setDeviceInfo] = useState<WLEDInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [pollingInterval, setPollingInterval] = useState<number | null>(null);
-  const isConfigurationLoading = useRef(false);
-  const shouldSaveConfig = useRef(false);
 
   useEffect(() => {
     const savedDevices = localStorage.getItem('wledDevices');
@@ -80,12 +69,14 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // Set up polling for device state every second
   useEffect(() => {
     if (activeDevice && activeDevice.connected) {
       if (pollingInterval) {
         clearInterval(pollingInterval);
       }
       
+      // Initial fetch
       fetchDeviceState();
       
       const intervalId = window.setInterval(fetchDeviceState, 1000);
@@ -103,11 +94,13 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     if (!activeDevice) return;
     
     try {
+      // Fetch both state and info to get the latest segments data
       const response = await fetch(`http://${activeDevice.ipAddress}/json`);
       if (!response.ok) throw new Error('Failed to fetch WLED data');
       
       const data = await response.json();
       
+      // Update state with full data including segments
       if (data.state) {
         const state: WLEDState = {
           on: data.state.on || false,
@@ -126,11 +119,12 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         setDeviceState(state);
       }
       
-      if (data.info) {
+      // Update info if available
+      if (data.effects && data.palettes && (!deviceInfo || !deviceInfo.effects || !deviceInfo.palettes)) {
         setDeviceInfo({
-          name: data.info.name || 'WLED Device',
-          version: data.info.ver || 'Unknown',
-          ledCount: data.info.leds?.count || 0,
+          name: data.info?.name || 'WLED Device',
+          version: data.info?.ver || 'Unknown',
+          ledCount: data.info?.leds?.count || 0,
           effects: data.effects || [],
           palettes: data.palettes || [],
         });
@@ -156,42 +150,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       localStorage.setItem('activeWledDevice', activeDevice.id);
     }
   }, [activeDevice]);
-
-  useEffect(() => {
-    // Only load configuration when device changes, not on every deviceState change
-    if (activeDevice && activeDevice.ipAddress && !isConfigurationLoading.current) {
-      const savedConfig = loadConfiguration(activeDevice.ipAddress);
-      if (savedConfig) {
-        console.log('Loaded saved configuration for', activeDevice.ipAddress);
-        isConfigurationLoading.current = true;
-        applyConfiguration(savedConfig).finally(() => {
-          isConfigurationLoading.current = false;
-        });
-      }
-    }
-  }, [activeDevice]);
-
-  // Save configuration when segments change, but only if we're not loading a configuration
-  useEffect(() => {
-    if (activeDevice && deviceState && shouldSaveConfig.current && !isConfigurationLoading.current) {
-      saveCurrentConfiguration();
-      shouldSaveConfig.current = false;
-    }
-  }, [deviceState?.segments]);
-
-  const saveCurrentConfiguration = () => {
-    if (activeDevice && deviceState) {
-      // Only save if we're not loading a configuration
-      if (!isConfigurationLoading.current) {
-        saveConfiguration(activeDevice.ipAddress, {
-          segments: deviceState.segments || [],
-          deviceState,
-          deviceInfo: deviceInfo || null
-        });
-        console.log('Configuration saved for', activeDevice.ipAddress);
-      }
-    }
-  };
 
   const addDevice = (name: string, ipAddress: string) => {
     const newDevice: WLEDDevice = {
@@ -238,8 +196,10 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       const api = initializeWledApi(device.ipAddress);
       
+      // Load saved configuration for this device if available
       const savedConfig = loadConfiguration(device.ipAddress);
       
+      // Fetch both the state and info in a single request
       const response = await fetch(`http://${device.ipAddress}/json`);
       if (!response.ok) throw new Error('Failed to fetch WLED data');
       
@@ -260,10 +220,11 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           segments: data.state.seg || [],
         };
         
+        // If we have saved segment data, use it instead
         if (savedConfig && savedConfig.segments && savedConfig.segments.length > 0) {
-          isConfigurationLoading.current = true;
           state.segments = savedConfig.segments;
           
+          // Apply saved configuration by sending it to the device
           try {
             await fetch(`http://${device.ipAddress}/json/state`, {
               method: 'POST',
@@ -275,8 +236,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
             console.log('Applied saved segment configuration to device');
           } catch (error) {
             console.error('Error applying saved configuration to device:', error);
-          } finally {
-            isConfigurationLoading.current = false;
           }
         }
         
@@ -300,6 +259,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           ...state,
           segments: prev?.segments || []
         }));
+        
+        // Whenever state changes, save the configuration
+        if (device && state) {
+          saveConfiguration(device.ipAddress, {
+            segments: state.segments || [],
+            deviceState: state,
+            deviceInfo: deviceInfo || null
+          });
+        }
       });
       
       setDevices(prev => 
@@ -434,10 +402,12 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         }]
       };
       
+      // Create all color slots up to the one we're setting
       for (let i = 0; i <= slot; i++) {
         if (i === slot) {
           payload.seg[0].col[i] = [r, g, b];
         } else if (i < slot) {
+          // Keep existing colors or set to black if they don't exist
           const segment = deviceState?.segments?.find(s => s.id === segmentId);
           if (segment && segment.col && segment.col[i]) {
             payload.seg[0].col[i] = segment.col[i];
@@ -457,11 +427,13 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       if (!response.ok) throw new Error('Failed to set segment color');
       
+      // Update the local state
       if (deviceState && deviceState.segments) {
         const updatedSegments = deviceState.segments.map(seg => {
           if (seg.id === segmentId) {
             const newCol = [...(seg.col || [])];
             if (!newCol[slot]) {
+              // Ensure the array has enough elements
               while (newCol.length <= slot) {
                 newCol.push([0, 0, 0]);
               }
@@ -471,8 +443,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           }
           return seg;
         });
-        
-        shouldSaveConfig.current = true;
         
         setDeviceState({
           ...deviceState,
@@ -519,6 +489,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       if (!response.ok) throw new Error('Failed to set segment effect');
       
+      // Update the local state
       if (deviceState && deviceState.segments) {
         const updatedSegments = deviceState.segments.map(seg => {
           if (seg.id === segmentId) {
@@ -531,8 +502,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           }
           return seg;
         });
-        
-        shouldSaveConfig.current = true;
         
         setDeviceState({
           ...deviceState,
@@ -571,6 +540,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       if (!response.ok) throw new Error('Failed to set segment brightness');
       
+      // Update the local state
       if (deviceState && deviceState.segments) {
         const updatedSegments = deviceState.segments.map(seg => {
           if (seg.id === segmentId) {
@@ -578,8 +548,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           }
           return seg;
         });
-        
-        shouldSaveConfig.current = true;
         
         setDeviceState({
           ...deviceState,
@@ -618,6 +586,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       if (!response.ok) throw new Error('Failed to set segment power');
       
+      // Update the local state
       if (deviceState && deviceState.segments) {
         const updatedSegments = deviceState.segments.map(seg => {
           if (seg.id === segmentId) {
@@ -625,8 +594,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           }
           return seg;
         });
-        
-        shouldSaveConfig.current = true;
         
         setDeviceState({
           ...deviceState,
@@ -654,7 +621,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         seg: [{
           id: segmentId,
           start: start,
-          stop: stop + 1,
+          stop: stop + 1, // WLED uses exclusive stop value
           len: len
         }]
       };
@@ -669,20 +636,19 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       if (!response.ok) throw new Error('Failed to set segment LED range');
       
+      // Update the local state
       if (deviceState && deviceState.segments) {
         const updatedSegments = deviceState.segments.map(seg => {
           if (seg.id === segmentId) {
             return { 
               ...seg, 
               start,
-              stop: stop + 1,
+              stop: stop + 1, // WLED uses exclusive stop
               len
             };
           }
           return seg;
         });
-        
-        shouldSaveConfig.current = true;
         
         setDeviceState({
           ...deviceState,
@@ -707,6 +673,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       const api = getWledApi();
       await api.setSegmentPalette(segmentId, paletteId);
       
+      // Update the local state if we have segments data
       if (deviceState && deviceState.segments) {
         const updatedSegments = deviceState.segments.map(seg => {
           if (seg.id === segmentId) {
@@ -714,8 +681,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           }
           return seg;
         });
-        
-        shouldSaveConfig.current = true;
         
         setDeviceState({
           ...deviceState,
@@ -735,20 +700,30 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
     
     try {
+      // Get current state to find the next available ID
       const currentState = await getWledApi().getState();
       const segments = currentState.segments || [];
       
+      // Find the highest segment ID and increment by 1
       const nextId = segments.length > 0 
         ? Math.max(...segments.map(s => s.id || 0)) + 1 
         : 0;
       
-      await getWledApi().addSegment(nextId, startLed, endLed + 1);
+      await getWledApi().addSegment(nextId, startLed, endLed + 1); // WLED uses exclusive stop value
       
       toast.success(`Added segment ${nextId}`);
       
+      // Force fetch device state to update with new segment
       await fetchDeviceState();
       
-      shouldSaveConfig.current = true;
+      // Save the updated configuration
+      if (deviceState) {
+        saveConfiguration(activeDevice.ipAddress, {
+          segments: deviceState.segments || [],
+          deviceState,
+          deviceInfo: deviceInfo || null
+        });
+      }
       
       return;
     } catch (error) {
@@ -768,57 +743,22 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       toast.success(`Deleted segment ${segmentId}`);
       
+      // Force fetch device state to update without this segment
       await fetchDeviceState();
       
-      shouldSaveConfig.current = true;
+      // Save the updated configuration
+      if (deviceState) {
+        saveConfiguration(activeDevice.ipAddress, {
+          segments: deviceState.segments || [],
+          deviceState,
+          deviceInfo: deviceInfo || null
+        });
+      }
       
       return;
     } catch (error) {
       console.error('Error deleting segment:', error);
       toast.error('Failed to delete segment');
-    }
-  };
-
-  const applyConfiguration = async (config: SavedConfiguration) => {
-    if (!activeDevice) {
-      toast.error('No active device');
-      return;
-    }
-    
-    try {
-      isConfigurationLoading.current = true;
-      
-      if (config.segments && config.segments.length > 0) {
-        const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ seg: config.segments }),
-        });
-        
-        if (!response.ok) throw new Error('Failed to apply segment configuration');
-      }
-      
-      if (config.deviceState) {
-        setDeviceState(prev => ({
-          ...config.deviceState,
-          segments: config.segments || prev?.segments || []
-        }));
-      }
-      
-      if (config.deviceInfo && (!deviceInfo || !deviceInfo.effects)) {
-        setDeviceInfo(config.deviceInfo);
-      }
-      
-      fetchDeviceState();
-      
-      toast.success('Configuration applied successfully');
-    } catch (error) {
-      console.error('Error applying configuration:', error);
-      toast.error('Failed to apply configuration');
-    } finally {
-      isConfigurationLoading.current = false;
     }
   };
 
@@ -845,8 +785,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         setSegmentPalette,
         addSegment,
         deleteSegment,
-        applyConfiguration,
-        saveCurrentConfiguration,
       }}
     >
       {children}

@@ -10,18 +10,10 @@ import { Power, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
+import { saveConfiguration, loadConfiguration } from '@/services/configService';
 
 const ControlPanel: React.FC = () => {
-  const { 
-    deviceState, 
-    deviceInfo, 
-    togglePower, 
-    setColor, 
-    setBrightness, 
-    activeDevice,
-    applyConfiguration,
-    saveCurrentConfiguration
-  } = useWLED();
+  const { deviceState, deviceInfo, togglePower, setColor, setBrightness, activeDevice } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 255, b: 255});
   const isMobile = useIsMobile();
   
@@ -30,6 +22,16 @@ const ControlPanel: React.FC = () => {
       setCurrentColor(deviceState.color);
     }
   }, [deviceState]);
+
+  // Load saved configuration when active device changes
+  useEffect(() => {
+    if (activeDevice && activeDevice.ipAddress) {
+      const savedConfig = loadConfiguration(activeDevice.ipAddress);
+      if (savedConfig) {
+        console.log('Loaded saved configuration for', activeDevice.ipAddress);
+      }
+    }
+  }, [activeDevice]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
@@ -49,7 +51,15 @@ const ControlPanel: React.FC = () => {
 
   const handleSaveConfiguration = () => {
     if (activeDevice && deviceState) {
-      saveCurrentConfiguration();
+      // Get segments from the deviceState
+      const segments = deviceState.segments || [];
+      
+      saveConfiguration(activeDevice.ipAddress, {
+        segments,
+        deviceState,
+        deviceInfo: deviceInfo || null
+      });
+      
       toast.success('Configuration saved successfully');
     } else {
       toast.error('No active device or device state to save');
@@ -101,27 +111,7 @@ const ControlPanel: React.FC = () => {
         <div className="md:col-span-9">
           <div className="space-y-2 sm:space-y-4">
             {deviceInfo && deviceState && (
-              <>
-                <StripPreview className="animate-fade-in" />
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-                  <div className="glass-card p-4">
-                    <h3 className="text-sm font-medium text-white/70 mb-3">Color</h3>
-                    <ColorPicker 
-                      color={currentColor} 
-                      onChange={handleColorChange} 
-                    />
-                  </div>
-                  
-                  <div className="glass-card p-4">
-                    <h3 className="text-sm font-medium text-white/70 mb-3">Brightness</h3>
-                    <BrightnessSlider 
-                      value={deviceState.brightness || 0} 
-                      onChange={setBrightness} 
-                    />
-                  </div>
-                </div>
-              </>
+              <StripPreview className="animate-fade-in" />
             )}
           </div>
         </div>

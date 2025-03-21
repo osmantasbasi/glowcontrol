@@ -20,7 +20,6 @@ export const saveConfiguration = (ipAddress: string, configuration: SavedConfigu
     
     // Save back to localStorage
     localStorage.setItem('wledConfigurations', JSON.stringify(configs));
-    
     console.log(`Configuration for ${ipAddress} saved successfully`);
   } catch (error) {
     console.error('Error saving configuration:', error);
@@ -38,31 +37,6 @@ export const loadConfiguration = (ipAddress: string): SavedConfiguration | null 
     console.error('Error loading configuration:', error);
     return null;
   }
-};
-
-export const loadConfigurationFromFile = (file: File): Promise<SavedConfiguration> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = (event) => {
-      try {
-        if (event.target?.result) {
-          const config = JSON.parse(event.target.result as string);
-          resolve(config);
-        } else {
-          reject(new Error('Failed to read file content'));
-        }
-      } catch (error) {
-        reject(error);
-      }
-    };
-    
-    reader.onerror = () => {
-      reject(new Error('Error reading file'));
-    };
-    
-    reader.readAsText(file);
-  });
 };
 
 export const deleteConfiguration = (ipAddress: string): void => {
