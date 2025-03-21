@@ -669,6 +669,84 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     document.removeEventListener('touchend', handleTouchRotateEnd);
   };
 
+  const handleRotateStart = (segment: Segment, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedSegment(segment);
+    setIsRotating(true);
+    
+    try {
+      const triangleElements = document.querySelectorAll(`[data-segment-id="${segment.id}"]`);
+      if (triangleElements.length) {
+        const triangleElement = triangleElements[0] as HTMLElement;
+        const rect = triangleElement.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        const initialAngle = Math.atan2(
+          e.clientY - centerY,
+          e.clientX - centerX
+        );
+        
+        setRotationStartAngle(initialAngle);
+        setStartMousePosition({ x: e.clientX, y: e.clientY });
+      }
+    } catch (error) {
+      console.error('Error starting rotation:', error);
+    }
+    
+    document.addEventListener('mousemove', handleRotateMove);
+    document.addEventListener('mouseup', handleRotateEnd);
+  };
+
+  const handleRotateMove = (e: MouseEvent) => {
+    e.preventDefault();
+    
+    if (!isRotating || !selectedSegment) return;
+    
+    try {
+      const triangleElements = document.querySelectorAll(`[data-segment-id="${selectedSegment.id}"]`);
+      if (!triangleElements.length) return;
+      
+      const triangleElement = triangleElements[0] as HTMLElement;
+      const rect = triangleElement.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      
+      const currentAngle = Math.atan2(
+        e.clientY - centerY,
+        e.clientX - centerX
+      );
+      
+      const angleDiff = (currentAngle - rotationStartAngle) * (180 / Math.PI);
+      
+      let newRotation = (selectedSegment.rotation || 0) + angleDiff;
+      
+      newRotation = newRotation % 360;
+      if (newRotation < 0) newRotation += 360;
+      
+      setSegments(segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, rotation: newRotation } 
+          : seg
+      ));
+      
+      setSelectedSegment({
+        ...selectedSegment,
+        rotation: newRotation
+      });
+      
+      setRotationStartAngle(currentAngle);
+    } catch (error) {
+      console.error('Error during rotation:', error);
+    }
+  };
+
+  const handleRotateEnd = () => {
+    setIsRotating(false);
+    document.removeEventListener('mousemove', handleRotateMove);
+    document.removeEventListener('mouseup', handleRotateEnd);
+  };
+
   useEffect(() => {
     if (!selectedSegment) return;
     
@@ -1168,4 +1246,3 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 };
 
 export default SegmentTriangles;
-
