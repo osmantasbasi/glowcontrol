@@ -1141,17 +1141,31 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
             <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-white/40">
               <Triangle size={70} className="mb-2 text-cyan-300/30" />
               <p>Click the + button to add segments</p>
-              <p className="text-xs mt-2">{isMobile 
-                ? "Tap and drag triangles to position them"
-                : "Drag triangles to position them"
-              }</p>
+              <p className="text-xs mt-2">
+                {isMobile 
+                  ? "Tap and drag triangles to position them"
+                  : "Drag triangles to position them"
+                }
+              </p>
             </div>
           )}
         </div>
         
         {segments.length > 0 && showControls && (
           <div className="mt-4 text-xs text-white/50 italic">
-            <p>{isMobile 
-              ? "Tip: Tap triangles to select, tap and hold to drag. Tap triangle config button to edit"
-             
+            <p>
+              {isMobile 
+                ? "Tip: Tap triangles to select, tap and hold to drag. Tap triangle config button to edit"
+                : "Tip: Click triangles to select, drag to reposition. Click the rotate button to change angle."
+              }
+            </p>
+          </div>
+        )}
+      </div>
+      {renderEditModal()}
+    </>
+  );
+};
+
+export default SegmentTriangles;
 
