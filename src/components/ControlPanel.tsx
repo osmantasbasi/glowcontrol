@@ -111,23 +111,7 @@ const ControlPanel: React.FC = () => {
         <div className="md:col-span-9">
           <div className="space-y-2 sm:space-y-4">
             {deviceInfo && deviceState && (
-              <>
-                <div className="glass-card p-4">
-                  <h2 className="text-md font-medium mb-4 text-white/80">Color Control</h2>
-                  <div className="flex flex-col items-center mb-4">
-                    <ColorPicker 
-                      color={currentColor} 
-                      onChange={handleColorChange} 
-                      className="mb-6"
-                    />
-                  </div>
-                  <BrightnessSlider 
-                    value={deviceState.brightness} 
-                    onChange={setBrightness} 
-                  />
-                </div>
-                <StripPreview className="animate-fade-in" />
-              </>
+              <StripPreview className="animate-fade-in" />
             )}
           </div>
         </div>
