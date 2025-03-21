@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bluetooth, Plus, Power, Trash2, Save, RotateCcw } from 'lucide-react';
+import { Bluetooth, Plus, Power, Trash2, Save, RotateCcw, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { loadConfiguration, saveConfiguration, deleteConfiguration } from '@/services/configService';
+import { loadConfiguration, saveConfiguration, deleteConfiguration, loadConfigurationFromFile } from '@/services/configService';
 import { toast } from 'sonner';
 
 interface DeviceManagerProps {
@@ -21,13 +21,15 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
     setActiveDevice,
     togglePower,
     deviceState,
-    deviceInfo
+    deviceInfo,
+    applyConfiguration
   } = useWLED();
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState('');
   const [newDeviceIp, setNewDeviceIp] = useState('');
   const [devicesWithConfig, setDevicesWithConfig] = useState<Record<string, boolean>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check which devices have saved configurations
   useEffect(() => {
@@ -69,7 +71,7 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
         [deviceId]: true
       }));
       
-      toast.success('Configuration saved successfully');
+      toast.success('Configuration saved to file successfully');
     } else {
       toast.error('No device state to save');
     }
@@ -85,6 +87,47 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
     }));
     
     toast.success('Configuration reset successfully');
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !activeDevice) return;
+    
+    try {
+      const config = await loadConfigurationFromFile(files[0]);
+      
+      // Apply the loaded configuration
+      if (config) {
+        // Save to localStorage first
+        saveConfiguration(activeDevice.ipAddress, config);
+        
+        // Apply to the device
+        if (applyConfiguration) {
+          applyConfiguration(config);
+          toast.success('Configuration loaded and applied successfully');
+        }
+        
+        // Update UI state
+        setDevicesWithConfig(prev => ({
+          ...prev,
+          [activeDevice.id]: true
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading configuration from file:', error);
+      toast.error('Failed to load configuration from file');
+    }
+    
+    // Clear the file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const triggerFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   return (
@@ -181,12 +224,31 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
                         variant="ghost" 
                         size="sm" 
                         className="h-7 w-7 p-0 save-button"
-                        title="Save configuration"
+                        title="Save configuration to file"
                         onClick={() => handleSaveDeviceConfig(device.id, device.ipAddress)}
                       >
                         <Save size={15} className="text-cyan-300" />
                         <span className="sr-only">Save Config</span>
                       </Button>
+                      
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 w-7 p-0 upload-button"
+                        title="Load configuration from file"
+                        onClick={triggerFileUpload}
+                      >
+                        <Upload size={15} className="text-indigo-300" />
+                        <span className="sr-only">Upload Config</span>
+                      </Button>
+                      
+                      <input 
+                        type="file" 
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept=".json"
+                        className="hidden" 
+                      />
                       
                       {devicesWithConfig[device.id] && (
                         <Button 
