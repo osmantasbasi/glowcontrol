@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Segment {
   id: number;
@@ -61,6 +62,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [activeColorSlot, setActiveColorSlot] = useState(0);
   const [multiSelectedSegments, setMultiSelectedSegments] = useState<number[]>([]);
+
+  const [touchDragging, setTouchDragging] = useState(false);
+  const [touchDraggedSegment, setTouchDraggedSegment] = useState<Segment | null>(null);
+  const [touchStartPos, setTouchStartPos] = useState({ x: 0, y: 0 });
+  const isMobile = useIsMobile();
 
   const calculateNextLedRange = (): { start: number; end: number } => {
     if (segments.length === 0) {
@@ -531,7 +537,57 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
   };
 
-  const handleRotateStart = (segment: Segment, e: React.MouseEvent) => {
+  const handleTouchStart = (e: React.TouchEvent, segment: Segment) => {
+    e.stopPropagation();
+    
+    if (e.touches.length > 0) {
+      const touch = e.touches[0];
+      setTouchStartPos({ x: touch.clientX, y: touch.clientY });
+      setTouchDraggedSegment(segment);
+      setSelectedSegment(segment);
+      
+      setTimeout(() => {
+        if (touchDraggedSegment === segment) {
+          setTouchDragging(true);
+        }
+      }, 200);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    
+    if (touchDragging && touchDraggedSegment && containerRef.current) {
+      const touch = e.touches[0];
+      const container = containerRef.current.getBoundingClientRect();
+      
+      const x = ((touch.clientX - container.left) / container.width) * 100;
+      const y = ((touch.clientY - container.top) / container.height) * 100;
+      
+      const boundedX = Math.max(0, Math.min(100, x));
+      const boundedY = Math.max(0, Math.min(100, y));
+      
+      setSegments(segments.map(seg => 
+        seg.id === touchDraggedSegment.id 
+          ? { ...seg, position: { x: boundedX, y: boundedY } } 
+          : seg
+      ));
+      
+      if (selectedSegment?.id === touchDraggedSegment.id) {
+        setSelectedSegment({
+          ...selectedSegment,
+          position: { x: boundedX, y: boundedY }
+        });
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setTouchDragging(false);
+    setTouchDraggedSegment(null);
+  };
+
+  const handleTouchRotateStart = (segment: Segment, e: React.TouchEvent) => {
     e.stopPropagation();
     e.preventDefault();
     
@@ -540,30 +596,33 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     
     try {
       const triangleElements = document.querySelectorAll(`[data-segment-id="${segment.id}"]`);
-      if (triangleElements.length) {
+      if (triangleElements.length && e.touches.length > 0) {
         const triangleElement = triangleElements[0] as HTMLElement;
         const rect = triangleElement.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
+        const touch = e.touches[0];
         const initialAngle = Math.atan2(
-          e.clientY - centerY,
-          e.clientX - centerX
+          touch.clientY - centerY,
+          touch.clientX - centerX
         );
         
         setRotationStartAngle(initialAngle);
-        setStartMousePosition({ x: e.clientX, y: e.clientY });
+        setStartMousePosition({ x: touch.clientX, y: touch.clientY });
       }
     } catch (error) {
-      console.error('Error starting rotation:', error);
+      console.error('Error starting touch rotation:', error);
     }
     
-    document.addEventListener('mousemove', handleRotateMove);
-    document.addEventListener('mouseup', handleRotateEnd);
+    document.addEventListener('touchmove', handleTouchRotateMove, { passive: false });
+    document.addEventListener('touchend', handleTouchRotateEnd);
   };
 
-  const handleRotateMove = (e: MouseEvent) => {
-    if (!isRotating || !selectedSegment) return;
+  const handleTouchRotateMove = (e: TouchEvent) => {
+    e.preventDefault();
+    
+    if (!isRotating || !selectedSegment || e.touches.length === 0) return;
     
     try {
       const triangleElements = document.querySelectorAll(`[data-segment-id="${selectedSegment.id}"]`);
@@ -574,9 +633,10 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
       
+      const touch = e.touches[0];
       const currentAngle = Math.atan2(
-        e.clientY - centerY,
-        e.clientX - centerX
+        touch.clientY - centerY,
+        touch.clientX - centerX
       );
       
       const angleDiff = (currentAngle - rotationStartAngle) * (180 / Math.PI);
@@ -599,14 +659,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       
       setRotationStartAngle(currentAngle);
     } catch (error) {
-      console.error('Error during rotation:', error);
+      console.error('Error during touch rotation:', error);
     }
   };
 
-  const handleRotateEnd = () => {
+  const handleTouchRotateEnd = () => {
     setIsRotating(false);
-    document.removeEventListener('mousemove', handleRotateMove);
-    document.removeEventListener('mouseup', handleRotateEnd);
+    document.removeEventListener('touchmove', handleTouchRotateMove);
+    document.removeEventListener('touchend', handleTouchRotateEnd);
   };
 
   useEffect(() => {
@@ -996,21 +1056,27 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={handleContainerClick}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           {segments.map((segment) => (
             <div
               key={segment.id}
               data-segment-id={segment.id}
-              draggable={showControls}
-              onDragStart={showControls ? (e) => handleDragStart(e, segment) : undefined}
+              draggable={showControls && !isMobile}
+              onDragStart={showControls && !isMobile ? (e) => handleDragStart(e, segment) : undefined}
+              onTouchStart={showControls ? (e) => handleTouchStart(e, segment) : undefined}
               onClick={(e) => {
                 e.stopPropagation();
                 handleSegmentClick(segment, e);
               }}
               className={cn(
-                "absolute cursor-move transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group triangle-wrapper",
+                "absolute transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group triangle-wrapper",
                 selectedSegment?.id === segment.id ? "z-20" : "z-10",
-                !(segment.on ?? true) && "opacity-50"
+                !(segment.on ?? true) && "opacity-50",
+                touchDragging && touchDraggedSegment?.id === segment.id ? "scale-110" : "",
+                isMobile ? "cursor-pointer" : "cursor-move"
               )}
               style={{
                 left: `${segment.position?.x || 50}%`,
@@ -1052,7 +1118,15 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                     size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleRotateStart(segment, e);
+                      if (isMobile) {
+                        handleTouchRotateStart(segment, e as unknown as React.TouchEvent);
+                      } else {
+                        handleRotateStart(segment, e);
+                      }
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      handleTouchRotateStart(segment, e);
                     }}
                     className="absolute -top-3 -right-3 h-6 w-6 bg-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 hover:bg-cyan-500/40 z-30 transition-all triangle-rotate-button"
                   >
@@ -1067,23 +1141,17 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
             <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-white/40">
               <Triangle size={70} className="mb-2 text-cyan-300/30" />
               <p>Click the + button to add segments</p>
-              <p className="text-xs mt-2">Drag triangles to position them</p>
+              <p className="text-xs mt-2">{isMobile 
+                ? "Tap and drag triangles to position them"
+                : "Drag triangles to position them"
+              }</p>
             </div>
           )}
         </div>
         
         {segments.length > 0 && showControls && (
           <div className="mt-4 text-xs text-white/50 italic">
-            <p>Tip: Click triangles to select, hold Shift for multi-select. Click triangle config <Settings size={10} className="inline" /> button to edit</p>
-            <p className="mt-1">Use arrow keys to move selected triangle precisely</p>
-          </div>
-        )}
-      </div>
-      
-      {renderEditModal()}
-    </>
-  );
-};
-
-export default SegmentTriangles;
+            <p>{isMobile 
+              ? "Tip: Tap triangles to select, tap and hold to drag. Tap triangle config button to edit"
+             
 
