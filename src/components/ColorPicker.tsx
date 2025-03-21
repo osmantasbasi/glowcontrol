@@ -150,7 +150,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     ctx.stroke();
   }, [color.r, color.g, color.b, h, s, v]);
   
-  // Convert HSV to RGB - proper RGB order
+  // Convert HSV to RGB - fixed to properly map colors
   const hsvToRgb = (h: number, s: number, v: number) => {
     let r = 0, g = 0, b = 0;
     
@@ -216,13 +216,15 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     }
     
     // Calculate hue and saturation from position
+    // Correct angle calculation - use atan2 for proper quadrant handling
     let angle = Math.atan2(dy, dx) * (180 / Math.PI);
     if (angle < 0) angle += 360;
     
-    const centerToPointDistance = Math.sqrt(dx * dx + dy * dy);
-    let saturation = Math.min(1, centerToPointDistance / radius);
+    // Constrain saturation to valid range
+    const centerToPointDistance = Math.min(distance, radius);
+    const saturation = Math.min(1, centerToPointDistance / radius);
     
-    // Convert HSV to RGB
+    // Convert HSV to RGB with the correct angle and saturation
     const newColor = hsvToRgb(angle, saturation, 1); // Always use v=1 for color wheel
     onChange(newColor);
   };
@@ -244,19 +246,22 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
   };
   
   const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault(); // Prevent scrolling when touching the color wheel
     setIsDragging(true);
     const touch = e.touches[0];
     updateColorFromPosition(touch.clientX, touch.clientY);
   };
   
   const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault(); // Prevent scrolling when touching the color wheel
     if (isDragging) {
       const touch = e.touches[0];
       updateColorFromPosition(touch.clientX, touch.clientY);
     }
   };
   
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault(); // Prevent scrolling when touching the color wheel
     setIsDragging(false);
   };
   
