@@ -152,14 +152,17 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
   
   // Convert HSV to RGB - fixed to properly map colors
   const hsvToRgb = (h: number, s: number, v: number) => {
-    let r = 0, g = 0, b = 0;
+    h = h % 360;
+    if (h < 0) h += 360;
     
-    const i = Math.floor(h / 60) % 6;
-    const f = h / 60 - i;
+    h = h / 60;
+    const i = Math.floor(h);
+    const f = h - i;
     const p = v * (1 - s);
-    const q = v * (1 - f * s);
-    const t = v * (1 - (1 - f) * s);
+    const q = v * (1 - s * f);
+    const t = v * (1 - s * (1 - f));
     
+    let r = 0, g = 0, b = 0;
     switch (i) {
       case 0:
         r = v; g = t; b = p;
@@ -176,7 +179,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
       case 4:
         r = t; g = p; b = v;
         break;
-      case 5:
+      default: // case 5
         r = v; g = p; b = q;
         break;
     }
@@ -202,8 +205,9 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     const x = clientX - rect.left;
     const y = clientY - rect.top;
     
+    // Calculate vector from center
     const dx = x - centerX;
-    const dy = centerY - y;
+    const dy = centerY - y; // Invert Y for proper angle calculation
     
     // Check if click is in the black center circle
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -215,8 +219,8 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
       return;
     }
     
-    // Calculate hue and saturation from position
-    // Correct angle calculation - use atan2 for proper quadrant handling
+    // Calculate angle and saturation from position
+    // Use atan2 for proper angle calculation in all quadrants
     let angle = Math.atan2(dy, dx) * (180 / Math.PI);
     if (angle < 0) angle += 360;
     
@@ -224,8 +228,8 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     const centerToPointDistance = Math.min(distance, radius);
     const saturation = Math.min(1, centerToPointDistance / radius);
     
-    // Convert HSV to RGB with the correct angle and saturation
-    const newColor = hsvToRgb(angle, saturation, 1); // Always use v=1 for color wheel
+    // Convert HSV to RGB
+    const newColor = hsvToRgb(angle, saturation, 1);
     onChange(newColor);
   };
   
