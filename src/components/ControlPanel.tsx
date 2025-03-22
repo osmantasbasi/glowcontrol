@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -9,14 +10,14 @@ import ColorPicker from './ColorPicker';
 import EffectSelector from './EffectSelector';
 import PaletteSelector from './PaletteSelector';
 import SegmentTriangles from './SegmentTriangles';
-import TriangleColorSlots from './TriangleColorSlots';
+import ColorTabExtension from './ColorTabExtension';
 
 interface ControlPanelProps {
   className?: string;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({ className }) => {
-  const { deviceState, deviceInfo, setColor, setBrightness, togglePower, setEffect } = useWLED();
+  const { deviceState, deviceInfo, setColor, setBrightness, togglePower, setEffect, setSegmentPalette } = useWLED();
   const [selectedTab, setSelectedTab] = useState('color');
   const [segments, setSegments] = useState<any[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<any>(null);
@@ -57,6 +58,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ className }) => {
 
   const handleEffectChange = (effectId: number) => {
     setEffect(effectId);
+  };
+
+  const handlePaletteChange = (paletteId: number) => {
+    if (deviceState?.segments && deviceState.segments.length > 0) {
+      const segmentId = deviceState.segments[0].id || 0;
+      setSegmentPalette(segmentId, paletteId);
+    }
   };
 
   return (
@@ -123,7 +131,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ className }) => {
               </Button>
             </div>
             
-            <TriangleColorSlots className="mt-4" />
+            <ColorTabExtension />
           </div>
         </TabsContent>
 
@@ -135,45 +143,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ className }) => {
                 <span className="text-sm font-medium text-white/80">Effect</span>
               </div>
               <EffectSelector
-                effects={deviceInfo?.effects || []}
                 selectedEffect={deviceState?.effect || 0}
                 onChange={handleEffectChange}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Gauge size={16} className="text-cyan-300" />
-                <span className="text-sm font-medium text-white/80">Speed</span>
-              </div>
-              <Slider
-                value={[deviceState?.speed || 128]}
-                min={0}
-                max={255}
-                step={1}
-                onValueChange={(values) => {
-                  if (values.length > 0 && deviceState?.effect !== undefined) {
-                    setEffect(deviceState.effect, values[0]);
-                  }
-                }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Droplet size={16} className="text-cyan-300" />
-                <span className="text-sm font-medium text-white/80">Intensity</span>
-              </div>
-              <Slider
-                value={[deviceState?.intensity || 128]}
-                min={0}
-                max={255}
-                step={1}
-                onValueChange={(values) => {
-                  if (values.length > 0 && deviceState?.effect !== undefined) {
-                    setEffect(deviceState.effect, undefined, values[0]);
-                  }
-                }}
+                speed={deviceState?.speed || 128}
+                intensity={deviceState?.intensity || 128}
+                onSpeedChange={(value) => setEffect(deviceState?.effect || 0, value)}
+                onIntensityChange={(value) => setEffect(deviceState?.effect || 0, undefined, value)}
               />
             </div>
 
@@ -185,12 +160,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ className }) => {
               <PaletteSelector
                 palettes={deviceInfo?.palettes || []}
                 selectedPalette={deviceState?.segments?.[0]?.pal || 0}
-                onChange={(paletteId) => {
-                  if (deviceState?.segments && deviceState.segments.length > 0) {
-                    const segmentId = deviceState.segments[0].id || 0;
-                    // Call setSegmentPalette from WLEDContext
-                  }
-                }}
+                onChange={handlePaletteChange}
               />
             </div>
           </div>
