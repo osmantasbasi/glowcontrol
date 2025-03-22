@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 interface EffectSelectorProps {
   className?: string;
   onEffectSelect?: (effectId: number) => void;
+  selectedSegmentId?: number | null; // Add selected segment ID prop
 }
 
-const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSelect }) => {
-  const { deviceState, deviceInfo, setEffect } = useWLED();
+const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSelect, selectedSegmentId }) => {
+  const { deviceState, deviceInfo, setEffect, setSegmentEffect } = useWLED(); // Add setSegmentEffect
   const [searchTerm, setSearchTerm] = useState('');
   const [favorites, setFavorites] = useState<number[]>(() => {
     try {
@@ -34,7 +35,11 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
   const handleEffectClick = (effectId: number) => {
     if (onEffectSelect) {
       onEffectSelect(effectId);
+    } else if (selectedSegmentId !== undefined && selectedSegmentId !== null) {
+      // Apply effect to selected segment
+      setSegmentEffect(selectedSegmentId, effectId);
     } else {
+      // Fall back to global effect if no segment selected
       setEffect(effectId);
     }
   };
@@ -102,7 +107,8 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
             }}
             className={cn(
               "flex flex-col items-center justify-center p-3 rounded-lg border transition-all relative",
-              deviceState?.effect === id
+              (selectedSegmentId !== null && deviceState?.segments?.find(s => s.id === selectedSegmentId)?.fx === id) || 
+                (selectedSegmentId === null && deviceState?.effect === id)
                 ? "bg-white/20 border-cyan-400 text-white"
                 : "bg-black/20 border-white/10 text-white/70 hover:bg-white/10 hover:border-white/20"
             )}
@@ -130,7 +136,9 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
       {filteredAndSortedEffects.length > 20 && (
         <div onClick={(e) => e.stopPropagation()}>
           <select
-            value={deviceState?.effect || 0}
+            value={selectedSegmentId !== null && deviceState?.segments ? 
+              deviceState.segments.find(s => s.id === selectedSegmentId)?.fx || 0 :
+              deviceState?.effect || 0}
             onChange={(e) => handleEffectClick(parseInt(e.target.value))}
             className="w-full p-2 rounded bg-black/20 text-sm border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
           >

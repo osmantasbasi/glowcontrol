@@ -1035,8 +1035,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   strokeWidth={1}
                   className={cn(
                     "drop-shadow-lg transition-all",
-                    selectedSegment?.id === segment.id && "triangle-selected",
-                    multiSelectedSegments.includes(segment.id) && "triangle-multi-selected"
+                    selectedSegment?.id === segment.id && "outline outline-4 outline-offset-2 outline-cyan-400"
                   )}
                 />
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
@@ -1070,6 +1069,14 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   >
                     <RotateCw size={12} className="text-white" />
                   </Button>
+                )}
+
+                {/* Add a highlight effect for selected triangle */}
+                {selectedSegment?.id === segment.id && (
+                  <div className="absolute inset-0 rounded-sm animate-pulse" style={{
+                    boxShadow: "0 0 15px 5px rgba(34, 211, 238, 0.6)",
+                    zIndex: -1
+                  }}></div>
                 )}
               </div>
             </div>

@@ -1,4 +1,3 @@
-
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect, useMemo } from 'react';
@@ -46,7 +45,7 @@ const TRIANGLE_COLORS = [
 ];
 
 const SegmentEditor = () => {
-  const { deviceState, deviceInfo, setColor, setEffect, setSegmentPalette } = useWLED();
+  const { deviceState, deviceInfo, setColor, setEffect, setSegmentPalette, setSegmentColor, setSegmentEffect } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
   const isMobile = useIsMobile();
@@ -134,18 +133,19 @@ const SegmentEditor = () => {
           ? { ...seg, color } 
           : seg
       ));
-    }
-    
-    try {
-      if (deviceState) {
-        const timeoutId = setTimeout(() => {
-          setColor(color.r, color.g, color.b);
-        }, 50);
-        
-        return () => clearTimeout(timeoutId);
+      
+      try {
+        if (deviceState) {
+          const timeoutId = setTimeout(() => {
+            // Apply color to the selected segment instead of globally
+            setSegmentColor(selectedSegment.id, color.r, color.g, color.b);
+          }, 50);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      } catch (error) {
+        console.error('Error setting color:', error);
       }
-    } catch (error) {
-      console.error('Error setting color:', error);
     }
   };
 
@@ -159,7 +159,8 @@ const SegmentEditor = () => {
       
       try {
         if (deviceState) {
-          setEffect(effectId);
+          // Apply effect to the selected segment
+          setSegmentEffect(selectedSegment.id, effectId);
         }
       } catch (error) {
         console.error('Error setting effect:', error);
@@ -310,7 +311,10 @@ const SegmentEditor = () => {
               ? `Select an effect for triangle ${segments.findIndex(s => s.id === selectedSegment.id) + 1}` 
               : "Select a triangle first, then choose an effect to apply"}
           </div>
-          <EffectSelector onEffectSelect={handleEffectChange} />
+          <EffectSelector 
+            onEffectSelect={handleEffectChange} 
+            selectedSegmentId={selectedSegment?.id || null}
+          />
           <div className="mt-4 pointer-events-auto">
             <SegmentTriangles 
               segments={segments}
