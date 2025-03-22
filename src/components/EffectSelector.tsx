@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { cn } from '@/lib/utils';
-import { Sparkles, Search, Star } from 'lucide-react';
+import { Sparkles, Search, Star, Sliders } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import {
   Select,
   SelectContent,
@@ -12,16 +14,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from '@/components/ui/button';
 
 interface EffectSelectorProps {
   className?: string;
   onEffectSelect?: (effectId: number) => void;
   selectedSegmentId?: number | null;
+  speed?: number;
+  intensity?: number;
+  onSpeedChange?: (value: number) => void;
+  onIntensityChange?: (value: number) => void;
 }
 
-const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSelect, selectedSegmentId }) => {
+const EffectSelector: React.FC<EffectSelectorProps> = ({ 
+  className, 
+  onEffectSelect, 
+  selectedSegmentId,
+  speed = 128,
+  intensity = 128,
+  onSpeedChange,
+  onIntensityChange
+}) => {
   const { deviceState, deviceInfo, setEffect, setSegmentEffect } = useWLED();
   const [searchTerm, setSearchTerm] = useState('');
+  const [showControls, setShowControls] = useState(false);
   const [favorites, setFavorites] = useState<number[]>(() => {
     try {
       const savedFavorites = localStorage.getItem('wledFavoriteEffects');
@@ -44,7 +60,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
     if (onEffectSelect) {
       onEffectSelect(effectId);
     } else if (selectedSegmentId !== undefined && selectedSegmentId !== null) {
-      setSegmentEffect(selectedSegmentId, effectId);
+      setSegmentEffect(selectedSegmentId, effectId, speed, intensity);
     } else {
       setEffect(effectId);
     }
@@ -90,6 +106,62 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
 
   return (
     <div className={cn("space-y-4 pointer-events-auto", className)} onClick={(e) => e.stopPropagation()}>
+      {onSpeedChange && onIntensityChange && (
+        <div className="bg-black/30 rounded-lg p-3 border border-white/10 mb-4">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowControls(!showControls)}
+            className="w-full mb-2 flex items-center justify-between text-white/70 hover:text-white hover:bg-white/10"
+          >
+            <span>Effect Controls</span>
+            <Sliders size={16} />
+          </Button>
+          
+          {showControls && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-white/70">Speed</label>
+                  <span className="text-xs text-white/70">{speed}</span>
+                </div>
+                <Slider
+                  value={[speed]}
+                  min={0}
+                  max={255}
+                  step={1}
+                  onValueChange={(values) => {
+                    if (values.length > 0) {
+                      onSpeedChange(values[0]);
+                    }
+                  }}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-white/70">Intensity</label>
+                  <span className="text-xs text-white/70">{intensity}</span>
+                </div>
+                <Slider
+                  value={[intensity]}
+                  min={0}
+                  max={255}
+                  step={1}
+                  onValueChange={(values) => {
+                    if (values.length > 0) {
+                      onIntensityChange(values[0]);
+                    }
+                  }}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
       <div className="relative">
         <Input
           placeholder="Search effects..."

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power, X, Settings } from 'lucide-react';
@@ -57,8 +56,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const [ledStart, setLedStart] = useState<string>('0');
   const [ledEnd, setLedEnd] = useState<string>('30');
   const [rotationValue, setRotationValue] = useState<string>('0');
-  const [speedValue, setSpeedValue] = useState<string>('128');
-  const [intensityValue, setIntensityValue] = useState<string>('128');
   
   const LEDS_PER_SEGMENT = 30;
   const MAX_SEGMENTS = 16;
@@ -96,7 +93,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       const activeWledSegments = deviceState.segments.filter(seg => seg.stop !== 0);
       
       const wledSegments = activeWledSegments.map((seg, index) => {
-        // Get the color from triangleColors if available
         const displayColor = triangleColors && triangleColors.length > 0 ? 
           triangleColors[index % triangleColors.length] : 
           { r: 255, g: 255, b: 255 };
@@ -163,7 +159,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     }
   }, [deviceState?.segments, triangleColors]);
 
-  // Add effect to ensure triangleColors are assigned
   useEffect(() => {
     if (triangleColors && triangleColors.length > 0 && segments.length > 0) {
       const updatedSegments = segments.map((segment, index) => {
@@ -239,8 +234,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
       setLedStart((segment.leds?.start || 0).toString());
       setLedEnd((segment.leds?.end || 30).toString());
       setRotationValue(Math.round(segment.rotation || 0).toString());
-      setSpeedValue((segment.speed || 128).toString());
-      setIntensityValue((segment.intensity || 128).toString());
     }
   };
 
@@ -289,27 +282,13 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     updateSegmentSettings('rotation', value);
   };
 
-  const handleSpeedInputChange = (value: string) => {
-    if (!selectedSegment) return;
-    setSpeedValue(value);
-    updateSegmentSettings('speed', value);
-  };
-
-  const handleIntensityInputChange = (value: string) => {
-    if (!selectedSegment) return;
-    setIntensityValue(value);
-    updateSegmentSettings('intensity', value);
-  };
-
-  const updateSegmentSettings = (field: 'ledStart' | 'ledEnd' | 'rotation' | 'speed' | 'intensity', value: string) => {
+  const updateSegmentSettings = (field: 'ledStart' | 'ledEnd' | 'rotation', value: string) => {
     if (!selectedSegment) return;
     
     const maxLed = deviceInfo?.ledCount ? deviceInfo.ledCount - 1 : 300;
     
     let leds = { ...selectedSegment.leds };
     let rotation = selectedSegment.rotation || 0;
-    let speed = selectedSegment.speed || 128;
-    let intensity = selectedSegment.intensity || 128;
     
     if (field === 'ledStart') {
       const start = value === '' ? 0 : parseInt(value, 10);
@@ -339,34 +318,18 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         if (validRotation < 0) validRotation += 360;
         rotation = validRotation;
       }
-    } else if (field === 'speed') {
-      const newSpeed = value === '' ? 128 : parseInt(value, 10);
-      if (!isNaN(newSpeed)) {
-        speed = Math.min(Math.max(0, newSpeed), 255);
-        
-        setSegmentEffect(selectedSegment.id, selectedSegment.effect || 0, speed, selectedSegment.intensity);
-      }
-    } else if (field === 'intensity') {
-      const newIntensity = value === '' ? 128 : parseInt(value, 10);
-      if (!isNaN(newIntensity)) {
-        intensity = Math.min(Math.max(0, newIntensity), 255);
-        
-        setSegmentEffect(selectedSegment.id, selectedSegment.effect || 0, selectedSegment.speed, intensity);
-      }
     }
     
     setSegments(segments.map(seg => 
       seg.id === selectedSegment.id 
-        ? { ...seg, leds, rotation, speed, intensity } 
+        ? { ...seg, leds, rotation } 
         : seg
     ));
     
     setSelectedSegment({
       ...selectedSegment,
       leds,
-      rotation,
-      speed,
-      intensity
+      rotation
     });
   };
 
@@ -424,7 +387,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         ghostElement.style.top = '-1000px';
         ghostElement.style.left = '-1000px';
         
-        // Use the displayColor for the drag ghost
         const color = segment.displayColor || { r: 255, g: 255, b: 255 };
         
         ghostElement.innerHTML = `<svg width="80" height="80" viewBox="0 0 24 24">
@@ -805,65 +767,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 }}
               />
             </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-medium text-white/70">Speed</h4>
-                  <span className="text-xs text-white/70">{selectedSegment.speed || 128}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Input
-                    type="text"
-                    value={speedValue || '0'}
-                    onChange={(e) => handleSpeedInputChange(e.target.value)}
-                    className="w-10 h-6 text-xs bg-black/20 border-white/10"
-                  />
-                  <Slider
-                    value={[parseInt(speedValue) || 128]}
-                    min={0}
-                    max={255}
-                    step={1}
-                    onValueChange={(values) => {
-                      if (values.length > 0) {
-                        const newSpeed = values[0];
-                        handleSpeedInputChange(newSpeed.toString());
-                      }
-                    }}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-medium text-white/70">Intensity</h4>
-                  <span className="text-xs text-white/70">{selectedSegment.intensity || 128}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Input
-                    type="text"
-                    value={intensityValue || '0'}
-                    onChange={(e) => handleIntensityInputChange(e.target.value)}
-                    className="w-10 h-6 text-xs bg-black/20 border-white/10"
-                  />
-                  <Slider
-                    value={[parseInt(intensityValue) || 128]}
-                    min={0}
-                    max={255}
-                    step={1}
-                    onValueChange={(values) => {
-                      if (values.length > 0) {
-                        const newIntensity = values[0];
-                        handleIntensityInputChange(newIntensity.toString());
-                      }
-                    }}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-            </div>
-            
+
             <div className="space-y-1">
               <h4 className="text-xs font-medium text-white/70">LED Range</h4>
               <div className="flex items-center space-x-1">
@@ -958,7 +862,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     );
   };
 
-  // Get the triangle color based on index or use displayColor
   const getTriangleColor = (segment: Segment, index: number) => {
     if (segment.displayColor) {
       return `rgb(${segment.displayColor.r}, ${segment.displayColor.g}, ${segment.displayColor.b})`;
@@ -1071,7 +974,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                   </Button>
                 )}
 
-                {/* Add a highlight effect for selected triangle */}
                 {selectedSegment?.id === segment.id && (
                   <div className="absolute inset-0 rounded-sm animate-pulse" style={{
                     boxShadow: "0 0 15px 5px rgba(34, 211, 238, 0.6)",

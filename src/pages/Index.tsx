@@ -163,7 +163,7 @@ const SegmentEditor = () => {
       
       try {
         if (deviceState) {
-          setSegmentEffect(selectedSegment.id, effectId);
+          setSegmentEffect(selectedSegment.id, effectId, selectedSegment.speed || 128, selectedSegment.intensity || 128);
         }
       } catch (error) {
         console.error('Error setting effect:', error);
@@ -173,6 +173,52 @@ const SegmentEditor = () => {
         description: "Click on a triangle before choosing an effect",
         duration: 3000
       });
+    }
+  };
+
+  const handleSpeedChange = (value: number) => {
+    if (selectedSegment) {
+      setSegments(segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, speed: value } 
+          : seg
+      ));
+      
+      setSelectedSegment({
+        ...selectedSegment,
+        speed: value
+      });
+      
+      try {
+        if (deviceState) {
+          setSegmentEffect(selectedSegment.id, selectedSegment.effect || 0, value, selectedSegment.intensity || 128);
+        }
+      } catch (error) {
+        console.error('Error setting speed:', error);
+      }
+    }
+  };
+
+  const handleIntensityChange = (value: number) => {
+    if (selectedSegment) {
+      setSegments(segments.map(seg => 
+        seg.id === selectedSegment.id 
+          ? { ...seg, intensity: value } 
+          : seg
+      ));
+      
+      setSelectedSegment({
+        ...selectedSegment,
+        intensity: value
+      });
+      
+      try {
+        if (deviceState) {
+          setSegmentEffect(selectedSegment.id, selectedSegment.effect || 0, selectedSegment.speed || 128, value);
+        }
+      } catch (error) {
+        console.error('Error setting intensity:', error);
+      }
     }
   };
 
@@ -314,10 +360,16 @@ const SegmentEditor = () => {
               ? `Select an effect for triangle ${segments.findIndex(s => s.id === selectedSegment.id) + 1}` 
               : "Select a triangle first, then choose an effect to apply"}
           </div>
+          
           <EffectSelector 
             onEffectSelect={handleEffectChange} 
             selectedSegmentId={selectedSegment?.id || null}
+            speed={selectedSegment?.speed || 128}
+            intensity={selectedSegment?.intensity || 128}
+            onSpeedChange={handleSpeedChange}
+            onIntensityChange={handleIntensityChange}
           />
+          
           <div className="mt-4 pointer-events-auto">
             <SegmentTriangles 
               segments={segments}
@@ -500,3 +552,4 @@ const Index = () => {
 };
 
 export default Index;
+
