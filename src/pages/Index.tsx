@@ -1,4 +1,3 @@
-
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect, useMemo } from 'react';
@@ -7,7 +6,7 @@ import EffectSelector from '@/components/EffectSelector';
 import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Layers, Triangle, Palette, Settings, Power, X, Search, Star, Plus, Save } from 'lucide-react';
+import { Layers, Triangle, Palette, Settings, Power, X, Search, Star } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -53,12 +52,6 @@ const TRIANGLE_COLORS = [
   { r: 242, g: 252, b: 226 }   // Soft Green: #F2FCE2
 ];
 
-interface ColorSlot {
-  id: number;
-  color: { r: number; g: number; b: number };
-  name?: string;
-}
-
 const SegmentEditor = () => {
   const { deviceState, deviceInfo, setColor, setEffect, setSegmentPalette, setSegmentColor, setSegmentEffect } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
@@ -86,35 +79,6 @@ const SegmentEditor = () => {
   });
   
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
-  const [colorSlots, setColorSlots] = useState<ColorSlot[]>(() => {
-    try {
-      const savedColorSlots = localStorage.getItem('wledColorSlots');
-      return savedColorSlots ? JSON.parse(savedColorSlots) : [
-        { id: 1, color: { r: 255, g: 0, b: 0 } },
-        { id: 2, color: { r: 0, g: 255, b: 0 } },
-        { id: 3, color: { r: 0, g: 0, b: 255 } },
-        { id: 4, color: { r: 255, g: 255, b: 0 } },
-        { id: 5, color: { r: 255, g: 0, b: 255 } },
-        { id: 6, color: { r: 0, g: 255, b: 255 } },
-        { id: 7, color: { r: 255, g: 255, b: 255 } },
-        { id: 8, color: { r: 0, g: 0, b: 0 } },
-      ];
-    } catch (error) {
-      console.error('Error loading color slots from localStorage:', error);
-      return [
-        { id: 1, color: { r: 255, g: 0, b: 0 } },
-        { id: 2, color: { r: 0, g: 255, b: 0 } },
-        { id: 3, color: { r: 0, g: 0, b: 255 } },
-        { id: 4, color: { r: 255, g: 255, b: 0 } },
-        { id: 5, color: { r: 255, g: 0, b: 255 } },
-        { id: 6, color: { r: 0, g: 255, b: 255 } },
-        { id: 7, color: { r: 255, g: 255, b: 255 } },
-        { id: 8, color: { r: 0, g: 0, b: 0 } },
-      ];
-    }
-  });
-  
-  const [activeColorSlot, setActiveColorSlot] = useState<number | null>(null);
 
   useEffect(() => {
     try {
@@ -131,14 +95,6 @@ const SegmentEditor = () => {
       console.error('Error saving favorite palettes to localStorage:', error);
     }
   }, [favoritePalettes]);
-  
-  useEffect(() => {
-    try {
-      localStorage.setItem('wledColorSlots', JSON.stringify(colorSlots));
-    } catch (error) {
-      console.error('Error saving color slots to localStorage:', error);
-    }
-  }, [colorSlots]);
 
   useEffect(() => {
     const handleDocumentClick = (e: MouseEvent) => {
@@ -194,17 +150,6 @@ const SegmentEditor = () => {
       } catch (error) {
         console.error('Error setting color:', error);
       }
-    }
-    
-    // Update color slot if one is active
-    if (activeColorSlot !== null) {
-      setColorSlots(slots => 
-        slots.map(slot => 
-          slot.id === activeColorSlot
-            ? { ...slot, color }
-            : slot
-        )
-      );
     }
   };
 
@@ -314,44 +259,6 @@ const SegmentEditor = () => {
       }
     });
   };
-  
-  const selectColorSlot = (slotId: number) => {
-    setActiveColorSlot(slotId);
-    const slot = colorSlots.find(slot => slot.id === slotId);
-    if (slot) {
-      setCurrentColor(slot.color);
-      
-      // If a segment is selected, also apply the color to it
-      if (selectedSegment) {
-        handleColorChange(slot.color);
-      }
-    }
-  };
-  
-  const saveCurrentColorToSlot = () => {
-    if (activeColorSlot === null) {
-      // If no slot is selected, use the first one
-      setActiveColorSlot(1);
-      setColorSlots(slots => 
-        slots.map(slot => 
-          slot.id === 1
-            ? { ...slot, color: currentColor }
-            : slot
-        )
-      );
-      toast.success("Color saved to slot 1");
-    } else {
-      // Save to the active slot
-      setColorSlots(slots => 
-        slots.map(slot => 
-          slot.id === activeColorSlot
-            ? { ...slot, color: currentColor }
-            : slot
-        )
-      );
-      toast.success(`Color saved to slot ${activeColorSlot}`);
-    }
-  };
 
   const filteredAndSortedPalettes = useMemo(() => {
     if (!deviceInfo?.palettes || deviceInfo.palettes.length === 0) return [];
@@ -424,50 +331,9 @@ const SegmentEditor = () => {
           <div className="text-center text-xs sm:text-sm text-white/70 mb-2 sm:mb-4">
             {selectedSegment ? "Select a color to apply to the selected triangle" : "Select a triangle first, then pick a color to apply"}
           </div>
-          
-          {/* Color Slots */}
-          <div className="mb-4 grid grid-cols-4 sm:grid-cols-8 gap-2 pointer-events-auto">
-            {colorSlots.map((slot) => (
-              <button
-                key={slot.id}
-                onClick={() => selectColorSlot(slot.id)}
-                className={cn(
-                  "w-full aspect-square rounded-md transition-transform hover:scale-105 relative",
-                  activeColorSlot === slot.id ? "ring-2 ring-white scale-105" : "ring-1 ring-white/20"
-                )}
-                style={{ 
-                  backgroundColor: `rgb(${slot.color.r}, ${slot.color.g}, ${slot.color.b})`,
-                  boxShadow: activeColorSlot === slot.id ? 
-                    `0 0 10px rgba(${slot.color.r}, ${slot.color.g}, ${slot.color.b}, 0.7)` : 
-                    'none'
-                }}
-              >
-                <span className="absolute bottom-1 right-1 text-xs font-bold drop-shadow-md" 
-                  style={{ 
-                    color: isColorDark(slot.color) ? 'white' : 'black'
-                  }}
-                >
-                  {slot.id}
-                </span>
-              </button>
-            ))}
-          </div>
-          
-          <div className="flex justify-end mb-4">
-            <Button 
-              size="sm"
-              variant="outline" 
-              className="bg-black/20 text-white border-white/20 hover:bg-black/40 hover:text-white"
-              onClick={saveCurrentColorToSlot}
-            >
-              <Save size={14} className="mr-1" />
-              {activeColorSlot !== null ? `Save to Slot ${activeColorSlot}` : "Save to Slot"}
-            </Button>
-          </div>
-          
           <div className="flex flex-col items-center pointer-events-auto">
             <ColorPicker 
-              color={currentColor}
+              color={selectedSegment?.color || currentColor}
               onChange={handleColorChange} 
               className="w-full max-w-[300px]"
             />
@@ -665,15 +531,6 @@ const SegmentEditor = () => {
   );
 };
 
-// Helper function to determine if a color is dark or light
-function isColorDark(color: { r: number; g: number; b: number }): boolean {
-  // Calculate luminance using perceived brightness formula
-  // https://www.w3.org/TR/AERT/#color-contrast
-  const luminance = (0.299 * color.r + 0.587 * color.g + 0.114 * color.b) / 255;
-  return luminance < 0.5;
-}
-
-// Utility function for class name concatenation
 const cn = (...classes: (string | boolean | undefined)[]) => {
   return classes.filter(Boolean).join(' ');
 };
@@ -695,3 +552,4 @@ const Index = () => {
 };
 
 export default Index;
+

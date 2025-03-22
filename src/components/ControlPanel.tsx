@@ -10,13 +10,11 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 import { saveConfiguration, loadConfiguration } from '@/services/configService';
-import SegmentColorSlots from './SegmentColorSlots';
 
 const ControlPanel: React.FC = () => {
-  const { deviceState, deviceInfo, togglePower, setColor, setBrightness, activeDevice, setSegmentColor } = useWLED();
+  const { deviceState, deviceInfo, togglePower, setColor, setBrightness, activeDevice } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 255, b: 255});
   const isMobile = useIsMobile();
-  const [selectedColorSlot, setSelectedColorSlot] = useState<number>(0);
   
   useEffect(() => {
     if (deviceState) {
@@ -67,15 +65,6 @@ const ControlPanel: React.FC = () => {
     }
   };
 
-  const handleSlotColorChange = (slotIndex: number, color: {r: number, g: number, b: number}, segmentId?: number) => {
-    setCurrentColor(color);
-    
-    // If a segment ID is provided, apply the color to that segment
-    if (segmentId !== undefined && deviceState) {
-      setSegmentColor(segmentId, color.r, color.g, color.b, slotIndex);
-    }
-  };
-
   return (
     <div className="relative w-full max-w-5xl mx-auto p-2 sm:p-4">
       <header className="mb-2 sm:mb-4 flex items-center justify-between">
@@ -120,26 +109,7 @@ const ControlPanel: React.FC = () => {
         
         <div className="md:col-span-9">
           <div className="space-y-2 sm:space-y-4">
-            {deviceState && (
-              <div className="glass-card p-4 animate-fade-in">
-                <div className="mb-4">
-                  <ColorPicker color={currentColor} onChange={handleColorChange} />
-                </div>
-                
-                <SegmentColorSlots 
-                  selectedSlot={selectedColorSlot}
-                  onSlotSelect={setSelectedColorSlot}
-                  onColorChange={handleSlotColorChange}
-                />
-                
-                <div className="mt-4">
-                  <BrightnessSlider 
-                    value={deviceState.brightness} 
-                    onChange={setBrightness} 
-                  />
-                </div>
-              </div>
-            )}
+            {/* StripPreview component removed */}
           </div>
         </div>
       </div>
