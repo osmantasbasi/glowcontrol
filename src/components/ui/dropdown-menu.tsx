@@ -1,6 +1,7 @@
+
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import { Check, ChevronRight, Circle } from "lucide-react"
+import { Check, ChevronRight, Circle, Star } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -75,9 +76,11 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
-    inset?: boolean
+    inset?: boolean;
+    isFavorite?: boolean;
+    onToggleFavorite?: (event: React.MouseEvent) => void;
   }
->(({ className, inset, ...props }, ref) => (
+>(({ className, inset, isFavorite, onToggleFavorite, children, ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
@@ -86,7 +89,26 @@ const DropdownMenuItem = React.forwardRef<
       className
     )}
     {...props}
-  />
+  >
+    {children}
+    
+    {onToggleFavorite && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(e);
+        }}
+        className="ml-auto flex h-4 w-4 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        <Star 
+          className={cn(
+            "h-3.5 w-3.5", 
+            isFavorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+          )} 
+        />
+      </button>
+    )}
+  </DropdownMenuPrimitive.Item>
 ))
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
 

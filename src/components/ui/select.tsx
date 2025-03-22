@@ -1,6 +1,7 @@
+
 import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
-import { Check, ChevronDown, ChevronUp } from "lucide-react"
+import { Check, ChevronDown, ChevronUp, Star } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -111,8 +112,11 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName
 
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & {
+    isFavorite?: boolean;
+    onToggleFavorite?: (event: React.MouseEvent) => void;
+  }
+>(({ className, children, isFavorite, onToggleFavorite, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
@@ -128,6 +132,23 @@ const SelectItem = React.forwardRef<
     </span>
 
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    
+    {onToggleFavorite && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(e);
+        }}
+        className="ml-auto flex h-4 w-4 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        <Star 
+          className={cn(
+            "h-3.5 w-3.5", 
+            isFavorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+          )} 
+        />
+      </button>
+    )}
   </SelectPrimitive.Item>
 ))
 SelectItem.displayName = SelectPrimitive.Item.displayName
