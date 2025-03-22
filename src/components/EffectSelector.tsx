@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { cn } from '@/lib/utils';
@@ -173,6 +172,8 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
                     key={id} 
                     value={id.toString()}
                     className="hover:bg-white/10 focus:bg-white/10 data-[state=checked]:bg-cyan-900/30 data-[state=checked]:text-cyan-100"
+                    isFavorite={favorites.includes(id)}
+                    onToggleFavorite={(e) => toggleFavorite(id, e)}
                   >
                     {favorites.includes(id) ? "★ " : ""}{name}
                   </SelectItem>
@@ -183,7 +184,6 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
         </div>
       )}
       
-      {/* Effect Controls moved below effects */}
       {onSpeedChange && onIntensityChange && (
         <div className="bg-black/30 rounded-lg p-3 border border-white/10 mt-4">
           <Button 
