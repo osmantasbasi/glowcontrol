@@ -187,6 +187,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   };
 
   const handleSegmentClick = (segment: Segment, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
     if (e.shiftKey) {
       if (multiSelectedSegments.includes(segment.id)) {
         setMultiSelectedSegments(multiSelectedSegments.filter(id => id !== segment.id));
@@ -1085,7 +1087,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
 
         <div 
           ref={containerRef}
-          className="relative h-[350px] border border-white/10 rounded-md bg-black/20 transition-colors"
+          className="relative h-[350px] border border-white/10 rounded-md bg-black/20 transition-colors pointer-events-auto"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -1106,7 +1108,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
                 handleSegmentClick(segment, e);
               }}
               className={cn(
-                "absolute transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group triangle-wrapper",
+                "absolute transition-all duration-300 hover:scale-110 active:scale-95 hover:z-10 group triangle-wrapper pointer-events-auto",
                 selectedSegment?.id === segment.id ? "z-20" : "z-10",
                 !(segment.on ?? true) && "opacity-50",
                 touchDragging && touchDraggedSegment?.id === segment.id ? "scale-110" : "",

@@ -1,3 +1,4 @@
+
 import { WLEDProvider } from '@/context/WLEDContext';
 import ControlPanel from '@/components/ControlPanel';
 import { useState, useEffect, useMemo } from 'react';
@@ -73,7 +74,9 @@ const SegmentEditor = () => {
   }, [favoritePalettes]);
 
   useEffect(() => {
+    // Only handle clicks outside of specific UI elements
     const handleDocumentClick = (e: MouseEvent) => {
+      // Don't deselect if we're clicking within UI controls
       const isTriangleClick = (e.target as Element)?.closest('.triangle-wrapper');
       const isControlClick = (e.target as Element)?.closest('button, input, select, .tabs-list, .glass-card');
       
@@ -128,6 +131,11 @@ const SegmentEditor = () => {
       } catch (error) {
         console.error('Error setting effect:', error);
       }
+    } else {
+      toast.info("Please select a triangle first", {
+        description: "Click on a triangle before choosing an effect",
+        duration: 3000
+      });
     }
   };
 
@@ -146,6 +154,11 @@ const SegmentEditor = () => {
       } catch (error) {
         console.error('Error setting palette:', error);
       }
+    } else {
+      toast.info("Please select a triangle first", {
+        description: "Click on a triangle before choosing a palette",
+        duration: 3000
+      });
     }
   };
 
@@ -229,11 +242,12 @@ const SegmentEditor = () => {
         <TabsContent 
           value="color" 
           className="p-2 sm:p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="text-center text-xs sm:text-sm text-white/70 mb-2 sm:mb-4">
-            Select segments above first, then pick a color to apply
+            {selectedSegment ? "Select a color to apply to the selected triangle" : "Select a triangle first, then pick a color to apply"}
           </div>
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center pointer-events-auto">
             <ColorPicker 
               color={selectedSegment?.color || currentColor}
               onChange={handleColorChange} 
@@ -254,12 +268,15 @@ const SegmentEditor = () => {
         <TabsContent 
           value="effect" 
           className="p-2 sm:p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="text-center text-xs sm:text-sm text-white/70 mb-2 sm:mb-4">
-            Select segments above first, then choose an effect to apply
+            {selectedSegment 
+              ? `Select an effect for triangle ${segments.findIndex(s => s.id === selectedSegment.id) + 1}` 
+              : "Select a triangle first, then choose an effect to apply"}
           </div>
           <EffectSelector onEffectSelect={handleEffectChange} />
-          <div className="mt-4">
+          <div className="mt-4 pointer-events-auto">
             <SegmentTriangles 
               segments={segments}
               setSegments={setSegments}
@@ -273,19 +290,23 @@ const SegmentEditor = () => {
         <TabsContent 
           value="palette" 
           className="p-2 sm:p-4 pt-0 animate-fade-in focus-visible:outline-none focus-visible:ring-0"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="text-center text-xs sm:text-sm text-white/70 mb-2 sm:mb-4">
-            Select segments above first, then choose a palette to apply
+            {selectedSegment 
+              ? `Select a palette for triangle ${segments.findIndex(s => s.id === selectedSegment.id) + 1}` 
+              : "Select a triangle first, then choose a palette to apply"}
           </div>
           
           {deviceInfo?.palettes ? (
-            <div className="space-y-4">
+            <div className="space-y-4 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
               <div className="relative">
                 <Input
                   placeholder="Search palettes..."
                   value={paletteSearchTerm}
                   onChange={(e) => setPaletteSearchTerm(e.target.value)}
                   className="bg-black/20 border-white/10 text-white placeholder:text-white/50 pl-8"
+                  onClick={(e) => e.stopPropagation()}
                 />
                 <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/50" size={16} />
               </div>
@@ -294,9 +315,12 @@ const SegmentEditor = () => {
                 {filteredAndSortedPalettes.slice(0, 20).map(({ name, id }) => (
                   <button
                     key={id}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (selectedSegment) {
                         handlePaletteChange(id);
+                      } else {
+                        toast.info("Please select a triangle first");
                       }
                     }}
                     className={cn(
@@ -331,6 +355,7 @@ const SegmentEditor = () => {
                   value={selectedSegment?.palette || 0}
                   onChange={(e) => handlePaletteChange(parseInt(e.target.value))}
                   className="w-full p-2 rounded bg-black/20 text-sm border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   {filteredAndSortedPalettes.map(({ name, id }) => (
                     <option key={id} value={id}>
@@ -346,7 +371,7 @@ const SegmentEditor = () => {
             </div>
           )}
           
-          <div className="mt-4">
+          <div className="mt-4 pointer-events-auto">
             <SegmentTriangles 
               segments={segments}
               setSegments={setSegments}

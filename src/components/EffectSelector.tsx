@@ -80,7 +80,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
   }
 
   return (
-    <div className={cn("space-y-4 pointer-events-auto", className)}>
+    <div className={cn("space-y-4 pointer-events-auto", className)} onClick={(e) => e.stopPropagation()}>
       <div className="relative">
         <Input
           placeholder="Search effects..."
