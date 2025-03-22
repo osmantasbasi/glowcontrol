@@ -130,6 +130,23 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
       y = centerY - Math.sin(hueRadians) * distance;
     }
     
+    // Enhanced visual indicator for selected color
+    // Draw a ring around the selected color
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, 2 * Math.PI, false);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Add a subtle glow effect
+    ctx.beginPath();
+    ctx.arc(x, y, 16, 0, 2 * Math.PI, false);
+    const glowGradient = ctx.createRadialGradient(x, y, 10, x, y, 16);
+    glowGradient.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, 0.6)`);
+    glowGradient.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+    ctx.fillStyle = glowGradient;
+    ctx.fill();
+    
     // Outer circle (white or black depending on background)
     ctx.beginPath();
     ctx.arc(x, y, 8, 0, 2 * Math.PI, false);
@@ -147,6 +164,14 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
     ctx.arc(x, y, 6, 0, 2 * Math.PI, false);
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    // Add pulsing animation effect
+    const pulseSize = 8 + Math.sin(Date.now() * 0.005) * 2;
+    ctx.beginPath();
+    ctx.arc(x, y, pulseSize, 0, 2 * Math.PI, false);
+    ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.5)`;
+    ctx.lineWidth = 1;
     ctx.stroke();
   }, [color.r, color.g, color.b, h, s, v]);
   
@@ -291,6 +316,16 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, className })
   // Draw color wheel when color changes
   useEffect(() => {
     drawColorWheel();
+    
+    // Set up an animation frame for the pulsing effect
+    const animationFrame = requestAnimationFrame(function animate() {
+      drawColorWheel();
+      requestAnimationFrame(animate);
+    });
+    
+    return () => {
+      cancelAnimationFrame(animationFrame);
+    };
   }, [color, drawColorWheel]);
   
   // Clean up event listeners
