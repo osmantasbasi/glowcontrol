@@ -18,10 +18,7 @@ import { Button } from '@/components/ui/button';
 
 interface EffectSelectorProps {
   className?: string;
-  effects?: string[];
-  selectedEffect?: number;
   onEffectSelect?: (effectId: number) => void;
-  onChange?: (effectId: number) => void;
   selectedSegmentId?: number | null;
   speed?: number;
   intensity?: number;
@@ -30,10 +27,7 @@ interface EffectSelectorProps {
 }
 
 const EffectSelector: React.FC<EffectSelectorProps> = ({ 
-  className,
-  effects,
-  selectedEffect,
-  onChange,
+  className, 
   onEffectSelect, 
   selectedSegmentId,
   speed = 128,
@@ -54,10 +48,6 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
     }
   });
 
-  // Use provided effects or fall back to deviceInfo effects
-  const availableEffects = effects || deviceInfo?.effects || [];
-  const currentEffect = selectedEffect !== undefined ? selectedEffect : deviceState?.effect || 0;
-
   useEffect(() => {
     try {
       localStorage.setItem('wledFavoriteEffects', JSON.stringify(favorites));
@@ -67,9 +57,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
   }, [favorites]);
 
   const handleEffectClick = (effectId: number) => {
-    if (onChange) {
-      onChange(effectId);
-    } else if (onEffectSelect) {
+    if (onEffectSelect) {
       onEffectSelect(effectId);
     } else if (selectedSegmentId !== undefined && selectedSegmentId !== null) {
       setSegmentEffect(selectedSegmentId, effectId, speed, intensity);
@@ -90,13 +78,13 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
   };
 
   const filteredAndSortedEffects = useMemo(() => {
-    if (!availableEffects || availableEffects.length === 0) return [];
+    if (!deviceInfo?.effects || deviceInfo.effects.length === 0) return [];
     
     const filtered = searchTerm 
-      ? availableEffects
+      ? deviceInfo.effects
           .map((effect, index) => ({ name: effect, id: index }))
           .filter(effect => effect.name.toLowerCase().includes(searchTerm.toLowerCase()))
-      : availableEffects.map((effect, index) => ({ name: effect, id: index }));
+      : deviceInfo.effects.map((effect, index) => ({ name: effect, id: index }));
     
     return filtered.sort((a, b) => {
       const aIsFavorite = favorites.includes(a.id);
@@ -106,9 +94,9 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
       if (!aIsFavorite && bIsFavorite) return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [availableEffects, searchTerm, favorites]);
+  }, [deviceInfo?.effects, searchTerm, favorites]);
 
-  if (!availableEffects || availableEffects.length === 0) {
+  if (!deviceInfo?.effects || deviceInfo.effects.length === 0) {
     return (
       <div className={cn("p-4 text-center text-sm text-white/50", className)}>
         Loading effects or no effects available. Please connect to a WLED device.
