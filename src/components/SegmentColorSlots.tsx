@@ -96,8 +96,8 @@ const SegmentColorSlots: React.FC<SegmentColorSlotsProps> = ({
   }, [colorSlots]);
 
   useEffect(() => {
-    // Select the first segment by default if one exists
-    if (deviceState?.segments?.length > 0 && selectedSegment === null) {
+    // Select the first segment by default if one exists and deviceState is available
+    if (deviceState?.segments && deviceState.segments.length > 0 && selectedSegment === null) {
       setSelectedSegment(deviceState.segments[0].id);
     }
   }, [deviceState?.segments, selectedSegment]);
@@ -194,8 +194,8 @@ const SegmentColorSlots: React.FC<SegmentColorSlotsProps> = ({
           </Button>
         </div>
         
-        {/* Segment selector */}
-        {deviceState?.segments && deviceState.segments.length > 0 && (
+        {/* Segment selector - with null checking */}
+        {deviceState?.segments && deviceState.segments.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {deviceState.segments.map((segment, index) => (
               <Button 
@@ -214,6 +214,8 @@ const SegmentColorSlots: React.FC<SegmentColorSlotsProps> = ({
               </Button>
             ))}
           </div>
+        ) : (
+          <div className="text-sm text-white/50 italic">No segments available</div>
         )}
         
         {/* Color index selector */}
