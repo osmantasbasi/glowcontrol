@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Plus, Trash, Triangle, Move, RotateCw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Power, X, Settings } from 'lucide-react';
@@ -6,7 +7,6 @@ import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -25,6 +25,7 @@ interface Segment {
   speed: number;
   intensity: number;
   palette: number;
+  displayColor?: { r: number; g: number; b: number };
 }
 
 interface SegmentTrianglesProps {
@@ -34,6 +35,7 @@ interface SegmentTrianglesProps {
   selectedSegment: Segment | null;
   setSelectedSegment: React.Dispatch<React.SetStateAction<Segment | null>>;
   editMode?: 'segment' | 'color' | 'effect';
+  triangleColors?: { r: number; g: number; b: number }[];
 }
 
 const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({ 
@@ -42,7 +44,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   setSegments, 
   selectedSegment, 
   setSelectedSegment,
-  editMode = 'segment'
+  editMode = 'segment',
+  triangleColors = [] 
 }) => {
   const { deviceInfo, deviceState, setSegmentColor, setSegmentEffect, setSegmentBrightness, setSegmentPower, setSegmentLedRange, setSegmentPalette, addSegment, deleteSegment } = useWLED();
   const [draggedSegment, setDraggedSegment] = useState<Segment | null>(null);
@@ -60,7 +63,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
   const LEDS_PER_SEGMENT = 30;
   const MAX_SEGMENTS = 16;
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [activeColorSlot, setActiveColorSlot] = useState(0);
   const [multiSelectedSegments, setMultiSelectedSegments] = useState<number[]>([]);
 
   const [touchDragging, setTouchDragging] = useState(false);
@@ -93,7 +95,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     if (deviceState?.segments && deviceState.segments.length > 0) {
       const activeWledSegments = deviceState.segments.filter(seg => seg.stop !== 0);
       
-      const wledSegments = activeWledSegments.map(seg => {
+      const wledSegments = activeWledSegments.map((seg, index) => {
+        // Get the color from triangleColors if available
+        const displayColor = triangleColors && triangleColors.length > 0 ? 
+          triangleColors[index % triangleColors.length] : 
+          { r: 255, g: 255, b: 255 };
+          
         return {
           id: seg.id || 0,
           color: { 
@@ -125,7 +132,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           on: seg.on !== undefined ? seg.on : true,
           speed: seg.sx || 128,
           intensity: seg.ix || 128,
-          palette: seg.pal || 0
+          palette: seg.pal || 0,
+          displayColor
         };
       });
 
@@ -135,7 +143,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           return {
             ...newSeg,
             position: existingSeg.position || newSeg.position,
-            rotation: existingSeg.rotation || 0
+            rotation: existingSeg.rotation || 0,
+            displayColor: existingSeg.displayColor || newSeg.displayColor
           };
         }
         return newSeg;
@@ -152,7 +161,27 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         }
       }
     }
-  }, [deviceState?.segments]);
+  }, [deviceState?.segments, triangleColors]);
+
+  // Add effect to ensure triangleColors are assigned
+  useEffect(() => {
+    if (triangleColors && triangleColors.length > 0 && segments.length > 0) {
+      const updatedSegments = segments.map((segment, index) => {
+        const displayColor = triangleColors[index % triangleColors.length];
+        if (!segment.displayColor || 
+            segment.displayColor.r !== displayColor.r || 
+            segment.displayColor.g !== displayColor.g || 
+            segment.displayColor.b !== displayColor.b) {
+          return { ...segment, displayColor };
+        }
+        return segment;
+      });
+      
+      if (JSON.stringify(segments) !== JSON.stringify(updatedSegments)) {
+        setSegments(updatedSegments);
+      }
+    }
+  }, [segments, triangleColors]);
 
   const handleAddSegment = async () => {
     if (segments.length >= MAX_SEGMENTS) {
@@ -206,8 +235,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     setSelectedSegment(segment);
     setIsEditModalOpen(true);
     
-    setActiveColorSlot(0);
-    
     if (segment) {
       setLedStart((segment.leds?.start || 0).toString());
       setLedEnd((segment.leds?.end || 30).toString());
@@ -221,81 +248,6 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     if (e.target === e.currentTarget) {
       setSelectedSegment(null);
       setMultiSelectedSegments([]);
-    }
-  };
-
-  const handleColorChange = (color: { r: number; g: number; b: number }, slot: number = 0) => {
-    if (!selectedSegment) return;
-    
-    setSegments(segments.map(seg => {
-      if (seg.id === selectedSegment.id) {
-        if (slot === 0) {
-          return { ...seg, color };
-        } else if (slot === 1) {
-          return { ...seg, color2: color };
-        } else if (slot === 2) {
-          return { ...seg, color3: color };
-        }
-        return seg;
-      }
-      return seg;
-    }));
-    
-    if (slot === 0) {
-      setSelectedSegment({ ...selectedSegment, color });
-      
-      try {
-        if (deviceState) {
-          setSegmentColor(selectedSegment.id, color.r, color.g, color.b, 0);
-        }
-      } catch (error) {
-        console.log('Error handling color change:', error);
-      }
-    } else if (slot === 1) {
-      setSelectedSegment({ ...selectedSegment, color2: color });
-      setSegmentColor(selectedSegment.id, color.r, color.g, color.b, 1);
-    } else if (slot === 2) {
-      setSelectedSegment({ ...selectedSegment, color3: color });
-      setSegmentColor(selectedSegment.id, color.r, color.g, color.b, 2);
-    }
-  };
-
-  const handleEffectChange = (effectId: number) => {
-    if (!selectedSegment) return;
-    
-    setSegments(segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, effect: effectId } 
-        : seg
-    ));
-    
-    setSelectedSegment({ ...selectedSegment, effect: effectId });
-    
-    try {
-      if (deviceState) {
-        setSegmentEffect(selectedSegment.id, effectId, selectedSegment.speed || 128, selectedSegment.intensity || 128);
-      }
-    } catch (error) {
-      console.log('Error handling effect change:', error);
-    }
-  };
-
-  const handlePaletteChange = (paletteId: number) => {
-    if (!selectedSegment) return;
-    
-    setSegments(segments.map(seg => 
-      seg.id === selectedSegment.id 
-        ? { ...seg, palette: paletteId } 
-        : seg
-    ));
-    
-    setSelectedSegment({ ...selectedSegment, palette: paletteId });
-    
-    try {
-      setSegmentPalette(selectedSegment.id, paletteId);
-    } catch (error) {
-      console.error("Error setting palette:", error);
-      toast.error("Failed to set palette");
     }
   };
 
@@ -471,8 +423,12 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
         ghostElement.style.position = 'absolute';
         ghostElement.style.top = '-1000px';
         ghostElement.style.left = '-1000px';
+        
+        // Use the displayColor for the drag ghost
+        const color = segment.displayColor || { r: 255, g: 255, b: 255 };
+        
         ghostElement.innerHTML = `<svg width="80" height="80" viewBox="0 0 24 24">
-          <polygon points="12,2 22,22 2,22" fill="rgb(${segment.color?.r || 0},${segment.color?.g || 0},${segment.color?.b || 0})" stroke="rgba(0,0,0,0.5)" stroke-width="1" transform="rotate(${segment.rotation || 0}, 12, 12)" />
+          <polygon points="12,2 22,22 2,22" fill="rgb(${color.r},${color.g},${color.b})" stroke="rgba(0,0,0,0.5)" stroke-width="1" transform="rotate(${segment.rotation || 0}, 12, 12)" />
         </svg>`;
         document.body.appendChild(ghostElement);
         
@@ -833,73 +789,8 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           
           <div className="p-3 overflow-y-auto max-h-[60vh] space-y-3">
             <div className="space-y-1">
-              <h4 className="text-xs font-medium text-white/70">Colors</h4>
-              <div className="flex gap-1">
-                <button 
-                  className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 0 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
-                  style={{backgroundColor: `rgb(${selectedSegment.color?.r || 0}, ${selectedSegment.color?.g || 0}, ${selectedSegment.color?.b || 0})`}}
-                  onClick={() => setActiveColorSlot(0)}
-                />
-                <button 
-                  className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 1 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
-                  style={{backgroundColor: selectedSegment.color2 ? 
-                    `rgb(${selectedSegment.color2.r || 0}, ${selectedSegment.color2.g || 0}, ${selectedSegment.color2.b || 0})` : 
-                    'rgba(255, 255, 255, 0.1)'
-                  }}
-                  onClick={() => {
-                    if (!selectedSegment.color2) {
-                      setSegments(segments.map(seg => 
-                        seg.id === selectedSegment.id 
-                          ? { ...seg, color2: {r: 0, g: 127, b: 255} } 
-                          : seg
-                      ));
-                      setSelectedSegment({
-                        ...selectedSegment,
-                        color2: {r: 0, g: 127, b: 255}
-                      });
-                      
-                      setSegmentColor(selectedSegment.id, 0, 127, 255, 1);
-                    }
-                    setActiveColorSlot(1);
-                  }}
-                />
-                <button 
-                  className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 2 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
-                  style={{backgroundColor: selectedSegment.color3 ? 
-                    `rgb(${selectedSegment.color3.r || 0}, ${selectedSegment.color3.g || 0}, ${selectedSegment.color3.b || 0})` : 
-                    'rgba(255, 255, 255, 0.1)'
-                  }}
-                  onClick={() => {
-                    if (!selectedSegment.color3) {
-                      setSegments(segments.map(seg => 
-                        seg.id === selectedSegment.id 
-                          ? { ...seg, color3: {r: 255, g: 0, b: 127} } 
-                          : seg
-                      ));
-                      setSelectedSegment({
-                        ...selectedSegment,
-                        color3: {r: 255, g: 0, b: 127}
-                      });
-                      
-                      setSegmentColor(selectedSegment.id, 255, 0, 127, 2);
-                    }
-                    setActiveColorSlot(2);
-                  }}
-                />
-              </div>
-              
-              <ColorPicker
-                color={activeColorSlot === 0 ? (selectedSegment.color || {r: 255, g: 0, b: 0}) : 
-                      activeColorSlot === 1 ? (selectedSegment.color2 || {r: 0, g: 255, b: 0}) : 
-                      (selectedSegment.color3 || {r: 0, g: 0, b: 255})}
-                onChange={(color) => handleColorChange(color, activeColorSlot)}
-                className="w-full"
-              />
-            </div>
-          
-            <div className="space-y-1">
+              <h4 className="text-xs font-medium text-white/70">Brightness</h4>
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-medium text-white/70">Brightness</h4>
                 <span className="text-xs text-white/70">{selectedSegment.brightness || 255}</span>
               </div>
               <Slider
@@ -1067,6 +958,21 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
     );
   };
 
+  // Get the triangle color based on index or use displayColor
+  const getTriangleColor = (segment: Segment, index: number) => {
+    if (segment.displayColor) {
+      return `rgb(${segment.displayColor.r}, ${segment.displayColor.g}, ${segment.displayColor.b})`;
+    }
+    
+    if (triangleColors && triangleColors.length > 0) {
+      const colorIndex = index % triangleColors.length;
+      const color = triangleColors[colorIndex];
+      return `rgb(${color.r}, ${color.g}, ${color.b})`;
+    }
+    
+    return `rgb(255, 255, 255)`;
+  };
+
   return (
     <>
       <div className={cn("glass-card p-4", className)}>
@@ -1096,7 +1002,7 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {segments.map((segment) => (
+          {segments.map((segment, index) => (
             <div
               key={segment.id}
               data-segment-id={segment.id}
@@ -1124,15 +1030,11 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
               <div className="relative">
                 <Triangle 
                   size={70} 
-                  fill={`rgb(${segment.color?.r || 0}, ${segment.color?.g || 0}, ${segment.color?.b || 0})`} 
+                  fill={getTriangleColor(segment, index)}
                   color="rgba(0, 0, 0, 0.5)"
                   strokeWidth={1}
                   className={cn(
                     "drop-shadow-lg transition-all",
-                    segment.effect === 1 && "animate-pulse",
-                    segment.effect === 2 && "animate-fade-in",
-                    segment.effect === 3 && "animate-spin",
-                    segment.effect === 4 && "animate-bounce",
                     selectedSegment?.id === segment.id && "triangle-selected",
                     multiSelectedSegments.includes(segment.id) && "triangle-multi-selected"
                   )}

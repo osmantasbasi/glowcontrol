@@ -32,10 +32,10 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
   }, [favorites]);
 
   const handleEffectClick = (effectId: number) => {
-    setEffect(effectId);
-    
     if (onEffectSelect) {
       onEffectSelect(effectId);
+    } else {
+      setEffect(effectId);
     }
   };
 

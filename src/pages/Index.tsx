@@ -29,6 +29,22 @@ interface Segment {
   palette: number;
 }
 
+// Predefined color list for triangles (12 colors)
+const TRIANGLE_COLORS = [
+  { r: 155, g: 135, b: 245 },  // Primary Purple: #9b87f5
+  { r: 217, g: 70, b: 239 },   // Magenta Pink: #D946EF
+  { r: 249, g: 115, b: 22 },   // Bright Orange: #F97316
+  { r: 14, g: 165, b: 233 },   // Ocean Blue: #0EA5E9
+  { r: 139, g: 92, b: 246 },   // Vivid Purple: #8B5CF6
+  { r: 126, g: 105, b: 171 },  // Secondary Purple: #7E69AB
+  { r: 110, g: 89, b: 165 },   // Tertiary Purple: #6E59A5
+  { r: 229, g: 222, b: 255 },  // Soft Purple: #E5DEFF
+  { r: 255, g: 222, b: 226 },  // Soft Pink: #FFDEE2
+  { r: 253, g: 225, b: 211 },  // Soft Peach: #FDE1D3
+  { r: 211, g: 228, b: 253 },  // Soft Blue: #D3E4FD
+  { r: 242, g: 252, b: 226 }   // Soft Green: #F2FCE2
+];
+
 const SegmentEditor = () => {
   const { deviceState, deviceInfo, setColor, setEffect, setSegmentPalette } = useWLED();
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
@@ -91,6 +107,23 @@ const SegmentEditor = () => {
       document.removeEventListener('click', handleDocumentClick);
     };
   }, []);
+
+  // Assign default colors to triangles based on their index
+  useEffect(() => {
+    if (segments.length > 0) {
+      const updatedSegments = segments.map((segment, index) => {
+        const colorIndex = index % TRIANGLE_COLORS.length;
+        return {
+          ...segment,
+          displayColor: TRIANGLE_COLORS[colorIndex]
+        };
+      });
+      
+      if (JSON.stringify(segments) !== JSON.stringify(updatedSegments)) {
+        setSegments(updatedSegments);
+      }
+    }
+  }, [segments.length]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
@@ -236,6 +269,7 @@ const SegmentEditor = () => {
             setSegments={setSegments}
             selectedSegment={selectedSegment}
             setSelectedSegment={setSelectedSegment}
+            triangleColors={TRIANGLE_COLORS}
           />
         </TabsContent>
         
@@ -261,6 +295,7 @@ const SegmentEditor = () => {
               selectedSegment={selectedSegment}
               setSelectedSegment={setSelectedSegment}
               editMode="color"
+              triangleColors={TRIANGLE_COLORS}
             />
           </div>
         </TabsContent>
@@ -283,6 +318,7 @@ const SegmentEditor = () => {
               selectedSegment={selectedSegment}
               setSelectedSegment={setSelectedSegment}
               editMode="effect"
+              triangleColors={TRIANGLE_COLORS}
             />
           </div>
         </TabsContent>
@@ -378,6 +414,7 @@ const SegmentEditor = () => {
               selectedSegment={selectedSegment}
               setSelectedSegment={setSelectedSegment}
               editMode="color"
+              triangleColors={TRIANGLE_COLORS}
             />
           </div>
         </TabsContent>
