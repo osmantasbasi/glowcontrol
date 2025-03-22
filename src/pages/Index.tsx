@@ -8,7 +8,6 @@ import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, Triangle, Palette, Settings, Power, X } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
-import StripPreview from '@/components/StripPreview';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -161,10 +160,6 @@ const SegmentEditor = () => {
               <span className="hidden sm:inline">Settings</span>
             </TabsTrigger>
           </TabsList>
-        </div>
-        
-        <div className="px-2 sm:px-4 mb-2">
-          <StripPreview selectedSegment={selectedSegment} />
         </div>
         
         <TabsContent 

@@ -4,7 +4,6 @@ import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import BrightnessSlider from './BrightnessSlider';
 import DeviceManager from './DeviceManager';
-import StripPreview from './StripPreview';
 import { Button } from '@/components/ui/button';
 import { Power, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -110,9 +109,7 @@ const ControlPanel: React.FC = () => {
         
         <div className="md:col-span-9">
           <div className="space-y-2 sm:space-y-4">
-            {deviceInfo && deviceState && (
-              <StripPreview className="animate-fade-in" />
-            )}
+            {/* StripPreview component removed */}
           </div>
         </div>
       </div>
