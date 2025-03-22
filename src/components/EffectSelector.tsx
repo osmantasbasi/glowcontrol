@@ -37,7 +37,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
 }) => {
   const { deviceState, deviceInfo, setEffect, setSegmentEffect } = useWLED();
   const [searchTerm, setSearchTerm] = useState('');
-  const [showControls, setShowControls] = useState(false);
+  const [showControls, setShowControls] = useState(true);
   const [favorites, setFavorites] = useState<number[]>(() => {
     try {
       const savedFavorites = localStorage.getItem('wledFavoriteEffects');
@@ -106,62 +106,6 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
 
   return (
     <div className={cn("space-y-4 pointer-events-auto", className)} onClick={(e) => e.stopPropagation()}>
-      {onSpeedChange && onIntensityChange && (
-        <div className="bg-black/30 rounded-lg p-3 border border-white/10 mb-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setShowControls(!showControls)}
-            className="w-full mb-2 flex items-center justify-between text-white/70 hover:text-white hover:bg-white/10"
-          >
-            <span>Effect Controls</span>
-            <Sliders size={16} />
-          </Button>
-          
-          {showControls && (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-white/70">Speed</label>
-                  <span className="text-xs text-white/70">{speed}</span>
-                </div>
-                <Slider
-                  value={[speed]}
-                  min={0}
-                  max={255}
-                  step={1}
-                  onValueChange={(values) => {
-                    if (values.length > 0) {
-                      onSpeedChange(values[0]);
-                    }
-                  }}
-                  className="mt-1"
-                />
-              </div>
-              
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-white/70">Intensity</label>
-                  <span className="text-xs text-white/70">{intensity}</span>
-                </div>
-                <Slider
-                  value={[intensity]}
-                  min={0}
-                  max={255}
-                  step={1}
-                  onValueChange={(values) => {
-                    if (values.length > 0) {
-                      onIntensityChange(values[0]);
-                    }
-                  }}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      
       <div className="relative">
         <Input
           placeholder="Search effects..."
@@ -236,6 +180,63 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
               </SelectGroup>
             </SelectContent>
           </Select>
+        </div>
+      )}
+      
+      {/* Effect Controls moved below effects */}
+      {onSpeedChange && onIntensityChange && (
+        <div className="bg-black/30 rounded-lg p-3 border border-white/10 mt-4">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowControls(!showControls)}
+            className="w-full mb-2 flex items-center justify-between text-white/70 hover:text-white hover:bg-white/10"
+          >
+            <span>Effect Controls</span>
+            <Sliders size={16} />
+          </Button>
+          
+          {showControls && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-white/70">Speed</label>
+                  <span className="text-xs text-white/70">{speed}</span>
+                </div>
+                <Slider
+                  value={[speed]}
+                  min={0}
+                  max={255}
+                  step={1}
+                  onValueChange={(values) => {
+                    if (values.length > 0) {
+                      onSpeedChange(values[0]);
+                    }
+                  }}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-white/70">Intensity</label>
+                  <span className="text-xs text-white/70">{intensity}</span>
+                </div>
+                <Slider
+                  value={[intensity]}
+                  min={0}
+                  max={255}
+                  step={1}
+                  onValueChange={(values) => {
+                    if (values.length > 0) {
+                      onIntensityChange(values[0]);
+                    }
+                  }}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
