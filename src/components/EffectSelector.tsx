@@ -1,19 +1,12 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { cn } from '@/lib/utils';
 import { Sparkles, Search, Star, Sliders } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface EffectSelectorProps {
   className?: string;
@@ -67,7 +60,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
 
   const toggleFavorite = (effectId: number, event: React.MouseEvent) => {
     event.stopPropagation();
-    event.preventDefault(); // Prevent default action
+    event.preventDefault();
     setFavorites(prev => {
       if (prev.includes(effectId)) {
         return prev.filter(id => id !== effectId);
@@ -75,20 +68,6 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
         return [...prev, effectId];
       }
     });
-    
-    // Prevent the menu from closing by stopping immediate propagation
-    event.nativeEvent.stopImmediatePropagation();
-    
-    // Make sure the dropdown stays open
-    setTimeout(() => {
-      const dropdown = document.querySelector('[role="listbox"]');
-      if (dropdown && dropdown.getAttribute('data-state') !== 'open') {
-        const trigger = document.querySelector('[aria-controls]');
-        if (trigger && trigger instanceof HTMLElement) {
-          trigger.click();
-        }
-      }
-    }, 10);
   };
 
   const filteredAndSortedEffects = useMemo(() => {
@@ -131,73 +110,44 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
         <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/50" size={16} />
       </div>
       
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-        {filteredAndSortedEffects.slice(0, 20).map(({ name, id }) => (
-          <button
-            key={id}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEffectClick(id);
-            }}
-            className={cn(
-              "flex flex-col items-center justify-center p-3 rounded-lg border transition-all relative hover:scale-105",
-              (selectedSegmentId !== null && deviceState?.segments?.find(s => s.id === selectedSegmentId)?.fx === id) || 
-                (selectedSegmentId === null && deviceState?.effect === id)
-                ? "bg-white/20 border-cyan-400 text-white shadow-lg shadow-cyan-500/20"
-                : "bg-black/30 border-white/10 text-white/80 hover:bg-black/40 hover:border-white/30"
-            )}
-          >
-            <Sparkles size={24} className="mb-2 text-cyan-300" />
-            <span className="text-xs text-center truncate w-full">{name}</span>
-            <div 
-              onClick={(e) => toggleFavorite(id, e)}
-              className="absolute top-1 right-1 p-1 rounded-full hover:bg-white/10"
+      <ScrollArea className="h-[400px] rounded-md border border-white/10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 p-2">
+          {filteredAndSortedEffects.map(({ name, id }) => (
+            <button
+              key={id}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEffectClick(id);
+              }}
+              className={cn(
+                "flex flex-col items-center justify-center p-3 rounded-lg border transition-all relative hover:scale-105",
+                (selectedSegmentId !== null && deviceState?.segments?.find(s => s.id === selectedSegmentId)?.fx === id) || 
+                  (selectedSegmentId === null && deviceState?.effect === id)
+                  ? "bg-white/20 border-cyan-400 text-white shadow-lg shadow-cyan-500/20"
+                  : "bg-black/30 border-white/10 text-white/80 hover:bg-black/40 hover:border-white/30"
+              )}
             >
-              <Star 
-                size={16} 
-                className={cn(
-                  "transition-colors",
-                  favorites.includes(id) 
-                    ? "fill-yellow-400 text-yellow-400" 
-                    : "text-white/40"
-                )} 
-              />
-            </div>
-          </button>
-        ))}
-      </div>
-      
-      {filteredAndSortedEffects.length > 20 && (
-        <div onClick={(e) => e.stopPropagation()} className="relative">
-          <Select 
-            value={selectedSegmentId !== null && deviceState?.segments 
-              ? deviceState.segments.find(s => s.id === selectedSegmentId)?.fx.toString() || "0"
-              : deviceState?.effect?.toString() || "0"
-            }
-            onValueChange={(value) => handleEffectClick(parseInt(value))}
-          >
-            <SelectTrigger className="w-full bg-black/30 border-white/20 text-white hover:bg-black/40 focus:ring-cyan-400/20">
-              <SelectValue placeholder="Select an effect" />
-            </SelectTrigger>
-            <SelectContent className="bg-black/90 border-white/10 text-white max-h-80">
-              <SelectGroup>
-                <SelectLabel className="text-cyan-300">Effects</SelectLabel>
-                {filteredAndSortedEffects.map(({ name, id }) => (
-                  <SelectItem 
-                    key={id} 
-                    value={id.toString()}
-                    className="hover:bg-white/10 focus:bg-white/10 data-[state=checked]:bg-cyan-900/30 data-[state=checked]:text-cyan-100"
-                    isFavorite={favorites.includes(id)}
-                    onToggleFavorite={(e) => toggleFavorite(id, e)}
-                  >
-                    {favorites.includes(id) ? "★ " : ""}{name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+              <Sparkles size={24} className="mb-2 text-cyan-300" />
+              <span className="text-xs text-center truncate w-full">{name}</span>
+              <div 
+                onClick={(e) => toggleFavorite(id, e)}
+                className="absolute top-1 right-1 p-1 rounded-full hover:bg-white/10"
+                data-favorite-toggle="true"
+              >
+                <Star 
+                  size={16} 
+                  className={cn(
+                    "transition-colors",
+                    favorites.includes(id) 
+                      ? "fill-yellow-400 text-yellow-400" 
+                      : "text-white/40"
+                  )} 
+                />
+              </div>
+            </button>
+          ))}
         </div>
-      )}
+      </ScrollArea>
       
       {onSpeedChange && onIntensityChange && (
         <div className="bg-black/30 rounded-lg p-3 border border-white/10 mt-4">
@@ -259,4 +209,3 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
 };
 
 export default EffectSelector;
-
