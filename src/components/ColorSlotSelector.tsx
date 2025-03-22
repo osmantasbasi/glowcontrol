@@ -18,15 +18,14 @@ const ColorSlotSelector: React.FC<ColorSlotSelectorProps> = ({
   const isMobile = useIsMobile();
   
   const slots = [
-    { id: 0, icon: <Droplet size={isMobile ? 16 : 20} />, label: "Primary" },
-    { id: 1, icon: <Triangle size={isMobile ? 16 : 20} />, label: "Secondary" },
-    { id: 2, icon: <Box size={isMobile ? 16 : 20} />, label: "Tertiary" },
+    { id: 0, icon: <Droplet size={isMobile ? 14 : 16} />, label: "Primary" },
+    { id: 1, icon: <Triangle size={isMobile ? 14 : 16} />, label: "Secondary" },
+    { id: 2, icon: <Box size={isMobile ? 14 : 16} />, label: "Tertiary" },
   ];
 
   return (
-    <div className="p-2 sm:p-4 bg-black/30 rounded-lg">
-      <h3 className="text-xs sm:text-sm font-medium text-white/70 mb-2">Color Slots</h3>
-      <div className="flex items-center gap-2 sm:gap-3">
+    <div className="bg-black/30 rounded-lg p-1.5 sm:p-3">
+      <div className="flex items-center justify-center gap-1.5 sm:gap-2.5">
         {slots.map((slot) => {
           const color = slotColors[slot.id] || { r: 0, g: 0, b: 0 };
           const rgbString = `rgb(${color.r}, ${color.g}, ${color.b})`;
@@ -36,14 +35,14 @@ const ColorSlotSelector: React.FC<ColorSlotSelectorProps> = ({
               key={slot.id}
               onClick={() => onSelectSlot(slot.id)}
               className={cn(
-                "flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all",
+                "flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 rounded-lg transition-all",
                 selectedSlot === slot.id
-                  ? "bg-white/20 border border-cyan-400 shadow-lg shadow-cyan-500/20 scale-105"
+                  ? "bg-white/20 border border-cyan-400 shadow-sm shadow-cyan-500/20 scale-105"
                   : "bg-black/40 border border-white/10 hover:bg-black/50 hover:border-white/20"
               )}
             >
               <div 
-                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full mb-1 flex items-center justify-center"
+                className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center"
                 style={{ backgroundColor: rgbString }}
               >
                 <span className={cn(
@@ -53,7 +52,8 @@ const ColorSlotSelector: React.FC<ColorSlotSelectorProps> = ({
                   {slot.icon}
                 </span>
               </div>
-              <span className="text-xs font-medium">{slot.label}</span>
+              <span className="text-xs font-medium hidden sm:inline">{slot.label}</span>
+              <span className="text-xs font-medium inline sm:hidden">{slot.id + 1}</span>
             </button>
           );
         })}

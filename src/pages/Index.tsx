@@ -386,23 +386,24 @@ const SegmentEditor = () => {
             }
           </div>
           
-          {selectedSegment && (
-            <div className="mb-4">
-              <ColorSlotSelector
-                selectedSlot={selectedColorSlot}
-                onSelectSlot={setSelectedColorSlot}
-                slotColors={getSelectedSegmentColors()}
-              />
-            </div>
-          )}
-          
           <div className="flex flex-col items-center pointer-events-auto">
             <ColorPicker 
               color={getCurrentSlotColor()}
               onChange={handleColorChange} 
               className="w-full max-w-[300px]"
             />
+            
+            {selectedSegment && (
+              <div className="mt-4 w-full max-w-[300px]">
+                <ColorSlotSelector
+                  selectedSlot={selectedColorSlot}
+                  onSelectSlot={setSelectedColorSlot}
+                  slotColors={getSelectedSegmentColors()}
+                />
+              </div>
+            )}
           </div>
+          
           <div className="mt-4">
             <SegmentTriangles 
               segments={segments}
