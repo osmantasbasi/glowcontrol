@@ -6,10 +6,11 @@ import EffectSelector from '@/components/EffectSelector';
 import { Button } from '@/components/ui/button';
 import { useWLED } from '@/context/WLEDContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Layers, Triangle, Palette, Settings, Power, X } from 'lucide-react';
+import { Layers, Triangle, Palette, Settings, Power, X, Search, Star } from 'lucide-react';
 import SegmentTriangles from '@/components/SegmentTriangles';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Input } from '@/components/ui/input';
 
 interface Segment {
   id: number;
@@ -32,6 +33,16 @@ const SegmentEditor = () => {
   const [currentColor, setCurrentColor] = useState<{r: number, g: number, b: number}>({r: 255, g: 0, b: 255});
   const [activeTab, setActiveTab] = useState<string>('segments');
   const isMobile = useIsMobile();
+  const [paletteSearchTerm, setPaletteSearchTerm] = useState('');
+  const [favoritePalettes, setFavoritePalettes] = useState<number[]>(() => {
+    try {
+      const savedFavorites = localStorage.getItem('wledFavoritePalettes');
+      return savedFavorites ? JSON.parse(savedFavorites) : [];
+    } catch (error) {
+      console.error('Error loading favorite palettes from localStorage:', error);
+      return [];
+    }
+  });
   
   const [segments, setSegments] = useState<Segment[]>(() => {
     try {
@@ -52,6 +63,14 @@ const SegmentEditor = () => {
       console.error('Error saving segments to localStorage:', error);
     }
   }, [segments]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('wledFavoritePalettes', JSON.stringify(favoritePalettes));
+    } catch (error) {
+      console.error('Error saving favorite palettes to localStorage:', error);
+    }
+  }, [favoritePalettes]);
 
   useEffect(() => {
     const handleDocumentClick = (e: MouseEvent) => {
@@ -133,6 +152,36 @@ const SegmentEditor = () => {
   const handleBackgroundClick = () => {
     setSelectedSegment(null);
   };
+
+  const toggleFavoritePalette = (paletteId: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setFavoritePalettes(prev => {
+      if (prev.includes(paletteId)) {
+        return prev.filter(id => id !== paletteId);
+      } else {
+        return [...prev, paletteId];
+      }
+    });
+  };
+
+  const filteredAndSortedPalettes = useMemo(() => {
+    if (!deviceInfo?.palettes || deviceInfo.palettes.length === 0) return [];
+    
+    const filtered = paletteSearchTerm 
+      ? deviceInfo.palettes
+          .map((palette, index) => ({ name: palette, id: index }))
+          .filter(palette => palette.name.toLowerCase().includes(paletteSearchTerm.toLowerCase()))
+      : deviceInfo.palettes.map((palette, index) => ({ name: palette, id: index }));
+    
+    return filtered.sort((a, b) => {
+      const aIsFavorite = favoritePalettes.includes(a.id);
+      const bIsFavorite = favoritePalettes.includes(b.id);
+      
+      if (aIsFavorite && !bIsFavorite) return -1;
+      if (!aIsFavorite && bIsFavorite) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [deviceInfo?.palettes, paletteSearchTerm, favoritePalettes]);
 
   return (
     <div className="glass-card overflow-hidden animate-fade-in mt-4 sm:mt-8">
@@ -228,33 +277,75 @@ const SegmentEditor = () => {
           <div className="text-center text-xs sm:text-sm text-white/70 mb-2 sm:mb-4">
             Select segments above first, then choose a palette to apply
           </div>
+          
           {deviceInfo?.palettes ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {deviceInfo.palettes.slice(0, 20).map((palette, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    if (selectedSegment) {
-                      handlePaletteChange(index);
-                    }
-                  }}
-                  className={cn(
-                    "flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg border transition-all text-xs sm:text-sm",
-                    selectedSegment?.palette === index
-                      ? "bg-white/20 border-cyan-400 text-white"
-                      : "bg-black/20 border-white/10 text-white/70 hover:bg-white/10 hover:border-white/20"
-                  )}
+            <div className="space-y-4">
+              <div className="relative">
+                <Input
+                  placeholder="Search palettes..."
+                  value={paletteSearchTerm}
+                  onChange={(e) => setPaletteSearchTerm(e.target.value)}
+                  className="bg-black/20 border-white/10 text-white placeholder:text-white/50 pl-8"
+                />
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/50" size={16} />
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {filteredAndSortedPalettes.slice(0, 20).map(({ name, id }) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      if (selectedSegment) {
+                        handlePaletteChange(id);
+                      }
+                    }}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg border transition-all text-xs sm:text-sm relative",
+                      selectedSegment?.palette === id
+                        ? "bg-white/20 border-cyan-400 text-white"
+                        : "bg-black/20 border-white/10 text-white/70 hover:bg-white/10 hover:border-white/20"
+                    )}
+                  >
+                    <Palette size={isMobile ? 18 : 24} className="mb-1 sm:mb-2 text-cyan-300" />
+                    <span className="text-xs text-center truncate w-full">{name}</span>
+                    <button 
+                      onClick={(e) => toggleFavoritePalette(id, e)}
+                      className="absolute top-1 right-1 p-1 rounded-full hover:bg-white/10"
+                    >
+                      <Star 
+                        size={14} 
+                        className={cn(
+                          "transition-colors",
+                          favoritePalettes.includes(id) 
+                            ? "fill-yellow-400 text-yellow-400" 
+                            : "text-white/40"
+                        )} 
+                      />
+                    </button>
+                  </button>
+                ))}
+              </div>
+              
+              {filteredAndSortedPalettes.length > 20 && (
+                <select
+                  value={selectedSegment?.palette || 0}
+                  onChange={(e) => handlePaletteChange(parseInt(e.target.value))}
+                  className="w-full p-2 rounded bg-black/20 text-sm border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
                 >
-                  <Palette size={isMobile ? 18 : 24} className="mb-1 sm:mb-2 text-cyan-300" />
-                  <span className="text-xs text-center truncate w-full">{palette}</span>
-                </button>
-              ))}
+                  {filteredAndSortedPalettes.map(({ name, id }) => (
+                    <option key={id} value={id}>
+                      {favoritePalettes.includes(id) ? "★ " : ""}{name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           ) : (
             <div className="p-4 text-center text-sm text-white/50">
               Loading palettes...
             </div>
           )}
+          
           <div className="mt-4">
             <SegmentTriangles 
               segments={segments}
