@@ -22,14 +22,26 @@ const PopoverContent = React.forwardRef<
         className
       )}
       onInteractOutside={(e) => {
-        try {
+        // Check if the click was on a favorite star or other element that should prevent closing
+        const target = e.target as HTMLElement;
+        const isStarClick = target.closest('[data-favorite-toggle="true"]') || 
+                           target.closest('.favorite-toggle');
+        
+        if (isStarClick || (e.currentTarget as HTMLElement).hasAttribute('data-stay-open')) {
           e.preventDefault();
-          // Find any open popover and close it more safely
-          const popoverElement = document.querySelector('[data-state="open"]');
-          if (popoverElement) {
-            const trigger = popoverElement.parentElement?.querySelector('[data-radix-trigger]');
-            if (trigger && trigger instanceof HTMLElement) {
-              trigger.click();
+          return;
+        }
+        
+        try {
+          // Only close if it's not a click on a star
+          if (!isStarClick) {
+            // Find any open popover and close it more safely
+            const popoverElement = document.querySelector('[data-state="open"]');
+            if (popoverElement) {
+              const trigger = popoverElement.parentElement?.querySelector('[data-radix-trigger]');
+              if (trigger && trigger instanceof HTMLElement) {
+                trigger.click();
+              }
             }
           }
         } catch (error) {

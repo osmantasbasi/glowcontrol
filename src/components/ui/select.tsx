@@ -134,11 +134,25 @@ const SelectItem = React.forwardRef<
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     
     {onToggleFavorite && (
-      <button
+      <div
         onClick={(e) => {
           e.preventDefault(); // Prevent select action
           e.stopPropagation(); // Stop propagation to parent elements
           onToggleFavorite(e);
+          // Prevent the dropdown from closing
+          const dropdownContent = e.currentTarget.closest('[role="listbox"]');
+          if (dropdownContent) {
+            setTimeout(() => {
+              const isOpen = dropdownContent.getAttribute('data-state') === 'open';
+              if (!isOpen) {
+                // Find and click the trigger to reopen if needed
+                const trigger = document.querySelector('[aria-controls="radix-:r0:"]');
+                if (trigger && trigger instanceof HTMLElement) {
+                  trigger.click();
+                }
+              }
+            }, 10);
+          }
         }}
         className="ml-auto flex h-4 w-4 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       >
@@ -148,7 +162,7 @@ const SelectItem = React.forwardRef<
             isFavorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
           )} 
         />
-      </button>
+      </div>
     )}
   </SelectPrimitive.Item>
 ))

@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronRight, Circle, Star } from "lucide-react"
@@ -92,11 +93,13 @@ const DropdownMenuItem = React.forwardRef<
     {children}
     
     {onToggleFavorite && (
-      <button
+      <div
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           onToggleFavorite(e);
+          // Prevent the dropdown from closing
+          e.currentTarget.closest('[data-radix-menu-content]')?.setAttribute('data-stay-open', 'true');
         }}
         className="ml-auto flex h-4 w-4 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       >
@@ -106,7 +109,7 @@ const DropdownMenuItem = React.forwardRef<
             isFavorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
           )} 
         />
-      </button>
+      </div>
     )}
   </DropdownMenuPrimitive.Item>
 ))

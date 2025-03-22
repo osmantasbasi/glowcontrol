@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { cn } from '@/lib/utils';
@@ -68,7 +67,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
 
   const toggleFavorite = (effectId: number, event: React.MouseEvent) => {
     event.stopPropagation();
-    event.preventDefault(); // Add this to prevent default action
+    event.preventDefault(); // Prevent default action
     setFavorites(prev => {
       if (prev.includes(effectId)) {
         return prev.filter(id => id !== effectId);
@@ -76,6 +75,20 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
         return [...prev, effectId];
       }
     });
+    
+    // Prevent the menu from closing by stopping immediate propagation
+    event.nativeEvent.stopImmediatePropagation();
+    
+    // Make sure the dropdown stays open
+    setTimeout(() => {
+      const dropdown = document.querySelector('[role="listbox"]');
+      if (dropdown && dropdown.getAttribute('data-state') !== 'open') {
+        const trigger = document.querySelector('[aria-controls]');
+        if (trigger && trigger instanceof HTMLElement) {
+          trigger.click();
+        }
+      }
+    }, 10);
   };
 
   const filteredAndSortedEffects = useMemo(() => {
@@ -136,7 +149,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
           >
             <Sparkles size={24} className="mb-2 text-cyan-300" />
             <span className="text-xs text-center truncate w-full">{name}</span>
-            <button 
+            <div 
               onClick={(e) => toggleFavorite(id, e)}
               className="absolute top-1 right-1 p-1 rounded-full hover:bg-white/10"
             >
@@ -149,7 +162,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
                     : "text-white/40"
                 )} 
               />
-            </button>
+            </div>
           </button>
         ))}
       </div>
@@ -246,3 +259,4 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
 };
 
 export default EffectSelector;
+
