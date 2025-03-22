@@ -11,6 +11,15 @@ import SegmentTriangles from '@/components/SegmentTriangles';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Segment {
   id: number;
@@ -28,7 +37,6 @@ interface Segment {
   palette: number;
 }
 
-// Predefined color list for triangles (12 colors)
 const TRIANGLE_COLORS = [
   { r: 155, g: 135, b: 245 },  // Primary Purple: #9b87f5
   { r: 217, g: 70, b: 239 },   // Magenta Pink: #D946EF
@@ -89,9 +97,7 @@ const SegmentEditor = () => {
   }, [favoritePalettes]);
 
   useEffect(() => {
-    // Only handle clicks outside of specific UI elements
     const handleDocumentClick = (e: MouseEvent) => {
-      // Don't deselect if we're clicking within UI controls
       const isTriangleClick = (e.target as Element)?.closest('.triangle-wrapper');
       const isControlClick = (e.target as Element)?.closest('button, input, select, .tabs-list, .glass-card');
       
@@ -107,7 +113,6 @@ const SegmentEditor = () => {
     };
   }, []);
 
-  // Assign default colors to triangles based on their index
   useEffect(() => {
     if (segments.length > 0) {
       const updatedSegments = segments.map((segment, index) => {
@@ -137,7 +142,6 @@ const SegmentEditor = () => {
       try {
         if (deviceState) {
           const timeoutId = setTimeout(() => {
-            // Apply color to the selected segment instead of globally
             setSegmentColor(selectedSegment.id, color.r, color.g, color.b);
           }, 50);
           
@@ -159,7 +163,6 @@ const SegmentEditor = () => {
       
       try {
         if (deviceState) {
-          // Apply effect to the selected segment
           setSegmentEffect(selectedSegment.id, effectId);
         }
       } catch (error) {
@@ -364,10 +367,10 @@ const SegmentEditor = () => {
                       }
                     }}
                     className={cn(
-                      "flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg border transition-all text-xs sm:text-sm relative",
+                      "flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg border transition-all text-xs sm:text-sm relative hover:scale-105",
                       selectedSegment?.palette === id
-                        ? "bg-white/20 border-cyan-400 text-white"
-                        : "bg-black/20 border-white/10 text-white/70 hover:bg-white/10 hover:border-white/20"
+                        ? "bg-white/20 border-cyan-400 text-white shadow-lg shadow-cyan-500/20"
+                        : "bg-black/30 border-white/10 text-white/80 hover:bg-black/40 hover:border-white/30"
                     )}
                   >
                     <Palette size={isMobile ? 18 : 24} className="mb-1 sm:mb-2 text-cyan-300" />
@@ -391,18 +394,30 @@ const SegmentEditor = () => {
               </div>
               
               {filteredAndSortedPalettes.length > 20 && (
-                <select
-                  value={selectedSegment?.palette || 0}
-                  onChange={(e) => handlePaletteChange(parseInt(e.target.value))}
-                  className="w-full p-2 rounded bg-black/20 text-sm border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {filteredAndSortedPalettes.map(({ name, id }) => (
-                    <option key={id} value={id}>
-                      {favoritePalettes.includes(id) ? "★ " : ""}{name}
-                    </option>
-                  ))}
-                </select>
+                <div onClick={(e) => e.stopPropagation()} className="relative">
+                  <Select 
+                    value={selectedSegment?.palette?.toString() || "0"}
+                    onValueChange={(value) => handlePaletteChange(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-full bg-black/30 border-white/20 text-white hover:bg-black/40 focus:ring-cyan-400/20">
+                      <SelectValue placeholder="Select a palette" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/90 border-white/10 text-white max-h-80">
+                      <SelectGroup>
+                        <SelectLabel className="text-cyan-300">Palettes</SelectLabel>
+                        {filteredAndSortedPalettes.map(({ name, id }) => (
+                          <SelectItem 
+                            key={id} 
+                            value={id.toString()}
+                            className="hover:bg-white/10 focus:bg-white/10 data-[state=checked]:bg-cyan-900/30 data-[state=checked]:text-cyan-100"
+                          >
+                            {favoritePalettes.includes(id) ? "★ " : ""}{name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
             </div>
           ) : (

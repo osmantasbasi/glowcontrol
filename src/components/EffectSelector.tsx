@@ -1,18 +1,26 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { cn } from '@/lib/utils';
 import { Sparkles, Search, Star } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface EffectSelectorProps {
   className?: string;
   onEffectSelect?: (effectId: number) => void;
-  selectedSegmentId?: number | null; // Add selected segment ID prop
+  selectedSegmentId?: number | null;
 }
 
 const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSelect, selectedSegmentId }) => {
-  const { deviceState, deviceInfo, setEffect, setSegmentEffect } = useWLED(); // Add setSegmentEffect
+  const { deviceState, deviceInfo, setEffect, setSegmentEffect } = useWLED();
   const [searchTerm, setSearchTerm] = useState('');
   const [favorites, setFavorites] = useState<number[]>(() => {
     try {
@@ -36,10 +44,8 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
     if (onEffectSelect) {
       onEffectSelect(effectId);
     } else if (selectedSegmentId !== undefined && selectedSegmentId !== null) {
-      // Apply effect to selected segment
       setSegmentEffect(selectedSegmentId, effectId);
     } else {
-      // Fall back to global effect if no segment selected
       setEffect(effectId);
     }
   };
@@ -58,14 +64,12 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
   const filteredAndSortedEffects = useMemo(() => {
     if (!deviceInfo?.effects || deviceInfo.effects.length === 0) return [];
     
-    // First, filter based on search term
     const filtered = searchTerm 
       ? deviceInfo.effects
           .map((effect, index) => ({ name: effect, id: index }))
           .filter(effect => effect.name.toLowerCase().includes(searchTerm.toLowerCase()))
       : deviceInfo.effects.map((effect, index) => ({ name: effect, id: index }));
     
-    // Then sort - favorites first, then alphabetically
     return filtered.sort((a, b) => {
       const aIsFavorite = favorites.includes(a.id);
       const bIsFavorite = favorites.includes(b.id);
@@ -106,11 +110,11 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
               handleEffectClick(id);
             }}
             className={cn(
-              "flex flex-col items-center justify-center p-3 rounded-lg border transition-all relative",
+              "flex flex-col items-center justify-center p-3 rounded-lg border transition-all relative hover:scale-105",
               (selectedSegmentId !== null && deviceState?.segments?.find(s => s.id === selectedSegmentId)?.fx === id) || 
                 (selectedSegmentId === null && deviceState?.effect === id)
-                ? "bg-white/20 border-cyan-400 text-white"
-                : "bg-black/20 border-white/10 text-white/70 hover:bg-white/10 hover:border-white/20"
+                ? "bg-white/20 border-cyan-400 text-white shadow-lg shadow-cyan-500/20"
+                : "bg-black/30 border-white/10 text-white/80 hover:bg-black/40 hover:border-white/30"
             )}
           >
             <Sparkles size={24} className="mb-2 text-cyan-300" />
@@ -134,20 +138,32 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
       </div>
       
       {filteredAndSortedEffects.length > 20 && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <select
-            value={selectedSegmentId !== null && deviceState?.segments ? 
-              deviceState.segments.find(s => s.id === selectedSegmentId)?.fx || 0 :
-              deviceState?.effect || 0}
-            onChange={(e) => handleEffectClick(parseInt(e.target.value))}
-            className="w-full p-2 rounded bg-black/20 text-sm border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
+        <div onClick={(e) => e.stopPropagation()} className="relative">
+          <Select 
+            value={selectedSegmentId !== null && deviceState?.segments 
+              ? deviceState.segments.find(s => s.id === selectedSegmentId)?.fx.toString() || "0"
+              : deviceState?.effect?.toString() || "0"
+            }
+            onValueChange={(value) => handleEffectClick(parseInt(value))}
           >
-            {filteredAndSortedEffects.map(({ name, id }) => (
-              <option key={id} value={id}>
-                {favorites.includes(id) ? "★ " : ""}{name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full bg-black/30 border-white/20 text-white hover:bg-black/40 focus:ring-cyan-400/20">
+              <SelectValue placeholder="Select an effect" />
+            </SelectTrigger>
+            <SelectContent className="bg-black/90 border-white/10 text-white max-h-80">
+              <SelectGroup>
+                <SelectLabel className="text-cyan-300">Effects</SelectLabel>
+                {filteredAndSortedEffects.map(({ name, id }) => (
+                  <SelectItem 
+                    key={id} 
+                    value={id.toString()}
+                    className="hover:bg-white/10 focus:bg-white/10 data-[state=checked]:bg-cyan-900/30 data-[state=checked]:text-cyan-100"
+                  >
+                    {favorites.includes(id) ? "★ " : ""}{name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       )}
     </div>
