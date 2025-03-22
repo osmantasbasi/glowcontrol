@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu"
 import { Check, ChevronRight, Circle, Star } from "lucide-react"
@@ -92,6 +91,7 @@ const ContextMenuItem = React.forwardRef<
     {onToggleFavorite && (
       <button
         onClick={(e) => {
+          e.preventDefault();
           e.stopPropagation();
           onToggleFavorite(e);
         }}

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { cn } from '@/lib/utils';
@@ -67,6 +68,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({
 
   const toggleFavorite = (effectId: number, event: React.MouseEvent) => {
     event.stopPropagation();
+    event.preventDefault(); // Add this to prevent default action
     setFavorites(prev => {
       if (prev.includes(effectId)) {
         return prev.filter(id => id !== effectId);

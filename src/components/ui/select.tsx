@@ -136,7 +136,8 @@ const SelectItem = React.forwardRef<
     {onToggleFavorite && (
       <button
         onClick={(e) => {
-          e.stopPropagation();
+          e.preventDefault(); // Prevent select action
+          e.stopPropagation(); // Stop propagation to parent elements
           onToggleFavorite(e);
         }}
         className="ml-auto flex h-4 w-4 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"

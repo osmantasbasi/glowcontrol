@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronRight, Circle, Star } from "lucide-react"
@@ -95,6 +94,7 @@ const DropdownMenuItem = React.forwardRef<
     {onToggleFavorite && (
       <button
         onClick={(e) => {
+          e.preventDefault();
           e.stopPropagation();
           onToggleFavorite(e);
         }}
