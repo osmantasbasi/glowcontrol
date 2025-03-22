@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
 import { loadConfiguration, saveConfiguration } from '../services/configService';
@@ -46,6 +46,9 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const [deviceInfo, setDeviceInfo] = useState<WLEDInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [pollingInterval, setPollingInterval] = useState<number | null>(null);
+  const [pendingChanges, setPendingChanges] = useState<boolean>(false);
+  const configLoaded = useRef<boolean>(false);
+  const lastSaveTime = useRef<number>(0);
 
   useEffect(() => {
     const savedDevices = localStorage.getItem('wledDevices');
@@ -69,9 +72,10 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // Set up polling for device state every second
+  // Set up periodic update mechanism
   useEffect(() => {
     if (activeDevice && activeDevice.connected) {
+      // Clear any existing intervals
       if (pollingInterval) {
         clearInterval(pollingInterval);
       }
@@ -79,7 +83,14 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       // Initial fetch
       fetchDeviceState();
       
-      const intervalId = window.setInterval(fetchDeviceState, 1000);
+      // Set up interval for periodic updates
+      const intervalId = window.setInterval(() => {
+        if (pendingChanges) {
+          sendPendingChanges();
+          setPendingChanges(false);
+        }
+        fetchDeviceState();
+      }, 1000);
       
       setPollingInterval(intervalId);
       
@@ -88,7 +99,39 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         setPollingInterval(null);
       };
     }
-  }, [activeDevice]);
+  }, [activeDevice, pendingChanges]);
+
+  const sendPendingChanges = async () => {
+    if (!activeDevice || !deviceState) return;
+    
+    try {
+      // Send the device state to the API
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          seg: deviceState.segments || []
+        }),
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to send pending changes');
+      } else {
+        console.log('Sent pending changes to device');
+        
+        // Save configuration after successful update
+        const currentTime = Date.now();
+        if (currentTime - lastSaveTime.current > 2000) { // Prevent saving too frequently
+          saveConfig();
+          lastSaveTime.current = currentTime;
+        }
+      }
+    } catch (error) {
+      console.error('Error sending pending changes:', error);
+    }
+  };
 
   const fetchDeviceState = async () => {
     if (!activeDevice) return;
@@ -116,7 +159,10 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           segments: data.state.seg || [],
         };
         
-        setDeviceState(state);
+        // Only update state if we have loaded configuration or if this is the first load
+        if (configLoaded.current || !deviceState) {
+          setDeviceState(state);
+        }
       }
       
       // Update info if available
@@ -141,6 +187,18 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   };
 
+  // Save configuration helper function
+  const saveConfig = () => {
+    if (activeDevice && deviceState) {
+      saveConfiguration(activeDevice.ipAddress, {
+        segments: deviceState.segments || [],
+        deviceState,
+        deviceInfo: deviceInfo || null
+      });
+      console.log('Configuration saved at', new Date().toISOString());
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem('wledDevices', JSON.stringify(devices));
   }, [devices]);
@@ -150,6 +208,13 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       localStorage.setItem('activeWledDevice', activeDevice.id);
     }
   }, [activeDevice]);
+
+  // Mark changes as pending when device state changes
+  useEffect(() => {
+    if (deviceState && configLoaded.current) {
+      setPendingChanges(true);
+    }
+  }, [deviceState?.segments]);
 
   const addDevice = (name: string, ipAddress: string) => {
     const newDevice: WLEDDevice = {
@@ -188,6 +253,7 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const handleSetActiveDevice = async (id: string) => {
     try {
       setIsLoading(true);
+      configLoaded.current = false;
       
       const device = devices.find(d => d.id === id);
       if (!device) throw new Error('Device not found');
@@ -259,15 +325,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           ...state,
           segments: prev?.segments || []
         }));
-        
-        // Whenever state changes, save the configuration
-        if (device && state) {
-          saveConfiguration(device.ipAddress, {
-            segments: state.segments || [],
-            deviceState: state,
-            deviceInfo: deviceInfo || null
-          });
-        }
       });
       
       setDevices(prev => 
@@ -275,6 +332,9 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           d.id === id ? { ...d, connected: true } : d
         )
       );
+      
+      // Mark config as loaded now
+      configLoaded.current = true;
       
       toast.success(`Connected to ${device.name}`);
     } catch (error) {
