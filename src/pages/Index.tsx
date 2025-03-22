@@ -11,6 +11,7 @@ import SegmentTriangles from '@/components/SegmentTriangles';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
+import ColorSlotSelector from '@/components/ColorSlotSelector';
 import {
   Select,
   SelectContent,
@@ -58,6 +59,7 @@ const SegmentEditor = () => {
   const [activeTab, setActiveTab] = useState<string>('segments');
   const isMobile = useIsMobile();
   const [paletteSearchTerm, setPaletteSearchTerm] = useState('');
+  const [selectedColorSlot, setSelectedColorSlot] = useState<number>(0);
   const [favoritePalettes, setFavoritePalettes] = useState<number[]>(() => {
     try {
       const savedFavorites = localStorage.getItem('wledFavoritePalettes');
@@ -133,16 +135,39 @@ const SegmentEditor = () => {
     setCurrentColor(color);
     
     if (selectedSegment) {
+      const segmentColors = [...Array(3)].map((_, i) => {
+        if (i === selectedColorSlot) {
+          return color;
+        } else {
+          const existingSegment = segments.find(s => s.id === selectedSegment.id);
+          return i === 0 ? existingSegment?.color : 
+                 i === 1 ? existingSegment?.color2 : 
+                 i === 2 ? existingSegment?.color3 : 
+                 { r: 0, g: 0, b: 0 };
+        }
+      });
+      
       setSegments(segments.map(seg => 
         seg.id === selectedSegment.id 
-          ? { ...seg, color } 
+          ? { 
+              ...seg, 
+              color: segmentColors[0],
+              color2: segmentColors[1], 
+              color3: segmentColors[2]
+            } 
           : seg
       ));
       
       try {
         if (deviceState) {
           const timeoutId = setTimeout(() => {
-            setSegmentColor(selectedSegment.id, color.r, color.g, color.b);
+            setSegmentColor(
+              selectedSegment.id, 
+              color.r, 
+              color.g, 
+              color.b, 
+              selectedColorSlot
+            );
           }, 50);
           
           return () => clearTimeout(timeoutId);
@@ -279,6 +304,32 @@ const SegmentEditor = () => {
     });
   }, [deviceInfo?.palettes, paletteSearchTerm, favoritePalettes]);
 
+  const getSelectedSegmentColors = () => {
+    if (!selectedSegment) return [
+      { r: 255, g: 255, b: 255 },
+      { r: 0, g: 0, b: 0 },
+      { r: 0, g: 0, b: 0 }
+    ];
+    
+    const segment = segments.find(s => s.id === selectedSegment.id);
+    return [
+      segment?.color || { r: 255, g: 255, b: 255 },
+      segment?.color2 || { r: 0, g: 0, b: 0 },
+      segment?.color3 || { r: 0, g: 0, b: 0 }
+    ];
+  };
+
+  const getCurrentSlotColor = () => {
+    if (!selectedSegment) return currentColor;
+    
+    const segment = segments.find(s => s.id === selectedSegment.id);
+    if (!segment) return currentColor;
+    
+    return selectedColorSlot === 0 ? segment.color :
+           selectedColorSlot === 1 ? segment.color2 || { r: 0, g: 0, b: 0 } :
+           segment.color3 || { r: 0, g: 0, b: 0 };
+  };
+
   return (
     <div className="glass-card overflow-hidden animate-fade-in mt-4 sm:mt-8">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -329,11 +380,25 @@ const SegmentEditor = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="text-center text-xs sm:text-sm text-white/70 mb-2 sm:mb-4">
-            {selectedSegment ? "Select a color to apply to the selected triangle" : "Select a triangle first, then pick a color to apply"}
+            {selectedSegment 
+              ? "Select a color slot and color to apply to the selected triangle" 
+              : "Select a triangle first, then pick a color slot and color"
+            }
           </div>
+          
+          {selectedSegment && (
+            <div className="mb-4">
+              <ColorSlotSelector
+                selectedSlot={selectedColorSlot}
+                onSelectSlot={setSelectedColorSlot}
+                slotColors={getSelectedSegmentColors()}
+              />
+            </div>
+          )}
+          
           <div className="flex flex-col items-center pointer-events-auto">
             <ColorPicker 
-              color={selectedSegment?.color || currentColor}
+              color={getCurrentSlotColor()}
               onChange={handleColorChange} 
               className="w-full max-w-[300px]"
             />
@@ -552,4 +617,3 @@ const Index = () => {
 };
 
 export default Index;
-

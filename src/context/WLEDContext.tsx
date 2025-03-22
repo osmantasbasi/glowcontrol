@@ -455,27 +455,22 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
     
     try {
-      const payload: any = {
+      // Get current segment data to preserve other color slots
+      const state = await getWledApi().getState();
+      const segment = state.segments?.find(s => s.id === segmentId);
+      
+      // Initialize colors array, preserving existing colors
+      const colors = segment?.col ? [...segment.col] : [[0,0,0],[0,0,0],[0,0,0]];
+      
+      // Update only the specified color slot
+      colors[slot] = [r, g, b];
+      
+      const payload = {
         seg: [{
           id: segmentId,
-          col: []
+          col: colors
         }]
       };
-      
-      // Create all color slots up to the one we're setting
-      for (let i = 0; i <= slot; i++) {
-        if (i === slot) {
-          payload.seg[0].col[i] = [r, g, b];
-        } else if (i < slot) {
-          // Keep existing colors or set to black if they don't exist
-          const segment = deviceState?.segments?.find(s => s.id === segmentId);
-          if (segment && segment.col && segment.col[i]) {
-            payload.seg[0].col[i] = segment.col[i];
-          } else {
-            payload.seg[0].col[i] = [0, 0, 0];
-          }
-        }
-      }
       
       const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
         method: 'POST',
@@ -492,11 +487,9 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         const updatedSegments = deviceState.segments.map(seg => {
           if (seg.id === segmentId) {
             const newCol = [...(seg.col || [])];
-            if (!newCol[slot]) {
-              // Ensure the array has enough elements
-              while (newCol.length <= slot) {
-                newCol.push([0, 0, 0]);
-              }
+            // Ensure the array has enough elements
+            while (newCol.length <= slot) {
+              newCol.push([0, 0, 0]);
             }
             newCol[slot] = [r, g, b];
             return { ...seg, col: newCol };
