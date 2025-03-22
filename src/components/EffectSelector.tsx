@@ -80,13 +80,14 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-4 pointer-events-auto", className)}>
       <div className="relative">
         <Input
           placeholder="Search effects..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="bg-black/20 border-white/10 text-white placeholder:text-white/50 pl-8"
+          onClick={(e) => e.stopPropagation()}
         />
         <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/50" size={16} />
       </div>
@@ -95,7 +96,10 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
         {filteredAndSortedEffects.slice(0, 20).map(({ name, id }) => (
           <button
             key={id}
-            onClick={() => handleEffectClick(id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEffectClick(id);
+            }}
             className={cn(
               "flex flex-col items-center justify-center p-3 rounded-lg border transition-all relative",
               deviceState?.effect === id
@@ -124,7 +128,7 @@ const EffectSelector: React.FC<EffectSelectorProps> = ({ className, onEffectSele
       </div>
       
       {filteredAndSortedEffects.length > 20 && (
-        <div>
+        <div onClick={(e) => e.stopPropagation()}>
           <select
             value={deviceState?.effect || 0}
             onChange={(e) => handleEffectClick(parseInt(e.target.value))}

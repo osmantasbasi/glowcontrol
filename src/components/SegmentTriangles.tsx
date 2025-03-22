@@ -830,113 +830,69 @@ const SegmentTriangles: React.FC<SegmentTrianglesProps> = ({
           </div>
           
           <div className="p-3 overflow-y-auto max-h-[60vh] space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <h4 className="text-xs font-medium text-white/70">Colors</h4>
-                <div className="flex gap-1">
-                  <button 
-                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 0 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
-                    style={{backgroundColor: `rgb(${selectedSegment.color?.r || 0}, ${selectedSegment.color?.g || 0}, ${selectedSegment.color?.b || 0})`}}
-                    onClick={() => setActiveColorSlot(0)}
-                  />
-                  <button 
-                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 1 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
-                    style={{backgroundColor: selectedSegment.color2 ? 
-                      `rgb(${selectedSegment.color2.r || 0}, ${selectedSegment.color2.g || 0}, ${selectedSegment.color2.b || 0})` : 
-                      'rgba(255, 255, 255, 0.1)'
-                    }}
-                    onClick={() => {
-                      if (!selectedSegment.color2) {
-                        setSegments(segments.map(seg => 
-                          seg.id === selectedSegment.id 
-                            ? { ...seg, color2: {r: 0, g: 127, b: 255} } 
-                            : seg
-                        ));
-                        setSelectedSegment({
-                          ...selectedSegment,
-                          color2: {r: 0, g: 127, b: 255}
-                        });
-                        
-                        setSegmentColor(selectedSegment.id, 0, 127, 255, 1);
-                      }
-                      setActiveColorSlot(1);
-                    }}
-                  />
-                  <button 
-                    className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 2 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
-                    style={{backgroundColor: selectedSegment.color3 ? 
-                      `rgb(${selectedSegment.color3.r || 0}, ${selectedSegment.color3.g || 0}, ${selectedSegment.color3.b || 0})` : 
-                      'rgba(255, 255, 255, 0.1)'
-                    }}
-                    onClick={() => {
-                      if (!selectedSegment.color3) {
-                        setSegments(segments.map(seg => 
-                          seg.id === selectedSegment.id 
-                            ? { ...seg, color3: {r: 255, g: 0, b: 127} } 
-                            : seg
-                        ));
-                        setSelectedSegment({
-                          ...selectedSegment,
-                          color3: {r: 255, g: 0, b: 127}
-                        });
-                        
-                        setSegmentColor(selectedSegment.id, 255, 0, 127, 2);
-                      }
-                      setActiveColorSlot(2);
-                    }}
-                  />
-                </div>
-                
-                <ColorPicker
-                  color={activeColorSlot === 0 ? (selectedSegment.color || {r: 255, g: 0, b: 0}) : 
-                        activeColorSlot === 1 ? (selectedSegment.color2 || {r: 0, g: 255, b: 0}) : 
-                        (selectedSegment.color3 || {r: 0, g: 0, b: 255})}
-                  onChange={(color) => handleColorChange(color, activeColorSlot)}
-                  className="w-full"
+            <div className="space-y-1">
+              <h4 className="text-xs font-medium text-white/70">Colors</h4>
+              <div className="flex gap-1">
+                <button 
+                  className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 0 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
+                  style={{backgroundColor: `rgb(${selectedSegment.color?.r || 0}, ${selectedSegment.color?.g || 0}, ${selectedSegment.color?.b || 0})`}}
+                  onClick={() => setActiveColorSlot(0)}
+                />
+                <button 
+                  className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 1 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
+                  style={{backgroundColor: selectedSegment.color2 ? 
+                    `rgb(${selectedSegment.color2.r || 0}, ${selectedSegment.color2.g || 0}, ${selectedSegment.color2.b || 0})` : 
+                    'rgba(255, 255, 255, 0.1)'
+                  }}
+                  onClick={() => {
+                    if (!selectedSegment.color2) {
+                      setSegments(segments.map(seg => 
+                        seg.id === selectedSegment.id 
+                          ? { ...seg, color2: {r: 0, g: 127, b: 255} } 
+                          : seg
+                      ));
+                      setSelectedSegment({
+                        ...selectedSegment,
+                        color2: {r: 0, g: 127, b: 255}
+                      });
+                      
+                      setSegmentColor(selectedSegment.id, 0, 127, 255, 1);
+                    }
+                    setActiveColorSlot(1);
+                  }}
+                />
+                <button 
+                  className={`w-6 h-6 rounded-md cursor-pointer ${activeColorSlot === 2 ? 'ring-1 ring-cyan-400' : 'ring-1 ring-white/20'}`}
+                  style={{backgroundColor: selectedSegment.color3 ? 
+                    `rgb(${selectedSegment.color3.r || 0}, ${selectedSegment.color3.g || 0}, ${selectedSegment.color3.b || 0})` : 
+                    'rgba(255, 255, 255, 0.1)'
+                  }}
+                  onClick={() => {
+                    if (!selectedSegment.color3) {
+                      setSegments(segments.map(seg => 
+                        seg.id === selectedSegment.id 
+                          ? { ...seg, color3: {r: 255, g: 0, b: 127} } 
+                          : seg
+                      ));
+                      setSelectedSegment({
+                        ...selectedSegment,
+                        color3: {r: 255, g: 0, b: 127}
+                      });
+                      
+                      setSegmentColor(selectedSegment.id, 255, 0, 127, 2);
+                    }
+                    setActiveColorSlot(2);
+                  }}
                 />
               </div>
               
-              <div className="space-y-2">
-                <div className="space-y-1">
-                  <h4 className="text-xs font-medium text-white/70">Effect</h4>
-                  <select
-                    value={selectedSegment.effect || 0}
-                    onChange={(e) => {
-                      const effectId = parseInt(e.target.value);
-                      handleEffectChange(effectId);
-                    }}
-                    className="w-full p-1 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                  >
-                    {deviceInfo?.effects?.map((effect, index) => (
-                      <option key={index} value={index}>
-                        {effect}
-                      </option>
-                    )) || (
-                      <option value={0}>Solid</option>
-                    )}
-                  </select>
-                </div>
-                
-                <div className="space-y-1">
-                  <h4 className="text-xs font-medium text-white/70">Palette</h4>
-                  <select
-                    value={selectedSegment.palette || 0}
-                    onChange={(e) => {
-                      const paletteId = parseInt(e.target.value);
-                      handlePaletteChange(paletteId);
-                    }}
-                    className="w-full p-1 rounded bg-black/20 text-xs border border-white/10 focus:ring-1 focus:ring-cyan-300 focus:border-cyan-300"
-                  >
-                    {deviceInfo?.palettes?.map((palette, index) => (
-                      <option key={index} value={index}>
-                        {palette}
-                      </option>
-                    )) || (
-                      <option value={0}>Default</option>
-                    )}
-                  </select>
-                </div>
-              </div>
+              <ColorPicker
+                color={activeColorSlot === 0 ? (selectedSegment.color || {r: 255, g: 0, b: 0}) : 
+                      activeColorSlot === 1 ? (selectedSegment.color2 || {r: 0, g: 255, b: 0}) : 
+                      (selectedSegment.color3 || {r: 0, g: 0, b: 255})}
+                onChange={(color) => handleColorChange(color, activeColorSlot)}
+                className="w-full"
+              />
             </div>
           
             <div className="space-y-1">
