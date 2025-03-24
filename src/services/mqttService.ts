@@ -28,12 +28,24 @@ if (typeof globalThis === 'undefined') {
         }
       }
       
-      // Explicitly ensure Buffer.from exists
+      // Explicitly ensure Buffer.from exists with comprehensive implementation
       if (!window.Buffer || typeof window.Buffer.from !== 'function') {
         console.log('Buffer.from missing in MQTT service, creating it');
         if (window.Buffer) {
           window.Buffer.from = function(data, encoding) {
-            return new window.Buffer(data, encoding);
+            if (typeof data === 'string') {
+              return new window.Buffer(data, encoding);
+            } else if (data instanceof Uint8Array) {
+              const buf = new window.Buffer(data.length);
+              for (let i = 0; i < data.length; i++) {
+                buf[i] = data[i];
+              }
+              return buf;
+            } else if (Array.isArray(data)) {
+              return new window.Buffer(data);
+            } else {
+              return new window.Buffer(data || 0);
+            }
           };
         } else {
           console.error('Cannot create Buffer.from - Buffer not available');
@@ -45,10 +57,13 @@ if (typeof globalThis === 'undefined') {
         throw new Error('Buffer.from is still not available after initialization in MQTT service');
       }
       
-      // Test Buffer.from functionality
+      // Test Buffer.from functionality with detailed logging
       console.log('MQTT Service - Buffer.from available:', typeof window.Buffer.from === 'function');
       const testBuffer = window.Buffer.from('test');
-      console.log('Buffer.from test in MQTT service:', testBuffer instanceof Uint8Array);
+      console.log('Buffer.from test in MQTT service:', 
+        testBuffer instanceof Uint8Array, 
+        'Length:', testBuffer.length, 
+        'Content:', Array.from(testBuffer).toString());
       
       // Make Buffer globally available
       if (typeof globalThis !== 'undefined' && !globalThis.Buffer) {
@@ -59,6 +74,35 @@ if (typeof globalThis === 'undefined') {
     }
   }
 })();
+
+// Create a mock Buffer.from if it still doesn't exist after all our efforts
+if (typeof Buffer === 'undefined' || !Buffer.from) {
+  const BufferShim = {
+    from: function(data, encoding) {
+      console.log('Using BufferShim.from');
+      
+      if (typeof data === 'string') {
+        // Simple string to Uint8Array conversion
+        const encoded = new TextEncoder().encode(data);
+        return encoded;
+      } else if (data instanceof Uint8Array) {
+        return data;
+      } else if (Array.isArray(data)) {
+        return new Uint8Array(data);
+      }
+      return new Uint8Array(0);
+    }
+  };
+  
+  // Apply the shim if needed
+  if (typeof Buffer === 'undefined') {
+    (window as any).Buffer = BufferShim;
+    console.log('Applied Buffer shim');
+  } else if (!Buffer.from) {
+    Buffer.from = BufferShim.from;
+    console.log('Applied Buffer.from shim');
+  }
+}
 
 // Only proceed with imports after Buffer is initialized
 import mqtt from 'mqtt';

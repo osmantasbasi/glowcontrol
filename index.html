@@ -13,36 +13,58 @@
       // Ensure we have global objects needed by polyfills
       window.process = window.process || { env: {} };
     </script>
-    <!-- Use the specific Buffer polyfill version from the buffer package -->
+    <!-- Use the buffer polyfill -->
     <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
+    <!-- Explicitly initialize Buffer immediately -->
     <script>
       (function ensureBufferImmediately() {
         try {
-          // Explicitly set global Buffer from the polyfill
+          // Force Buffer initialization from the polyfill
           if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
             window.Buffer = window.buffer.Buffer;
             
-            // Make sure Buffer.from is available
+            // Make sure Buffer.from is available and is a function
             if (typeof window.Buffer.from !== 'function') {
-              console.error('Buffer.from missing after initial setup');
-              // Create Buffer.from if it doesn't exist
+              console.warn('Buffer.from missing, creating polyfill');
+              
+              // Create Buffer.from polyfill if needed
               window.Buffer.from = function(data, encoding) {
-                return new window.Buffer(data, encoding);
+                if (typeof data === 'string') {
+                  // Handle string conversion
+                  return new window.Buffer(data, encoding);
+                } else if (data instanceof Uint8Array) {
+                  // Handle Uint8Array conversion
+                  const buf = new window.Buffer(data.length);
+                  for (let i = 0; i < data.length; i++) {
+                    buf[i] = data[i];
+                  }
+                  return buf;
+                } else if (Array.isArray(data)) {
+                  // Handle array conversion
+                  return new window.Buffer(data);
+                } else {
+                  // Default fallback
+                  return new window.Buffer(data || 0);
+                }
               };
             }
-            
-            console.log('✓ Buffer.from properly initialized in head script');
             
             // Test Buffer.from to verify it works
             try {
               var testBuffer = window.Buffer.from('test');
-              console.log('✓ Buffer.from test successful in head:', testBuffer instanceof Uint8Array);
+              console.log('✓ Buffer.from test successful in head:', 
+                testBuffer instanceof Uint8Array, 
+                'Content:', Array.from(testBuffer).toString());
             } catch (e) {
               console.error('Buffer.from test failed in head:', e);
             }
           } else {
             console.error('buffer polyfill not loaded properly');
           }
+          
+          // Explicitly expose Buffer to global scope
+          window.globalThis = window.globalThis || window;
+          window.globalThis.Buffer = window.Buffer;
         } catch (e) {
           console.error('Error in Buffer setup:', e);
         }
