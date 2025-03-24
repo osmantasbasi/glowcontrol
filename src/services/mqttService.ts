@@ -1,3 +1,4 @@
+
 import mqtt, { MqttClient, IClientOptions } from 'mqtt';
 import { toast } from 'sonner';
 
@@ -13,7 +14,7 @@ const defaultOptions: IClientOptions = {
 };
 
 // Default broker URL - always use localhost:1883
-const DEFAULT_BROKER_URL = 'mqtt://localhost:1883';
+const DEFAULT_BROKER_URL = 'ws://localhost:9001'; // Try WebSocket connection instead of direct TCP/MQTT
 
 // Custom event type for connection status changes
 type ConnectionStatusListener = (connected: boolean) => void;
@@ -27,6 +28,7 @@ class MqttService {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   private connectionStatusListeners: ConnectionStatusListener[] = [];
+  private lastError: string | null = null;
   
   // Add a connection status listener
   addConnectionStatusListener(listener: ConnectionStatusListener): void {
@@ -43,11 +45,19 @@ class MqttService {
     this.connectionStatusListeners.forEach(listener => listener(connected));
   }
   
-  // Connect to MQTT broker - always use localhost:1883
+  // Get last error
+  getLastError(): string | null {
+    return this.lastError;
+  }
+  
+  // Connect to MQTT broker - try both localhost:1883 and WebSocket
   connect(brokerUrl: string = DEFAULT_BROKER_URL, clientId: string, options: IClientOptions = {}): Promise<boolean> {
     return new Promise((resolve) => {
+      // Reset the last error
+      this.lastError = null;
+      
       // Save the connection details for potential reconnection
-      this.brokerUrl = DEFAULT_BROKER_URL; // Always use localhost
+      this.brokerUrl = DEFAULT_BROKER_URL; // Default to WebSocket
       this.clientId = clientId;
       this.connectOptions = { ...options };
       this.reconnectAttempts = 0;
@@ -58,18 +68,21 @@ class MqttService {
       }
       
       try {
-        // Create connection with merged options and custom client ID
+        // Try to connect with WebSocket first
         const mqttOptions = { 
           ...defaultOptions, 
           ...options,
-          clientId: clientId || defaultOptions.clientId // Use provided client ID or generate one
+          clientId: clientId || defaultOptions.clientId, // Use provided client ID or generate one
+          reconnectPeriod: 0 // Disable automatic reconnection to handle it manually
         };
         
+        console.log(`Attempting to connect to MQTT broker at ${DEFAULT_BROKER_URL}`);
         this.client = mqtt.connect(DEFAULT_BROKER_URL, mqttOptions);
         
         // Set up event handlers
         this.client.on('connect', () => {
           this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+          this.lastError = null;
           toast.success('Connected to MQTT broker');
           this.notifyConnectionStatusChange(true);
           resolve(true);
@@ -77,10 +90,36 @@ class MqttService {
         
         this.client.on('error', (err) => {
           console.error('MQTT connection error:', err);
+          this.lastError = err.message;
           toast.error(`MQTT error: ${err.message}`);
           if (!this.client?.connected) {
             this.notifyConnectionStatusChange(false);
-            resolve(false);
+            
+            // If WebSocket fails, try direct MQTT
+            if (DEFAULT_BROKER_URL.startsWith('ws') && this.reconnectAttempts === 0) {
+              console.log('WebSocket connection failed, trying direct MQTT connection...');
+              this.client?.end(true);
+              this.client = mqtt.connect('mqtt://localhost:1883', mqttOptions);
+              
+              // Set up event handlers for the new connection
+              this.client.on('connect', () => {
+                this.reconnectAttempts = 0;
+                this.lastError = null;
+                toast.success('Connected to MQTT broker');
+                this.notifyConnectionStatusChange(true);
+                resolve(true);
+              });
+              
+              this.client.on('error', (err) => {
+                console.error('Direct MQTT connection error:', err);
+                this.lastError = err.message;
+                toast.error(`MQTT error: ${err.message}. Check if the broker is running and accessible.`);
+                this.notifyConnectionStatusChange(false);
+                resolve(false);
+              });
+            } else {
+              resolve(false);
+            }
           }
         });
         
@@ -99,18 +138,6 @@ class MqttService {
           this.notifyConnectionStatusChange(false);
         });
         
-        this.client.on('reconnect', () => {
-          this.reconnectAttempts++;
-          if (this.reconnectAttempts <= this.maxReconnectAttempts) {
-            toast.info(`Reconnecting to MQTT broker (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-          } else if (this.reconnectAttempts === this.maxReconnectAttempts + 1) {
-            // Only show this message once
-            toast.error(`Failed to reconnect after ${this.maxReconnectAttempts} attempts`);
-            this.client?.end(true); // Force disconnect
-            this.notifyConnectionStatusChange(false);
-          }
-        });
-        
         this.client.on('close', () => {
           console.log('MQTT connection closed');
           this.notifyConnectionStatusChange(false);
@@ -118,11 +145,13 @@ class MqttService {
         
         this.client.on('offline', () => {
           console.log('MQTT client is offline');
+          this.lastError = 'Connection lost';
           toast.error('MQTT broker connection lost');
           this.notifyConnectionStatusChange(false);
         });
       } catch (error) {
         console.error('Failed to connect to MQTT broker:', error);
+        this.lastError = (error as Error).message;
         toast.error(`Failed to connect: ${(error as Error).message}`);
         this.notifyConnectionStatusChange(false);
         resolve(false);
@@ -132,12 +161,14 @@ class MqttService {
   
   // Manual reconnect method
   reconnect(): Promise<boolean> {
-    if (this.brokerUrl && this.clientId) {
+    if (this.clientId) {
       this.reconnectAttempts = 0; // Reset reconnect attempts for manual reconnection
+      toast.info('Attempting to reconnect to MQTT broker...');
       return this.connect(this.brokerUrl, this.clientId, this.connectOptions);
     } else {
-      toast.error('Cannot reconnect: No previous connection details available');
-      return Promise.resolve(false);
+      const randomClientId = `glowcontrol_${Math.random().toString(16).substring(2, 10)}`;
+      toast.info(`Connecting with generated client ID: ${randomClientId}`);
+      return this.connect(this.brokerUrl, randomClientId, this.connectOptions);
     }
   }
   

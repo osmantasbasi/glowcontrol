@@ -12,30 +12,51 @@ interface MqttStatusIndicatorProps {
 const MqttStatusIndicator: React.FC<MqttStatusIndicatorProps> = ({ className }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [clientId, setClientId] = useState<string>('');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   
   useEffect(() => {
     // Initial check
     setIsConnected(mqttService.isConnected());
     setClientId(mqttService.getClientId());
+    setConnectionError(mqttService.getLastError());
+    
+    // Set up status listener
+    const statusListener = (connected: boolean) => {
+      setIsConnected(connected);
+      setClientId(mqttService.getClientId());
+      setConnectionError(mqttService.getLastError());
+    };
+    
+    mqttService.addConnectionStatusListener(statusListener);
     
     // Set up an interval to periodically check connection status
     const checkInterval = setInterval(() => {
       setIsConnected(mqttService.isConnected());
       setClientId(mqttService.getClientId());
+      setConnectionError(mqttService.getLastError());
     }, 2000);
     
-    return () => clearInterval(checkInterval);
+    return () => {
+      clearInterval(checkInterval);
+      mqttService.removeConnectionStatusListener(statusListener);
+    };
   }, []);
+  
+  const handleReconnect = () => {
+    mqttService.reconnect();
+  };
   
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <div className={cn(
-            "flex items-center gap-2 p-2 rounded-full transition-all duration-300",
+            "flex items-center gap-2 p-2 rounded-full transition-all duration-300 cursor-pointer",
             isConnected ? "bg-green-500/20" : "bg-red-500/20",
             className
-          )}>
+          )}
+          onClick={handleReconnect}
+          >
             {isConnected ? (
               <Wifi size={16} className="text-green-400" />
             ) : (
@@ -50,7 +71,9 @@ const MqttStatusIndicator: React.FC<MqttStatusIndicatorProps> = ({ className }) 
           <p>
             {isConnected 
               ? `Connected to MQTT broker (${clientId})` 
-              : "Not connected to MQTT broker"}
+              : connectionError 
+                ? `MQTT error: ${connectionError}. Click to reconnect.`
+                : "Not connected to MQTT broker. Click to reconnect."}
           </p>
         </TooltipContent>
       </Tooltip>

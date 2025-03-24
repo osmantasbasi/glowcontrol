@@ -29,6 +29,7 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
   const [newDeviceClientId, setNewDeviceClientId] = useState('');
   const [devicesWithConfig, setDevicesWithConfig] = useState<Record<string, boolean>>({});
   const [showMqttConnect, setShowMqttConnect] = useState(false);
+  const [isMqttConnected, setIsMqttConnected] = useState(mqttService.isConnected());
 
   // Check which devices have saved configurations
   useEffect(() => {
@@ -46,10 +47,38 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
     checkSavedConfigs();
   }, [devices]);
 
+  // Keep track of MQTT connection status
+  useEffect(() => {
+    const statusListener = (connected: boolean) => {
+      setIsMqttConnected(connected);
+    };
+    
+    mqttService.addConnectionStatusListener(statusListener);
+    
+    return () => {
+      mqttService.removeConnectionStatusListener(statusListener);
+    };
+  }, []);
+
   const handleAddDevice = (e: React.FormEvent) => {
     e.preventDefault();
     if (newDeviceName && newDeviceClientId) {
       addDevice(newDeviceName, newDeviceClientId);
+      
+      // Automatically try to connect to MQTT with this client ID
+      if (!mqttService.isConnected()) {
+        mqttService.connect(undefined, newDeviceClientId)
+          .then(success => {
+            if (success) {
+              // Subscribe to client_id/api/# topics
+              mqttService.subscribe(`${newDeviceClientId}/api/#`, (message) => {
+                console.log('Received message:', message);
+                // Handle message as needed
+              });
+            }
+          });
+      }
+      
       setNewDeviceName('');
       setNewDeviceClientId('');
       setShowAddForm(false);
@@ -165,11 +194,11 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
               >
                 Connect
               </Button>
-              {mqttService.isConnected() && (
+              {isMqttConnected && (
                 <Button 
                   onClick={handlePublishTest} 
                   size="sm" 
-                  variant="outline" 
+                  variant="outline"
                   className="w-full h-8"
                 >
                   Test Publish
