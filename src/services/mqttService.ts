@@ -1,11 +1,8 @@
-
 import mqtt from 'mqtt';
 import { Buffer } from 'buffer';
 
-// Polyfill buffer for browser environment - make it global before importing mqtt
-if (typeof window !== 'undefined') {
-  window.Buffer = window.Buffer || Buffer;
-}
+// Ensure Buffer is available globally
+window.Buffer = window.Buffer || Buffer;
 
 // Add process object for browser environment
 if (typeof window !== 'undefined' && !window.process) {
@@ -32,6 +29,7 @@ class MQTTService {
 
     try {
       console.log('Attempting to connect to MQTT broker:', MQTT_BROKER);
+      console.log('Buffer available:', !!window.Buffer);
       
       this.client = mqtt.connect(MQTT_BROKER, {
         clientId: `glowcontrol_${Math.random().toString(16).substr(2, 8)}`,
