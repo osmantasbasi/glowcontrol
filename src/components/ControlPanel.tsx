@@ -24,10 +24,10 @@ const ControlPanel: React.FC = () => {
 
   // Load saved configuration when active device changes
   useEffect(() => {
-    if (activeDevice && activeDevice.clientId) {
-      const savedConfig = loadConfiguration(activeDevice.clientId);
+    if (activeDevice && activeDevice.ipAddress) {
+      const savedConfig = loadConfiguration(activeDevice.ipAddress);
       if (savedConfig) {
-        console.log('Loaded saved configuration for', activeDevice.clientId);
+        console.log('Loaded saved configuration for', activeDevice.ipAddress);
       }
     }
   }, [activeDevice]);
@@ -53,7 +53,7 @@ const ControlPanel: React.FC = () => {
       // Get segments from the deviceState
       const segments = deviceState.segments || [];
       
-      saveConfiguration(activeDevice.clientId, {
+      saveConfiguration(activeDevice.ipAddress, {
         segments,
         deviceState,
         deviceInfo: deviceInfo || null
@@ -109,25 +109,7 @@ const ControlPanel: React.FC = () => {
         
         <div className="md:col-span-9">
           <div className="space-y-2 sm:space-y-4">
-            {deviceState && (
-              <>
-                <div className="glass-card p-4">
-                  <h2 className="text-sm font-medium text-white/70 mb-3">Global Controls</h2>
-                  
-                  <div className="space-y-4">
-                    <ColorPicker 
-                      color={currentColor} 
-                      onChange={handleColorChange} 
-                    />
-                    
-                    <BrightnessSlider 
-                      value={deviceState.brightness || 0} 
-                      onChange={(value) => setBrightness(value)} 
-                    />
-                  </div>
-                </div>
-              </>
-            )}
+            {/* StripPreview component removed */}
           </div>
         </div>
       </div>

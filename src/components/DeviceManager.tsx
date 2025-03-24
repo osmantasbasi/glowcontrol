@@ -26,7 +26,7 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState('');
-  const [newDeviceClientId, setNewDeviceClientId] = useState('');
+  const [newDeviceIp, setNewDeviceIp] = useState('');
   const [devicesWithConfig, setDevicesWithConfig] = useState<Record<string, boolean>>({});
 
   // Check which devices have saved configurations
@@ -35,7 +35,7 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
       const configs: Record<string, boolean> = {};
       
       devices.forEach(device => {
-        const savedConfig = loadConfiguration(device.clientId);
+        const savedConfig = loadConfiguration(device.ipAddress);
         configs[device.id] = !!savedConfig;
       });
       
@@ -47,17 +47,17 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
 
   const handleAddDevice = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newDeviceName && newDeviceClientId) {
-      addDevice(newDeviceName, newDeviceClientId);
+    if (newDeviceName && newDeviceIp) {
+      addDevice(newDeviceName, newDeviceIp);
       setNewDeviceName('');
-      setNewDeviceClientId('');
+      setNewDeviceIp('');
       setShowAddForm(false);
     }
   };
 
-  const handleSaveDeviceConfig = (deviceId: string, clientId: string) => {
+  const handleSaveDeviceConfig = (deviceId: string, ipAddress: string) => {
     if (deviceState && deviceInfo) {
-      saveConfiguration(clientId, {
+      saveConfiguration(ipAddress, {
         segments: deviceState.segments || [],
         deviceState,
         deviceInfo
@@ -75,8 +75,8 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
     }
   };
 
-  const handleResetDeviceConfig = (deviceId: string, clientId: string) => {
-    deleteConfiguration(clientId);
+  const handleResetDeviceConfig = (deviceId: string, ipAddress: string) => {
+    deleteConfiguration(ipAddress);
     
     // Update the devices with config state
     setDevicesWithConfig(prev => ({
@@ -112,9 +112,9 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
               className="glass-input h-8 text-sm"
             />
             <Input
-              value={newDeviceClientId}
-              onChange={(e) => setNewDeviceClientId(e.target.value)}
-              placeholder="Client ID"
+              value={newDeviceIp}
+              onChange={(e) => setNewDeviceIp(e.target.value)}
+              placeholder="IP Address"
               className="glass-input h-8 text-sm"
             />
             <div className="flex space-x-2">
@@ -170,7 +170,7 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
                         <span className="ml-2 inline-block h-2 w-2 rounded-full bg-blue-400" title="Has saved configuration" />
                       )}
                     </div>
-                    <span className="text-xs text-white/50">Client ID: {device.clientId}</span>
+                    <span className="text-xs text-white/50">{device.ipAddress}</span>
                   </div>
                 </div>
                 
@@ -182,7 +182,7 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
                         size="sm" 
                         className="h-7 w-7 p-0 save-button"
                         title="Save configuration"
-                        onClick={() => handleSaveDeviceConfig(device.id, device.clientId)}
+                        onClick={() => handleSaveDeviceConfig(device.id, device.ipAddress)}
                       >
                         <Save size={15} className="text-cyan-300" />
                         <span className="sr-only">Save Config</span>
@@ -194,7 +194,7 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
                           size="sm" 
                           className="h-7 w-7 p-0"
                           title="Reset configuration"
-                          onClick={() => handleResetDeviceConfig(device.id, device.clientId)}
+                          onClick={() => handleResetDeviceConfig(device.id, device.ipAddress)}
                         >
                           <RotateCcw size={15} className="text-amber-300" />
                           <span className="sr-only">Reset Config</span>
