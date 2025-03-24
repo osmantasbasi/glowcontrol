@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Buffer } from 'buffer';
 
 // Polyfill Buffer for browser environment
-window.Buffer = Buffer;
+window.Buffer = window.Buffer || Buffer;
 
 let mqttClient: MqttClient | null = null;
 const BROKER_URL = 'ws://192.168.2.127:8083/mqtt'; // Using WebSocket connection

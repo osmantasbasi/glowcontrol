@@ -109,7 +109,25 @@ const ControlPanel: React.FC = () => {
         
         <div className="md:col-span-9">
           <div className="space-y-2 sm:space-y-4">
-            {/* StripPreview component removed */}
+            {deviceState && (
+              <>
+                <div className="glass-card p-4">
+                  <h2 className="text-sm font-medium text-white/70 mb-3">Global Controls</h2>
+                  
+                  <div className="space-y-4">
+                    <ColorPicker 
+                      color={currentColor} 
+                      onChange={handleColorChange} 
+                    />
+                    
+                    <BrightnessSlider 
+                      value={deviceState.brightness || 0} 
+                      onChange={(value) => setBrightness(value)} 
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
