@@ -1,43 +1,40 @@
 (function ensureBufferForMQTT() {
   if (typeof window !== 'undefined') {
-    console.log('MQTT Service - checking Buffer before imports');
+    console.log('MQTT Service - initializing Buffer before imports');
     
-    // If Buffer or Buffer.from is not available
-    if (!window.Buffer || typeof window.Buffer.from !== 'function') {
-      console.warn('Buffer or Buffer.from not available in MQTT service, fixing it');
-      
-      try {
-        // Try to use buffer from CDN first
+    try {
+      // Check if Buffer and Buffer.from are available
+      if (!window.Buffer || typeof window.Buffer.from !== 'function') {
+        console.warn('Buffer.from not available in MQTT service, fixing it');
+        
+        // Use buffer from CDN (loaded in index.html)
         if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
+          console.log('Using buffer from CDN in MQTT service');
           window.Buffer = window.buffer.Buffer;
         } else {
-          // Import from buffer module if necessary
+          console.log('Attempting to load Buffer from module in MQTT service');
+          // Try to load from buffer module as fallback
           const BufferModule = require('buffer');
           window.Buffer = BufferModule.Buffer;
         }
-        
-        // Make sure Buffer.from is a function
-        if (typeof window.Buffer.from !== 'function') {
-          throw new Error('Buffer.from is still not a function after initialization');
-        }
-      } catch (e) {
-        console.error('Failed to initialize Buffer properly in MQTT service:', e);
       }
-    }
-    
-    // Verify Buffer.from is available
-    console.log('MQTT Service - Buffer.from available:', typeof window.Buffer.from === 'function');
-    
-    // Test Buffer.from functionality
-    try {
+      
+      // Verify Buffer.from is available
+      if (!window.Buffer || typeof window.Buffer.from !== 'function') {
+        throw new Error('Buffer.from is still not available after initialization in MQTT service');
+      }
+      
+      // Test Buffer.from functionality
+      console.log('MQTT Service - Buffer.from available:', typeof window.Buffer.from === 'function');
       const testBuffer = window.Buffer.from('test');
-      console.log('Buffer.from test successful in MQTT service:', testBuffer instanceof Uint8Array);
+      console.log('Buffer.from test in MQTT service:', testBuffer instanceof Uint8Array);
     } catch (e) {
-      console.error('Buffer.from test failed in MQTT service:', e);
+      console.error('Failed to initialize Buffer in MQTT service:', e);
     }
   }
 })();
 
+// Only proceed with imports after Buffer is initialized
 import mqtt from 'mqtt';
 
 // Add process object for browser environment
@@ -65,8 +62,14 @@ class MQTTService {
 
     try {
       console.log('Attempting to connect to MQTT broker:', MQTT_BROKER);
-      console.log('Buffer available:', !!window.Buffer);
-      console.log('Buffer.from available:', typeof window.Buffer?.from === 'function');
+      console.log('Buffer check in connect method:');
+      console.log('- Buffer available:', !!window.Buffer);
+      console.log('- Buffer.from available:', typeof window.Buffer?.from === 'function');
+      
+      // Verify Buffer.from one more time before connecting
+      if (!window.Buffer || typeof window.Buffer.from !== 'function') {
+        throw new Error('Buffer.from is not available before MQTT connect');
+      }
       
       this.client = mqtt.connect(MQTT_BROKER, {
         clientId: `glowcontrol_${Math.random().toString(16).substr(2, 8)}`,
