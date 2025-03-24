@@ -24,10 +24,10 @@ const ControlPanel: React.FC = () => {
 
   // Load saved configuration when active device changes
   useEffect(() => {
-    if (activeDevice && activeDevice.ipAddress) {
-      const savedConfig = loadConfiguration(activeDevice.ipAddress);
+    if (activeDevice && activeDevice.clientId) {
+      const savedConfig = loadConfiguration(activeDevice.clientId);
       if (savedConfig) {
-        console.log('Loaded saved configuration for', activeDevice.ipAddress);
+        console.log('Loaded saved configuration for', activeDevice.clientId);
       }
     }
   }, [activeDevice]);
@@ -53,7 +53,7 @@ const ControlPanel: React.FC = () => {
       // Get segments from the deviceState
       const segments = deviceState.segments || [];
       
-      saveConfiguration(activeDevice.ipAddress, {
+      saveConfiguration(activeDevice.clientId, {
         segments,
         deviceState,
         deviceInfo: deviceInfo || null

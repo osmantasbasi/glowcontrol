@@ -1,9 +1,13 @@
 
 import mqtt, { MqttClient } from 'mqtt';
 import { toast } from 'sonner';
+import { Buffer } from 'buffer';
+
+// Polyfill Buffer for browser environment
+window.Buffer = Buffer;
 
 let mqttClient: MqttClient | null = null;
-const BROKER_URL = 'mqtt://192.168.2.127';
+const BROKER_URL = 'ws://192.168.2.127:8083/mqtt'; // Using WebSocket connection
 const DEFAULT_QOS = 1;
 
 export const connectMqtt = (): Promise<MqttClient> => {
@@ -19,6 +23,7 @@ export const connectMqtt = (): Promise<MqttClient> => {
         clientId: `wled-control-${Math.random().toString(16).substr(2, 8)}`,
         keepalive: 60,
         reconnectPeriod: 1000,
+        protocol: 'ws', // WebSocket protocol
       });
       
       client.on('connect', () => {
