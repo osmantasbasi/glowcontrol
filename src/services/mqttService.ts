@@ -16,18 +16,27 @@ const defaultOptions: IClientOptions = {
 class MqttService {
   private client: MqttClient | null = null;
   private subscribers: Map<string, Array<(message: string) => void>> = new Map();
+  private clientId: string = '';
   
   // Connect to MQTT broker
-  connect(brokerUrl: string, options: IClientOptions = {}): Promise<boolean> {
+  connect(brokerUrl: string, clientId: string, options: IClientOptions = {}): Promise<boolean> {
     return new Promise((resolve) => {
+      // Save the client ID
+      this.clientId = clientId;
+      
       // If already connected, disconnect first
       if (this.client && this.client.connected) {
         this.disconnect();
       }
       
       try {
-        // Create connection with merged options
-        const mqttOptions = { ...defaultOptions, ...options };
+        // Create connection with merged options and custom client ID
+        const mqttOptions = { 
+          ...defaultOptions, 
+          ...options,
+          clientId: clientId || defaultOptions.clientId // Use provided client ID or generate one
+        };
+        
         this.client = mqtt.connect(brokerUrl, mqttOptions);
         
         // Set up event handlers
@@ -73,6 +82,7 @@ class MqttService {
       this.client.end();
       this.client = null;
       this.subscribers.clear();
+      this.clientId = '';
     }
   }
   
@@ -140,9 +150,27 @@ class MqttService {
     return true;
   }
   
+  // Publish JSON data to the client_id/api topic
+  publishToApi(data: any, options = {}) {
+    if (!this.clientId) {
+      toast.error('No client ID available. Connect first with a client ID.');
+      return false;
+    }
+    
+    const topic = `${this.clientId}/api`;
+    const jsonMessage = JSON.stringify(data);
+    
+    return this.publish(topic, jsonMessage, options);
+  }
+  
   // Check if connected
   isConnected(): boolean {
     return !!(this.client && this.client.connected);
+  }
+  
+  // Get current client ID
+  getClientId(): string {
+    return this.clientId;
   }
 }
 

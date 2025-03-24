@@ -7,6 +7,7 @@ import { Bluetooth, Plus, Power, Trash2, Save, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { loadConfiguration, saveConfiguration, deleteConfiguration } from '@/services/configService';
 import { toast } from 'sonner';
+import mqttService from '@/services/mqttService';
 
 interface DeviceManagerProps {
   className?: string;
@@ -26,8 +27,10 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState('');
-  const [newDeviceIp, setNewDeviceIp] = useState('');
+  const [newDeviceClientId, setNewDeviceClientId] = useState('');
   const [devicesWithConfig, setDevicesWithConfig] = useState<Record<string, boolean>>({});
+  const [mqttBrokerUrl, setMqttBrokerUrl] = useState('mqtt://localhost:1883');
+  const [showMqttConnect, setShowMqttConnect] = useState(false);
 
   // Check which devices have saved configurations
   useEffect(() => {
@@ -47,10 +50,10 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
 
   const handleAddDevice = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newDeviceName && newDeviceIp) {
-      addDevice(newDeviceName, newDeviceIp);
+    if (newDeviceName && newDeviceClientId) {
+      addDevice(newDeviceName, newDeviceClientId);
       setNewDeviceName('');
-      setNewDeviceIp('');
+      setNewDeviceClientId('');
       setShowAddForm(false);
     }
   };
@@ -86,21 +89,104 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
     
     toast.success('Configuration reset successfully');
   };
+  
+  const handleConnectMqtt = async () => {
+    if (!newDeviceClientId) {
+      toast.error('Please enter a client ID');
+      return;
+    }
+    
+    const connected = await mqttService.connect(mqttBrokerUrl, newDeviceClientId);
+    if (connected) {
+      toast.success(`Connected to MQTT broker with client ID: ${newDeviceClientId}`);
+      
+      // Subscribe to client_id/api/# topics
+      mqttService.subscribe(`${newDeviceClientId}/api/#`, (message) => {
+        console.log('Received message:', message);
+        // Handle message as needed
+      });
+    }
+  };
+  
+  const handlePublishTest = () => {
+    if (mqttService.isConnected()) {
+      mqttService.publishToApi({
+        action: 'test',
+        timestamp: new Date().toISOString(),
+        data: {
+          test: true
+        }
+      });
+      toast.success('Test message published');
+    } else {
+      toast.error('Not connected to MQTT broker');
+    }
+  };
 
   return (
     <div className={cn("glass-card", className)}>
       <div className="p-4 flex items-center justify-between">
         <h2 className="text-sm font-medium text-white/70">Devices</h2>
-        <Button 
-          size="sm" 
-          variant="ghost" 
-          className="h-8 w-8 p-0"
-          onClick={() => setShowAddForm(!showAddForm)}
-        >
-          <Plus size={16} />
-          <span className="sr-only">Add Device</span>
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            size="sm" 
+            variant="ghost" 
+            className="h-8 w-8 p-0"
+            onClick={() => setShowMqttConnect(!showMqttConnect)}
+            title="MQTT Settings"
+          >
+            <Bluetooth size={16} />
+            <span className="sr-only">MQTT Settings</span>
+          </Button>
+          <Button 
+            size="sm" 
+            variant="ghost" 
+            className="h-8 w-8 p-0"
+            onClick={() => setShowAddForm(!showAddForm)}
+          >
+            <Plus size={16} />
+            <span className="sr-only">Add Device</span>
+          </Button>
+        </div>
       </div>
+
+      {showMqttConnect && (
+        <div className="p-4 pt-0">
+          <div className="flex flex-col space-y-2 glass p-3 rounded-lg animate-fade-in">
+            <Input
+              value={mqttBrokerUrl}
+              onChange={(e) => setMqttBrokerUrl(e.target.value)}
+              placeholder="MQTT Broker URL"
+              className="glass-input h-8 text-sm"
+            />
+            <Input
+              value={newDeviceClientId}
+              onChange={(e) => setNewDeviceClientId(e.target.value)}
+              placeholder="Client ID"
+              className="glass-input h-8 text-sm"
+            />
+            <div className="flex space-x-2">
+              <Button 
+                onClick={handleConnectMqtt} 
+                size="sm" 
+                className="w-full h-8"
+              >
+                Connect
+              </Button>
+              {mqttService.isConnected() && (
+                <Button 
+                  onClick={handlePublishTest} 
+                  size="sm" 
+                  variant="outline" 
+                  className="w-full h-8"
+                >
+                  Test Publish
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAddForm && (
         <form onSubmit={handleAddDevice} className="p-4 pt-0">
@@ -112,9 +198,9 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
               className="glass-input h-8 text-sm"
             />
             <Input
-              value={newDeviceIp}
-              onChange={(e) => setNewDeviceIp(e.target.value)}
-              placeholder="IP Address"
+              value={newDeviceClientId}
+              onChange={(e) => setNewDeviceClientId(e.target.value)}
+              placeholder="Client ID"
               className="glass-input h-8 text-sm"
             />
             <div className="flex space-x-2">
