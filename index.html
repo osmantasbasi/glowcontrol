@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -8,55 +7,6 @@
     <meta name="description" content="Lovable Generated Project" />
     <meta name="author" content="Lovable" />
     <meta property="og:image" content="/og-image.png" />
-    <!-- Polyfill Buffer before any other scripts -->
-    <script>
-      // Ensure we have global objects needed by polyfills
-      window.process = window.process || { env: {} };
-    </script>
-    <!-- Use the buffer polyfill -->
-    <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
-    <!-- Explicitly initialize Buffer immediately -->
-    <script>
-      (function ensureBufferImmediately() {
-        try {
-          // Force Buffer initialization from the polyfill
-          if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
-            // Directly assign the Buffer implementation from the polyfill
-            window.Buffer = window.buffer.Buffer;
-            console.log('Buffer polyfill initialized in head');
-            
-            // Define Buffer.from if it doesn't exist
-            if (!window.Buffer.from) {
-              console.log('Creating Buffer.from implementation');
-              window.Buffer.from = function(data, encoding) {
-                if (typeof data === 'string') {
-                  return new window.Buffer(data, encoding);
-                }
-                return new window.Buffer(data);
-              };
-            }
-            
-            // Test Buffer.from to verify it works
-            try {
-              var testBuffer = window.Buffer.from('test');
-              console.log('✓ Buffer.from test successful in head:', 
-                testBuffer instanceof Uint8Array, 
-                'Content:', Array.from(testBuffer).toString());
-            } catch (e) {
-              console.error('Buffer.from test failed in head:', e);
-            }
-          } else {
-            console.error('buffer polyfill not loaded properly');
-          }
-          
-          // Explicitly expose Buffer to global scope
-          window.globalThis = window.globalThis || window;
-          window.globalThis.Buffer = window.Buffer;
-        } catch (e) {
-          console.error('Error in Buffer setup:', e);
-        }
-      })();
-    </script>
   </head>
 
   <body>

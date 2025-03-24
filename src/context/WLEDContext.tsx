@@ -1,14 +1,12 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { getWledApi, initializeWledApi, WLEDState, WLEDInfo } from '../services/wledApi';
 import { toast } from 'sonner';
 import { loadConfiguration, saveConfiguration } from '../services/configService';
-import mqttService from '../services/mqttService';
 
 interface WLEDDevice {
   id: string;
   name: string;
-  clientId: string;
+  ipAddress: string;
   connected: boolean;
 }
 
@@ -18,7 +16,7 @@ interface WLEDContextType {
   deviceState: WLEDState | null;
   deviceInfo: WLEDInfo | null;
   isLoading: boolean;
-  addDevice: (name: string, clientId: string) => void;
+  addDevice: (name: string, ipAddress: string) => void;
   removeDevice: (id: string) => void;
   setActiveDevice: (id: string) => void;
   setColor: (r: number, g: number, b: number) => Promise<void>;
@@ -47,78 +45,10 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
   const [deviceState, setDeviceState] = useState<WLEDState | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<WLEDInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
   const [pendingChanges, setPendingChanges] = useState<boolean>(false);
   const configLoaded = useRef<boolean>(false);
   const lastSaveTime = useRef<number>(0);
-  const mqttMessageUnsubscribe = useRef<(() => void) | null>(null);
-  const mqttConnectionUnsubscribe = useRef<(() => void) | null>(null);
-
-  // Initialize MQTT service
-  useEffect(() => {
-    // Connect to MQTT broker
-    mqttService.connect();
-
-    // Setup connection status listener
-    mqttConnectionUnsubscribe.current = mqttService.onConnectionChange((connected) => {
-      console.log('MQTT connection status:', connected);
-    });
-
-    // Setup message listener
-    mqttMessageUnsubscribe.current = mqttService.onMessage((message) => {
-      console.log('MQTT message received:', message);
-      
-      // Process incoming messages if they match our active device
-      if (activeDevice && message.topic === `/${activeDevice.clientId}/status`) {
-        try {
-          const data = JSON.parse(message.payload);
-          
-          if (data.state) {
-            const state: WLEDState = {
-              on: data.state.on || false,
-              brightness: data.state.bri || 0,
-              color: {
-                r: data.state.seg?.[0]?.col?.[0]?.[0] || 255,
-                g: data.state.seg?.[0]?.col?.[0]?.[1] || 255,
-                b: data.state.seg?.[0]?.col?.[0]?.[2] || 255,
-              },
-              effect: data.state.seg?.[0]?.fx || 0,
-              speed: data.state.seg?.[0]?.sx || 128,
-              intensity: data.state.seg?.[0]?.ix || 128,
-              segments: data.state.seg || [],
-            };
-            
-            setDeviceState(state);
-          }
-          
-          if (data.info) {
-            setDeviceInfo({
-              name: data.info.name || 'WLED Device',
-              version: data.info.ver || 'Unknown',
-              ledCount: data.info.leds?.count || 0,
-              effects: data.effects || [],
-              palettes: data.palettes || [],
-            });
-          }
-        } catch (error) {
-          console.error('Error processing MQTT message:', error);
-        }
-      }
-    });
-
-    return () => {
-      // Clean up MQTT listeners
-      if (mqttMessageUnsubscribe.current) {
-        mqttMessageUnsubscribe.current();
-      }
-      
-      if (mqttConnectionUnsubscribe.current) {
-        mqttConnectionUnsubscribe.current();
-      }
-      
-      // Disconnect from MQTT
-      mqttService.disconnect();
-    };
-  }, []);
 
   useEffect(() => {
     const savedDevices = localStorage.getItem('wledDevices');
@@ -142,30 +72,31 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // Set up polling mechanism for active device
+  // Set up periodic update mechanism
   useEffect(() => {
     if (activeDevice && activeDevice.connected) {
+      // Clear any existing intervals
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      
       // Initial fetch
       fetchDeviceState();
       
-      // Subscribe to device's MQTT topic
-      mqttService.subscribe(`/${activeDevice.clientId}/status`);
-      
-      // Set up interval for sending pending changes
+      // Set up interval for periodic updates
       const intervalId = window.setInterval(() => {
         if (pendingChanges) {
           sendPendingChanges();
           setPendingChanges(false);
         }
+        fetchDeviceState();
       }, 1000);
+      
+      setPollingInterval(intervalId);
       
       return () => {
         clearInterval(intervalId);
-        
-        // Unsubscribe from previous device's topic
-        if (activeDevice) {
-          mqttService.subscribe(`/${activeDevice.clientId}/status`);
-        }
+        setPollingInterval(null);
       };
     }
   }, [activeDevice, pendingChanges]);
@@ -174,15 +105,21 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     if (!activeDevice || !deviceState) return;
     
     try {
-      // Send the device state via MQTT
-      const payload = {
-        seg: deviceState.segments || []
-      };
+      // Send the device state to the API
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          seg: deviceState.segments || []
+        }),
+      });
       
-      const success = mqttService.publish(`/${activeDevice.clientId}`, payload);
-      
-      if (success) {
-        console.log('Sent pending changes to device via MQTT');
+      if (!response.ok) {
+        console.error('Failed to send pending changes');
+      } else {
+        console.log('Sent pending changes to device');
         
         // Save configuration after successful update
         const currentTime = Date.now();
@@ -190,8 +127,6 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
           saveConfig();
           lastSaveTime.current = currentTime;
         }
-      } else {
-        console.error('Failed to send pending changes via MQTT');
       }
     } catch (error) {
       console.error('Error sending pending changes:', error);
@@ -202,29 +137,60 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     if (!activeDevice) return;
     
     try {
-      // Request state update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}/request`, { command: 'getState' });
+      // Fetch both state and info to get the latest segments data
+      const response = await fetch(`http://${activeDevice.ipAddress}/json`);
+      if (!response.ok) throw new Error('Failed to fetch WLED data');
       
-      // Set the device as connected (we'll rely on MQTT connection status)
-      setDevices(prev => 
-        prev.map(d => 
-          d.id === activeDevice.id ? { ...d, connected: true } : d
-        )
-      );
+      const data = await response.json();
+      
+      // Update state with full data including segments
+      if (data.state) {
+        const state: WLEDState = {
+          on: data.state.on || false,
+          brightness: data.state.bri || 0,
+          color: {
+            r: data.state.seg?.[0]?.col?.[0]?.[0] || 255,
+            g: data.state.seg?.[0]?.col?.[0]?.[1] || 255,
+            b: data.state.seg?.[0]?.col?.[0]?.[2] || 255,
+          },
+          effect: data.state.seg?.[0]?.fx || 0,
+          speed: data.state.seg?.[0]?.sx || 128,
+          intensity: data.state.seg?.[0]?.ix || 128,
+          segments: data.state.seg || [],
+        };
+        
+        // Only update state if we have loaded configuration or if this is the first load
+        if (configLoaded.current || !deviceState) {
+          setDeviceState(state);
+        }
+      }
+      
+      // Update info if available
+      if (data.effects && data.palettes && (!deviceInfo || !deviceInfo.effects || !deviceInfo.palettes)) {
+        setDeviceInfo({
+          name: data.info?.name || 'WLED Device',
+          version: data.info?.ver || 'Unknown',
+          ledCount: data.info?.leds?.count || 0,
+          effects: data.effects || [],
+          palettes: data.palettes || [],
+        });
+      }
     } catch (error) {
-      console.error('Error requesting device state:', error);
+      console.error('Error polling device state:', error);
       setDevices(prev => 
         prev.map(d => 
           d.id === activeDevice.id ? { ...d, connected: false } : d
         )
       );
+      clearInterval(pollingInterval!);
+      setPollingInterval(null);
     }
   };
 
   // Save configuration helper function
   const saveConfig = () => {
     if (activeDevice && deviceState) {
-      saveConfiguration(activeDevice.clientId, {
+      saveConfiguration(activeDevice.ipAddress, {
         segments: deviceState.segments || [],
         deviceState,
         deviceInfo: deviceInfo || null
@@ -250,11 +216,11 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
   }, [deviceState?.segments]);
 
-  const addDevice = (name: string, clientId: string) => {
+  const addDevice = (name: string, ipAddress: string) => {
     const newDevice: WLEDDevice = {
       id: Date.now().toString(),
       name,
-      clientId,
+      ipAddress,
       connected: false,
     };
     
@@ -294,32 +260,72 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
       
       setActiveDevice(device);
       
+      const api = initializeWledApi(device.ipAddress);
+      
       // Load saved configuration for this device if available
-      const savedConfig = loadConfiguration(device.clientId);
+      const savedConfig = loadConfiguration(device.ipAddress);
       
-      // Request device state via MQTT
-      mqttService.subscribe(`/${device.clientId}/status`);
-      mqttService.publish(`/${device.clientId}/request`, { command: 'getState' });
+      // Fetch both the state and info in a single request
+      const response = await fetch(`http://${device.ipAddress}/json`);
+      if (!response.ok) throw new Error('Failed to fetch WLED data');
       
-      // If we have saved configuration, use it for initial state
-      if (savedConfig && savedConfig.deviceState) {
-        setDeviceState(savedConfig.deviceState);
+      const data = await response.json();
+      
+      if (data.state) {
+        const state: WLEDState = {
+          on: data.state.on || false,
+          brightness: data.state.bri || 0,
+          color: {
+            r: data.state.seg?.[0]?.col?.[0]?.[0] || 255,
+            g: data.state.seg?.[0]?.col?.[0]?.[1] || 255,
+            b: data.state.seg?.[0]?.col?.[0]?.[2] || 255,
+          },
+          effect: data.state.seg?.[0]?.fx || 0,
+          speed: data.state.seg?.[0]?.sx || 128,
+          intensity: data.state.seg?.[0]?.ix || 128,
+          segments: data.state.seg || [],
+        };
         
-        if (savedConfig.deviceInfo) {
-          setDeviceInfo(savedConfig.deviceInfo);
-        }
-        
-        // Apply saved configuration by sending it to the device
-        try {
-          mqttService.publish(`/${device.clientId}`, { 
-            seg: savedConfig.segments || []
-          });
+        // If we have saved segment data, use it instead
+        if (savedConfig && savedConfig.segments && savedConfig.segments.length > 0) {
+          state.segments = savedConfig.segments;
           
-          console.log('Applied saved segment configuration to device');
-        } catch (error) {
-          console.error('Error applying saved configuration to device:', error);
+          // Apply saved configuration by sending it to the device
+          try {
+            await fetch(`http://${device.ipAddress}/json/state`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ seg: savedConfig.segments }),
+            });
+            console.log('Applied saved segment configuration to device');
+          } catch (error) {
+            console.error('Error applying saved configuration to device:', error);
+          }
         }
+        
+        setDeviceState(state);
       }
+      
+      if (data.info) {
+        setDeviceInfo({
+          name: data.info.name || 'WLED Device',
+          version: data.info.ver || 'Unknown',
+          ledCount: data.info.leds?.count || 0,
+          effects: data.effects || [],
+          palettes: data.palettes || [],
+        });
+      }
+      
+      api.connectWebSocket();
+      
+      api.onUpdate((state) => {
+        setDeviceState(prev => ({
+          ...state,
+          segments: prev?.segments || []
+        }));
+      });
       
       setDevices(prev => 
         prev.map(d => 
@@ -347,17 +353,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
 
   const setColor = async (r: number, g: number, b: number) => {
     try {
-      if (!activeDevice) {
-        toast.error('No active device');
-        return;
-      }
-      
-      // Send color update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, {
-        seg: [{
-          col: [[r, g, b]]
-        }]
-      });
+      const api = getWledApi();
+      await api.setColor(r, g, b);
       
       if (deviceState) {
         setDeviceState({
@@ -373,15 +370,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
 
   const setBrightness = async (brightness: number) => {
     try {
-      if (!activeDevice) {
-        toast.error('No active device');
-        return;
-      }
-      
-      // Send brightness update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, {
-        bri: brightness
-      });
+      const api = getWledApi();
+      await api.setBrightness(brightness);
       
       if (deviceState) {
         setDeviceState({
@@ -416,8 +406,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         payload.seg[0].ix = intensity;
       }
       
-      // Send effect update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set effect');
       
       if (deviceState) {
         setDeviceState({
@@ -435,19 +432,11 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
 
   const togglePower = async (on?: boolean) => {
     try {
-      if (!activeDevice) {
-        toast.error('No active device');
-        return;
-      }
-      
-      const newState = on === undefined ? !(deviceState?.on) : on;
-      
-      // Send power update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, {
-        on: newState
-      });
+      const api = getWledApi();
+      await api.togglePower(on);
       
       if (deviceState) {
+        const newState = on === undefined ? !deviceState.on : on;
         setDeviceState({
           ...deviceState,
           on: newState,
@@ -467,7 +456,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     
     try {
       // Get current segment data to preserve other color slots
-      const segment = deviceState?.segments?.find(s => s.id === segmentId);
+      const state = await getWledApi().getState();
+      const segment = state.segments?.find(s => s.id === segmentId);
       
       // Initialize colors array, preserving existing colors
       const colors = segment?.col ? [...segment.col] : [[0,0,0],[0,0,0],[0,0,0]];
@@ -482,8 +472,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         }]
       };
       
-      // Send segment color update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment color');
       
       // Update the local state
       if (deviceState && deviceState.segments) {
@@ -535,8 +532,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         payload.seg[0].ix = intensity;
       }
       
-      // Send segment effect update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment effect');
       
       // Update the local state
       if (deviceState && deviceState.segments) {
@@ -579,8 +583,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         }]
       };
       
-      // Send segment brightness update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment brightness');
       
       // Update the local state
       if (deviceState && deviceState.segments) {
@@ -618,8 +629,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         }]
       };
       
-      // Send segment power update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment power');
       
       // Update the local state
       if (deviceState && deviceState.segments) {
@@ -661,8 +679,15 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
         }]
       };
       
-      // Send segment LED range update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      const response = await fetch(`http://${activeDevice.ipAddress}/json/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) throw new Error('Failed to set segment LED range');
       
       // Update the local state
       if (deviceState && deviceState.segments) {
@@ -698,15 +723,8 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
     
     try {
-      const payload = {
-        seg: [{
-          id: segmentId,
-          pal: paletteId
-        }]
-      };
-      
-      // Send segment palette update via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      const api = getWledApi();
+      await api.setSegmentPalette(segmentId, paletteId);
       
       // Update the local state if we have segments data
       if (deviceState && deviceState.segments) {
@@ -735,40 +753,26 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
     
     try {
-      // Find the next available ID
-      const segments = deviceState?.segments || [];
+      // Get current state to find the next available ID
+      const currentState = await getWledApi().getState();
+      const segments = currentState.segments || [];
       
       // Find the highest segment ID and increment by 1
       const nextId = segments.length > 0 
         ? Math.max(...segments.map(s => s.id || 0)) + 1 
         : 0;
       
-      const payload = {
-        seg: [{
-          id: nextId,
-          start: startLed,
-          stop: endLed + 1,  // WLED uses exclusive stop value
-          len: endLed - startLed + 1
-        }]
-      };
-      
-      // Send add segment command via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      await getWledApi().addSegment(nextId, startLed, endLed + 1); // WLED uses exclusive stop value
       
       toast.success(`Added segment ${nextId}`);
       
       // Force fetch device state to update with new segment
-      fetchDeviceState();
+      await fetchDeviceState();
       
       // Save the updated configuration
       if (deviceState) {
-        saveConfiguration(activeDevice.clientId, {
-          segments: [...(deviceState.segments || []), {
-            id: nextId,
-            start: startLed,
-            stop: endLed + 1,
-            len: endLed - startLed + 1
-          }],
+        saveConfiguration(activeDevice.ipAddress, {
+          segments: deviceState.segments || [],
           deviceState,
           deviceInfo: deviceInfo || null
         });
@@ -788,34 +792,18 @@ export const WLEDProvider: React.FC<WLEDProviderProps> = ({ children }) => {
     }
     
     try {
-      const payload = {
-        seg: [{
-          id: segmentId,
-          stop: 0  // Setting stop to 0 deletes the segment in WLED
-        }]
-      };
-      
-      // Send delete segment command via MQTT
-      mqttService.publish(`/${activeDevice.clientId}`, payload);
+      await getWledApi().deleteSegment(segmentId);
       
       toast.success(`Deleted segment ${segmentId}`);
       
-      // Update the local state
-      if (deviceState && deviceState.segments) {
-        const updatedSegments = deviceState.segments.filter(seg => seg.id !== segmentId);
-        
-        setDeviceState({
-          ...deviceState,
-          segments: updatedSegments,
-        });
-        
-        // Save the updated configuration
-        saveConfiguration(activeDevice.clientId, {
-          segments: updatedSegments,
-          deviceState: {
-            ...deviceState,
-            segments: updatedSegments
-          },
+      // Force fetch device state to update without this segment
+      await fetchDeviceState();
+      
+      // Save the updated configuration
+      if (deviceState) {
+        saveConfiguration(activeDevice.ipAddress, {
+          segments: deviceState.segments || [],
+          deviceState,
           deviceInfo: deviceInfo || null
         });
       }

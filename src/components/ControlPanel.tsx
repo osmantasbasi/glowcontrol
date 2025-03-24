@@ -4,7 +4,6 @@ import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import BrightnessSlider from './BrightnessSlider';
 import DeviceManager from './DeviceManager';
-import StripPreview from './StripPreview';
 import { Button } from '@/components/ui/button';
 import { Power, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,10 +24,10 @@ const ControlPanel: React.FC = () => {
 
   // Load saved configuration when active device changes
   useEffect(() => {
-    if (activeDevice && activeDevice.clientId) {
-      const savedConfig = loadConfiguration(activeDevice.clientId);
+    if (activeDevice && activeDevice.ipAddress) {
+      const savedConfig = loadConfiguration(activeDevice.ipAddress);
       if (savedConfig) {
-        console.log('Loaded saved configuration for', activeDevice.clientId);
+        console.log('Loaded saved configuration for', activeDevice.ipAddress);
       }
     }
   }, [activeDevice]);
@@ -54,7 +53,7 @@ const ControlPanel: React.FC = () => {
       // Get segments from the deviceState
       const segments = deviceState.segments || [];
       
-      saveConfiguration(activeDevice.clientId, {
+      saveConfiguration(activeDevice.ipAddress, {
         segments,
         deviceState,
         deviceInfo: deviceInfo || null
@@ -110,25 +109,7 @@ const ControlPanel: React.FC = () => {
         
         <div className="md:col-span-9">
           <div className="space-y-2 sm:space-y-4">
-            <StripPreview className="animate-fade-in" />
-            
-            <div className="glass-card p-4">
-              <div className="mb-4">
-                <h2 className="text-sm font-medium text-white/70 mb-2">Color</h2>
-                <ColorPicker 
-                  color={currentColor} 
-                  onChange={handleColorChange} 
-                />
-              </div>
-              
-              <div>
-                <h2 className="text-sm font-medium text-white/70 mb-2">Brightness</h2>
-                <BrightnessSlider 
-                  value={deviceState?.brightness || 0} 
-                  onChange={setBrightness} 
-                />
-              </div>
-            </div>
+            {/* StripPreview component removed */}
           </div>
         </div>
       </div>
