@@ -17,12 +17,19 @@ class MqttService {
   private client: MqttClient | null = null;
   private subscribers: Map<string, Array<(message: string) => void>> = new Map();
   private clientId: string = '';
+  private brokerUrl: string = '';
+  private connectOptions: IClientOptions = {};
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
   
   // Connect to MQTT broker
   connect(brokerUrl: string, clientId: string, options: IClientOptions = {}): Promise<boolean> {
     return new Promise((resolve) => {
-      // Save the client ID
+      // Save the connection details for potential reconnection
+      this.brokerUrl = brokerUrl;
       this.clientId = clientId;
+      this.connectOptions = { ...options };
+      this.reconnectAttempts = 0;
       
       // If already connected, disconnect first
       if (this.client && this.client.connected) {
@@ -41,6 +48,7 @@ class MqttService {
         
         // Set up event handlers
         this.client.on('connect', () => {
+          this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
           toast.success('Connected to MQTT broker');
           resolve(true);
         });
@@ -48,7 +56,9 @@ class MqttService {
         this.client.on('error', (err) => {
           console.error('MQTT connection error:', err);
           toast.error(`MQTT error: ${err.message}`);
-          resolve(false);
+          if (!this.client?.connected) {
+            resolve(false);
+          }
         });
         
         this.client.on('message', (topic, message) => {
@@ -66,7 +76,23 @@ class MqttService {
         });
         
         this.client.on('reconnect', () => {
-          toast.info('Reconnecting to MQTT broker...');
+          this.reconnectAttempts++;
+          if (this.reconnectAttempts <= this.maxReconnectAttempts) {
+            toast.info(`Reconnecting to MQTT broker (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+          } else if (this.reconnectAttempts === this.maxReconnectAttempts + 1) {
+            // Only show this message once
+            toast.error(`Failed to reconnect after ${this.maxReconnectAttempts} attempts`);
+            this.client?.end(true); // Force disconnect
+          }
+        });
+        
+        this.client.on('close', () => {
+          console.log('MQTT connection closed');
+        });
+        
+        this.client.on('offline', () => {
+          console.log('MQTT client is offline');
+          toast.error('MQTT broker connection lost');
         });
       } catch (error) {
         console.error('Failed to connect to MQTT broker:', error);
@@ -76,13 +102,23 @@ class MqttService {
     });
   }
   
+  // Manual reconnect method
+  reconnect(): Promise<boolean> {
+    if (this.brokerUrl && this.clientId) {
+      this.reconnectAttempts = 0; // Reset reconnect attempts for manual reconnection
+      return this.connect(this.brokerUrl, this.clientId, this.connectOptions);
+    } else {
+      toast.error('Cannot reconnect: No previous connection details available');
+      return Promise.resolve(false);
+    }
+  }
+  
   // Disconnect from broker
   disconnect() {
     if (this.client) {
-      this.client.end();
+      this.client.end(true); // Force disconnect
       this.client = null;
       this.subscribers.clear();
-      this.clientId = '';
     }
   }
   
