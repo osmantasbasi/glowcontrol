@@ -13,17 +13,20 @@ const defaultOptions: IClientOptions = {
   connectTimeout: 30 * 1000,
 };
 
+// Default broker URL
+const DEFAULT_BROKER_URL = 'mqtt://localhost:1883';
+
 class MqttService {
   private client: MqttClient | null = null;
   private subscribers: Map<string, Array<(message: string) => void>> = new Map();
   private clientId: string = '';
-  private brokerUrl: string = '';
+  private brokerUrl: string = DEFAULT_BROKER_URL;
   private connectOptions: IClientOptions = {};
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   
   // Connect to MQTT broker
-  connect(brokerUrl: string, clientId: string, options: IClientOptions = {}): Promise<boolean> {
+  connect(brokerUrl: string = DEFAULT_BROKER_URL, clientId: string, options: IClientOptions = {}): Promise<boolean> {
     return new Promise((resolve) => {
       // Save the connection details for potential reconnection
       this.brokerUrl = brokerUrl;
