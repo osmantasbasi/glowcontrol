@@ -3,9 +3,7 @@
 
 // Add Buffer to the global Window interface
 interface Window {
-  Buffer: typeof Buffer & {
-    from: (data: string | ArrayBuffer | SharedArrayBuffer, encoding?: string) => any;
-  };
+  Buffer: any; // Using 'any' to avoid TypeScript errors with the polyfill
   process: {
     env: Record<string, string>;
   };
