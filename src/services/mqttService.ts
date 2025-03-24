@@ -2,21 +2,30 @@
 import mqtt from 'mqtt';
 import { Buffer as BufferPolyfill } from 'buffer';
 
-// Ensure Buffer is available globally with multiple fallbacks
+// Ensure Buffer is available globally with complete implementation
 if (typeof window !== 'undefined') {
-  if (!window.Buffer) {
-    console.warn("Buffer not defined in global scope, setting it now");
+  if (!window.Buffer || typeof window.Buffer.from !== 'function') {
+    console.log('Buffer or Buffer.from not available in MQTT service, setting it up');
+    // Assign the complete Buffer implementation
     window.Buffer = BufferPolyfill;
+    
+    // Explicitly ensure that Buffer.from exists
+    if (typeof window.Buffer.from !== 'function') {
+      console.log('Adding Buffer.from method to window.Buffer');
+      window.Buffer.from = BufferPolyfill.from.bind(BufferPolyfill);
+    }
   }
   
-  // Verify Buffer is properly initialized
-  console.log('MQTT Service - Buffer check:', !!window.Buffer);
-  console.log('MQTT Service - Buffer.from check:', typeof window.Buffer?.from === 'function');
+  // Verify Buffer is properly set up
+  console.log('MQTT Service - Buffer available:', !!window.Buffer);
+  console.log('MQTT Service - Buffer.from available:', typeof window.Buffer.from === 'function');
   
-  // Provide fallback if Buffer.from is missing
-  if (!window.Buffer.from) {
-    console.warn("Buffer.from not available, providing fallback");
-    window.Buffer.from = BufferPolyfill.from;
+  // Test Buffer.from functionality
+  try {
+    const testBuffer = window.Buffer.from('test');
+    console.log('Buffer.from test successful:', testBuffer);
+  } catch (e) {
+    console.error('Buffer.from test failed:', e);
   }
 }
 

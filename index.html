@@ -8,13 +8,21 @@
     <meta name="description" content="Lovable Generated Project" />
     <meta name="author" content="Lovable" />
     <meta property="og:image" content="/og-image.png" />
-    <!-- Buffer polyfill must be loaded before any other scripts -->
+    <!-- Make sure to use a specific version of buffer that provides all needed methods -->
     <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
     <script>
       // Ensure process is defined before any scripts load
       window.process = window.process || { env: {} };
-      // Ensure Buffer is defined from the polyfill
-      window.Buffer = window.Buffer || Buffer;
+      
+      // Make sure Buffer and its methods are properly defined
+      if (typeof window.Buffer === 'undefined' || typeof window.Buffer.from !== 'function') {
+        console.log('Initializing Buffer from CDN...');
+        window.Buffer = window.Buffer || buffer.Buffer;
+      }
+      
+      // Verify buffer.from is available
+      console.log('Buffer available:', !!window.Buffer);
+      console.log('Buffer.from available:', typeof window.Buffer?.from === 'function');
     </script>
   </head>
 
