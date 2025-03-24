@@ -26,4 +26,9 @@ declare global {
       Buffer: any;
     }
   }
+  
+  // Ensure Buffer is available in globalThis
+  interface globalThis {
+    Buffer: any;
+  }
 }

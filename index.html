@@ -13,28 +13,32 @@
       // Ensure we have global objects needed by polyfills
       window.process = window.process || { env: {} };
     </script>
-    <!-- Use a specific Buffer polyfill version that's compatible with mqtt -->
+    <!-- Use the specific Buffer polyfill version from the buffer package -->
     <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
     <script>
       (function ensureBufferImmediately() {
         try {
-          // Explicitly assign the global Buffer object from the buffer polyfill
+          // Explicitly set global Buffer from the polyfill
           if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
             window.Buffer = window.buffer.Buffer;
             
-            // Explicitly check and define Buffer.from if missing
+            // Make sure Buffer.from is available
             if (typeof window.Buffer.from !== 'function') {
               console.error('Buffer.from missing after initial setup');
-            } else {
-              console.log('✓ Buffer.from properly initialized in head script');
-              
-              // Test Buffer.from to verify it works
-              try {
-                var testBuffer = window.Buffer.from('test');
-                console.log('✓ Buffer.from test successful in head:', testBuffer instanceof Uint8Array);
-              } catch (e) {
-                console.error('Buffer.from test failed in head:', e);
-              }
+              // Create Buffer.from if it doesn't exist
+              window.Buffer.from = function(data, encoding) {
+                return new window.Buffer(data, encoding);
+              };
+            }
+            
+            console.log('✓ Buffer.from properly initialized in head script');
+            
+            // Test Buffer.from to verify it works
+            try {
+              var testBuffer = window.Buffer.from('test');
+              console.log('✓ Buffer.from test successful in head:', testBuffer instanceof Uint8Array);
+            } catch (e) {
+              console.error('Buffer.from test failed in head:', e);
             }
           } else {
             console.error('buffer polyfill not loaded properly');

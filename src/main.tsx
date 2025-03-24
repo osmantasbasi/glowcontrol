@@ -6,26 +6,27 @@
     console.log('Initializing Buffer in main.tsx');
     
     try {
-      // Check if global Buffer exists and has .from method
-      if (!window.Buffer || typeof window.Buffer.from !== 'function') {
-        console.log('Buffer or Buffer.from missing, configuring from polyfill');
+      // Check if global Buffer exists
+      if (!window.Buffer) {
+        console.log('Buffer missing, configuring from polyfill');
         
-        // Use buffer from CDN if available (should be loaded in index.html)
+        // Use buffer from CDN if available (loaded in index.html)
         if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
           console.log('Using buffer from CDN');
           window.Buffer = window.buffer.Buffer;
-        } else {
-          console.log('Attempting to load Buffer from module');
-          // Last resort - try to import from the buffer module
-          const BufferModule = require('buffer');
-          window.Buffer = BufferModule.Buffer;
         }
-        
-        // Double-check that Buffer.from is now available
-        if (!window.Buffer || typeof window.Buffer.from !== 'function') {
-          console.error('Buffer.from is still not available after initialization!');
+      }
+      
+      // Explicitly ensure Buffer.from exists
+      if (!window.Buffer || typeof window.Buffer.from !== 'function') {
+        console.log('Buffer.from missing, creating it');
+        if (window.Buffer) {
+          // Create Buffer.from if Buffer exists but from() doesn't
+          window.Buffer.from = function(data, encoding) {
+            return new window.Buffer(data, encoding);
+          };
         } else {
-          console.log('Buffer.from is now available in main.tsx');
+          console.error('Cannot create Buffer.from - Buffer not available');
         }
       }
       
