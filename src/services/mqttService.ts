@@ -1,10 +1,11 @@
+
 // Define globalThis for browsers that don't have it
 if (typeof globalThis === 'undefined') {
   (window as any).globalThis = window;
 }
 
-// Initialize Buffer before any imports
-(function ensureBufferForMQTT() {
+// Create a complete Buffer polyfill if needed before any imports
+(function ensureCompleteBufferForMQTT() {
   if (typeof window !== 'undefined') {
     console.log('MQTT Service - initializing Buffer before imports');
     
@@ -14,35 +15,73 @@ if (typeof globalThis === 'undefined') {
         window.process = { env: {} } as any;
       }
       
-      // Check if Buffer exists
-      if (!window.Buffer) {
-        console.warn('Buffer not available in MQTT service, fixing it');
+      // Check if Buffer exists and has from method
+      if (!window.Buffer || typeof window.Buffer.from !== 'function') {
+        console.warn('Buffer.from not available in MQTT service, fixing it');
         
         // Use buffer from CDN (loaded in index.html)
         if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
           console.log('Using buffer from CDN in MQTT service');
           window.Buffer = window.buffer.Buffer;
+          
+          // Ensure from method exists
+          if (typeof window.Buffer.from !== 'function') {
+            console.log('Creating Buffer.from implementation in MQTT service');
+            window.Buffer.from = function(data: any, encoding?: string): Uint8Array {
+              if (typeof data === 'string') {
+                return new window.Buffer(data, encoding);
+              }
+              return new window.Buffer(data);
+            };
+          }
         } else {
-          console.error('Buffer polyfill not available from CDN');
+          // No buffer polyfill available, create a minimal one
+          console.warn('Creating minimal Buffer polyfill in MQTT service');
+          
+          class MinimalBuffer extends Uint8Array {
+            constructor(arg: any, encodingOrOffset?: any, length?: number) {
+              let buffer;
+              if (typeof arg === 'number') {
+                buffer = new Uint8Array(arg);
+              } else if (typeof arg === 'string') {
+                // Basic string to buffer conversion
+                buffer = new TextEncoder().encode(arg);
+              } else if (arg instanceof ArrayBuffer || ArrayBuffer.isView(arg)) {
+                buffer = new Uint8Array(arg);
+              } else {
+                buffer = new Uint8Array(0);
+              }
+              super(buffer);
+            }
+            
+            static from(data: any, encoding?: string): MinimalBuffer {
+              if (typeof data === 'string') {
+                return new MinimalBuffer(data, encoding);
+              }
+              return new MinimalBuffer(data);
+            }
+            
+            toString(encoding?: string): string {
+              return new TextDecoder().decode(this);
+            }
+          }
+          
+          window.Buffer = MinimalBuffer as any;
         }
       }
       
-      // Verify Buffer.from is available
-      if (!window.Buffer || typeof window.Buffer.from !== 'function') {
-        console.error('Buffer.from is still not available after initialization in MQTT service');
-      } else {
-        // Test Buffer.from functionality with detailed logging
-        console.log('MQTT Service - Buffer.from available:', typeof window.Buffer.from === 'function');
-        const testBuffer = window.Buffer.from('test');
-        console.log('Buffer.from test in MQTT service:', 
-          testBuffer instanceof Uint8Array, 
-          'Length:', testBuffer.length, 
-          'Content:', Array.from(testBuffer).toString());
+      // Make Buffer globally available
+      if (typeof globalThis !== 'undefined') {
+        (globalThis as any).Buffer = window.Buffer;
       }
       
-      // Make Buffer globally available
-      if (typeof globalThis !== 'undefined' && !globalThis.Buffer) {
-        (globalThis as any).Buffer = window.Buffer;
+      // Test Buffer.from
+      if (typeof window.Buffer?.from === 'function') {
+        console.log('MQTT Service - Buffer.from test:');
+        const testBuffer = window.Buffer.from('test');
+        console.log('Result:', testBuffer instanceof Uint8Array, 'Length:', testBuffer.length);
+      } else {
+        console.error('Buffer.from still not available after initialization');
       }
     } catch (e) {
       console.error('Failed to initialize Buffer in MQTT service:', e);
@@ -50,7 +89,7 @@ if (typeof globalThis === 'undefined') {
   }
 })();
 
-// Only proceed with imports after Buffer is initialized
+// Wait to import MQTT until Buffer is initialized
 import mqtt from 'mqtt';
 
 // Add process object for browser environment if not already done

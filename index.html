@@ -21,9 +21,20 @@
         try {
           // Force Buffer initialization from the polyfill
           if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
-            // Make sure we use the full Buffer implementation from the polyfill
+            // Directly assign the Buffer implementation from the polyfill
             window.Buffer = window.buffer.Buffer;
-            console.log('Buffer polyfill initialized with full implementation');
+            console.log('Buffer polyfill initialized in head');
+            
+            // Define Buffer.from if it doesn't exist
+            if (!window.Buffer.from) {
+              console.log('Creating Buffer.from implementation');
+              window.Buffer.from = function(data, encoding) {
+                if (typeof data === 'string') {
+                  return new window.Buffer(data, encoding);
+                }
+                return new window.Buffer(data);
+              };
+            }
             
             // Test Buffer.from to verify it works
             try {

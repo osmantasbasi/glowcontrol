@@ -1,28 +1,38 @@
 
-// Force global Buffer to be correctly initialized before any imports
-(function initializeBuffer() {
-  // Ensure Buffer is properly set up in the global scope before any imports
+// Create a complete Buffer polyfill if needed
+(function initializeCompleteBuffer() {
   if (typeof window !== 'undefined') {
     console.log('Initializing Buffer in main.tsx');
     
     try {
-      // Check if global Buffer exists
-      if (!window.Buffer) {
-        console.log('Buffer missing, configuring from polyfill');
+      // Make sure Buffer is available and fully featured
+      if (!window.Buffer || !window.Buffer.from) {
+        console.log('Buffer.from missing, creating implementation');
         
-        // Use buffer from CDN if available (loaded in index.html)
+        // Use buffer from CDN (loaded in index.html)
         if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
-          console.log('Using buffer from CDN');
+          console.log('Using Buffer from CDN');
           window.Buffer = window.buffer.Buffer;
+          
+          // Ensure Buffer.from exists
+          if (!window.Buffer.from) {
+            console.log('Creating Buffer.from polyfill');
+            window.Buffer.from = function(data, encoding) {
+              if (typeof data === 'string') {
+                return new window.Buffer(data, encoding);
+              }
+              return new window.Buffer(data);
+            };
+          }
         }
       }
       
-      // Explicitly ensure Buffer is available in globalThis
-      if (typeof globalThis !== 'undefined' && !globalThis.Buffer) {
+      // Ensure Buffer is available in globalThis
+      if (typeof globalThis !== 'undefined') {
         globalThis.Buffer = window.Buffer;
       }
       
-      // Log success and test Buffer.from
+      // Test Buffer.from
       console.log('Buffer check in main.tsx - Buffer.from available:', typeof window.Buffer?.from === 'function');
       if (typeof window.Buffer?.from === 'function') {
         const testBuffer = window.Buffer.from('test');
