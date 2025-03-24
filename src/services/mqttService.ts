@@ -1,4 +1,3 @@
-
 import mqtt, { MqttClient, IClientOptions } from 'mqtt';
 import { toast } from 'sonner';
 
@@ -13,7 +12,7 @@ const defaultOptions: IClientOptions = {
   connectTimeout: 30 * 1000,
 };
 
-// Default broker URL
+// Default broker URL - always use localhost:1883
 const DEFAULT_BROKER_URL = 'mqtt://localhost:1883';
 
 class MqttService {
@@ -25,11 +24,11 @@ class MqttService {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   
-  // Connect to MQTT broker
+  // Connect to MQTT broker - always use localhost:1883
   connect(brokerUrl: string = DEFAULT_BROKER_URL, clientId: string, options: IClientOptions = {}): Promise<boolean> {
     return new Promise((resolve) => {
       // Save the connection details for potential reconnection
-      this.brokerUrl = brokerUrl;
+      this.brokerUrl = DEFAULT_BROKER_URL; // Always use localhost
       this.clientId = clientId;
       this.connectOptions = { ...options };
       this.reconnectAttempts = 0;
@@ -47,7 +46,7 @@ class MqttService {
           clientId: clientId || defaultOptions.clientId // Use provided client ID or generate one
         };
         
-        this.client = mqtt.connect(brokerUrl, mqttOptions);
+        this.client = mqtt.connect(DEFAULT_BROKER_URL, mqttOptions);
         
         // Set up event handlers
         this.client.on('connect', () => {

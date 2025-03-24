@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useWLED } from '@/context/WLEDContext';
 import { Button } from '@/components/ui/button';
@@ -29,7 +28,6 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
   const [newDeviceName, setNewDeviceName] = useState('');
   const [newDeviceClientId, setNewDeviceClientId] = useState('');
   const [devicesWithConfig, setDevicesWithConfig] = useState<Record<string, boolean>>({});
-  const [mqttBrokerUrl, setMqttBrokerUrl] = useState('mqtt://localhost:1883');
   const [showMqttConnect, setShowMqttConnect] = useState(false);
 
   // Check which devices have saved configurations
@@ -96,7 +94,7 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
       return;
     }
     
-    const connected = await mqttService.connect(mqttBrokerUrl, newDeviceClientId);
+    const connected = await mqttService.connect(undefined, newDeviceClientId);
     if (connected) {
       toast.success(`Connected to MQTT broker with client ID: ${newDeviceClientId}`);
       
@@ -153,12 +151,6 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ className }) => {
       {showMqttConnect && (
         <div className="p-4 pt-0">
           <div className="flex flex-col space-y-2 glass p-3 rounded-lg animate-fade-in">
-            <Input
-              value={mqttBrokerUrl}
-              onChange={(e) => setMqttBrokerUrl(e.target.value)}
-              placeholder="MQTT Broker URL"
-              className="glass-input h-8 text-sm"
-            />
             <Input
               value={newDeviceClientId}
               onChange={(e) => setNewDeviceClientId(e.target.value)}
