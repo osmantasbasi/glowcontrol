@@ -4,6 +4,7 @@ import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import BrightnessSlider from './BrightnessSlider';
 import DeviceManager from './DeviceManager';
+import MqttStatusIndicator from './MqttStatusIndicator';
 import { Button } from '@/components/ui/button';
 import { Power, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -68,7 +69,10 @@ const ControlPanel: React.FC = () => {
   return (
     <div className="relative w-full max-w-5xl mx-auto p-2 sm:p-4">
       <header className="mb-2 sm:mb-4 flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-medium gradient-text">GlowControl</h1>
+        <div className="flex items-center gap-2">
+          <MqttStatusIndicator />
+          <h1 className="text-xl sm:text-2xl font-medium gradient-text">GlowControl</h1>
+        </div>
         
         <div className="flex items-center gap-2">
           {deviceState && (

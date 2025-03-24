@@ -15,6 +15,9 @@ const defaultOptions: IClientOptions = {
 // Default broker URL - always use localhost:1883
 const DEFAULT_BROKER_URL = 'mqtt://localhost:1883';
 
+// Custom event type for connection status changes
+type ConnectionStatusListener = (connected: boolean) => void;
+
 class MqttService {
   private client: MqttClient | null = null;
   private subscribers: Map<string, Array<(message: string) => void>> = new Map();
@@ -23,6 +26,22 @@ class MqttService {
   private connectOptions: IClientOptions = {};
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
+  private connectionStatusListeners: ConnectionStatusListener[] = [];
+  
+  // Add a connection status listener
+  addConnectionStatusListener(listener: ConnectionStatusListener): void {
+    this.connectionStatusListeners.push(listener);
+  }
+  
+  // Remove a connection status listener
+  removeConnectionStatusListener(listener: ConnectionStatusListener): void {
+    this.connectionStatusListeners = this.connectionStatusListeners.filter(l => l !== listener);
+  }
+  
+  // Notify all listeners of connection status change
+  private notifyConnectionStatusChange(connected: boolean): void {
+    this.connectionStatusListeners.forEach(listener => listener(connected));
+  }
   
   // Connect to MQTT broker - always use localhost:1883
   connect(brokerUrl: string = DEFAULT_BROKER_URL, clientId: string, options: IClientOptions = {}): Promise<boolean> {
@@ -52,6 +71,7 @@ class MqttService {
         this.client.on('connect', () => {
           this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
           toast.success('Connected to MQTT broker');
+          this.notifyConnectionStatusChange(true);
           resolve(true);
         });
         
@@ -59,6 +79,7 @@ class MqttService {
           console.error('MQTT connection error:', err);
           toast.error(`MQTT error: ${err.message}`);
           if (!this.client?.connected) {
+            this.notifyConnectionStatusChange(false);
             resolve(false);
           }
         });
@@ -75,6 +96,7 @@ class MqttService {
         
         this.client.on('disconnect', () => {
           toast.info('Disconnected from MQTT broker');
+          this.notifyConnectionStatusChange(false);
         });
         
         this.client.on('reconnect', () => {
@@ -85,20 +107,24 @@ class MqttService {
             // Only show this message once
             toast.error(`Failed to reconnect after ${this.maxReconnectAttempts} attempts`);
             this.client?.end(true); // Force disconnect
+            this.notifyConnectionStatusChange(false);
           }
         });
         
         this.client.on('close', () => {
           console.log('MQTT connection closed');
+          this.notifyConnectionStatusChange(false);
         });
         
         this.client.on('offline', () => {
           console.log('MQTT client is offline');
           toast.error('MQTT broker connection lost');
+          this.notifyConnectionStatusChange(false);
         });
       } catch (error) {
         console.error('Failed to connect to MQTT broker:', error);
         toast.error(`Failed to connect: ${(error as Error).message}`);
+        this.notifyConnectionStatusChange(false);
         resolve(false);
       }
     });
@@ -121,6 +147,7 @@ class MqttService {
       this.client.end(true); // Force disconnect
       this.client = null;
       this.subscribers.clear();
+      this.notifyConnectionStatusChange(false);
     }
   }
   
