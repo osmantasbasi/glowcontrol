@@ -9,8 +9,9 @@
     <meta name="author" content="Lovable" />
     <meta property="og:image" content="/og-image.png" />
     <script>
-      // Add process object for MQTT
+      // Ensure process and Buffer are defined before any scripts load
       window.process = window.process || { env: {} };
+      // We'll set up Buffer in the global scope when the buffer module is loaded
     </script>
   </head>
 
