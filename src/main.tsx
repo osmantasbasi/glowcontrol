@@ -1,8 +1,6 @@
 
-// Import and set up Buffer polyfill first
+// Set up Buffer polyfill BEFORE any imports
 import { Buffer } from 'buffer';
-
-// Make Buffer available globally - this needs to happen before any MQTT code runs
 window.Buffer = Buffer;
 
 import { createRoot } from 'react-dom/client'
