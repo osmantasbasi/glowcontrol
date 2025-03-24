@@ -21,33 +21,9 @@
         try {
           // Force Buffer initialization from the polyfill
           if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
+            // Make sure we use the full Buffer implementation from the polyfill
             window.Buffer = window.buffer.Buffer;
-            
-            // Make sure Buffer.from is available and is a function
-            if (typeof window.Buffer.from !== 'function') {
-              console.warn('Buffer.from missing, creating polyfill');
-              
-              // Create Buffer.from polyfill if needed
-              window.Buffer.from = function(data, encoding) {
-                if (typeof data === 'string') {
-                  // Handle string conversion
-                  return new window.Buffer(data, encoding);
-                } else if (data instanceof Uint8Array) {
-                  // Handle Uint8Array conversion
-                  const buf = new window.Buffer(data.length);
-                  for (let i = 0; i < data.length; i++) {
-                    buf[i] = data[i];
-                  }
-                  return buf;
-                } else if (Array.isArray(data)) {
-                  // Handle array conversion
-                  return new window.Buffer(data);
-                } else {
-                  // Default fallback
-                  return new window.Buffer(data || 0);
-                }
-              };
-            }
+            console.log('Buffer polyfill initialized with full implementation');
             
             // Test Buffer.from to verify it works
             try {
