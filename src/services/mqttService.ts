@@ -1,11 +1,23 @@
 
 import mqtt from 'mqtt';
-import { Buffer } from 'buffer';
+import { Buffer as BufferPolyfill } from 'buffer';
 
-// Double-check Buffer is available globally
-if (!window.Buffer) {
-  console.warn("Buffer not defined in global scope, setting it now");
-  window.Buffer = Buffer;
+// Ensure Buffer is available globally with multiple fallbacks
+if (typeof window !== 'undefined') {
+  if (!window.Buffer) {
+    console.warn("Buffer not defined in global scope, setting it now");
+    window.Buffer = BufferPolyfill;
+  }
+  
+  // Verify Buffer is properly initialized
+  console.log('MQTT Service - Buffer check:', !!window.Buffer);
+  console.log('MQTT Service - Buffer.from check:', typeof window.Buffer?.from === 'function');
+  
+  // Provide fallback if Buffer.from is missing
+  if (!window.Buffer.from) {
+    console.warn("Buffer.from not available, providing fallback");
+    window.Buffer.from = BufferPolyfill.from;
+  }
 }
 
 // Add process object for browser environment
