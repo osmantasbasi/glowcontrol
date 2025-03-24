@@ -8,21 +8,36 @@
     <meta name="description" content="Lovable Generated Project" />
     <meta name="author" content="Lovable" />
     <meta property="og:image" content="/og-image.png" />
-    <!-- Make sure to use a specific version of buffer that provides all needed methods -->
+    <!-- Load Buffer polyfill synchronously before any other scripts -->
+    <script>
+      // Pre-initialize Buffer to prevent race conditions
+      window.Buffer = window.Buffer || {};
+      window.process = window.process || { env: {} };
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
     <script>
-      // Ensure process is defined before any scripts load
-      window.process = window.process || { env: {} };
-      
-      // Make sure Buffer and its methods are properly defined
-      if (typeof window.Buffer === 'undefined' || typeof window.Buffer.from !== 'function') {
-        console.log('Initializing Buffer from CDN...');
-        window.Buffer = window.Buffer || buffer.Buffer;
-      }
-      
-      // Verify buffer.from is available
-      console.log('Buffer available:', !!window.Buffer);
-      console.log('Buffer.from available:', typeof window.Buffer?.from === 'function');
+      // Ensure Buffer is properly defined with all needed methods
+      (function ensureBuffer() {
+        if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
+          console.log('Using buffer from CDN');
+          // Use the buffer object from the CDN
+          window.Buffer = window.buffer.Buffer;
+        }
+        
+        // Check for Buffer.from and explicitly define it if missing
+        if (typeof window.Buffer === 'undefined' || typeof window.Buffer.from !== 'function') {
+          console.error('Buffer or Buffer.from is not available!');
+        } else {
+          console.log('✓ Buffer.from is available');
+          // Test Buffer.from to verify it works
+          try {
+            var testBuffer = window.Buffer.from('test');
+            console.log('✓ Buffer.from test successful:', testBuffer instanceof Uint8Array);
+          } catch (e) {
+            console.error('Buffer.from test failed:', e);
+          }
+        }
+      })();
     </script>
   </head>
 

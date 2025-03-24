@@ -1,26 +1,35 @@
 
-// Buffer polyfill configuration - must be done before any imports
-import { Buffer as BufferPolyfill } from 'buffer';
-
-// Make absolutely sure Buffer is available globally with all methods
-if (typeof window !== 'undefined') {
-  // First check if Buffer exists but doesn't have the 'from' method
-  if (!window.Buffer || typeof window.Buffer.from !== 'function') {
-    console.log('Initializing Buffer with full implementation');
-    window.Buffer = BufferPolyfill;
-    
-    // Explicitly create the polyfill methods if they don't exist
-    if (typeof window.Buffer.from !== 'function') {
-      console.log('Adding Buffer.from method');
-      window.Buffer.from = BufferPolyfill.from;
+// Force global Buffer to be correctly initialized before any imports
+(function initializeBuffer() {
+  // Dynamically import buffer if needed
+  if (typeof window !== 'undefined') {
+    // If window.Buffer doesn't exist or Buffer.from is not a function
+    if (!window.Buffer || typeof window.Buffer.from !== 'function') {
+      console.log('Fixing Buffer in main.tsx');
+      try {
+        // Use the buffer from the CDN if available
+        if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
+          window.Buffer = window.buffer.Buffer;
+        } else {
+          // Import from buffer module as last resort
+          const BufferModule = require('buffer');
+          window.Buffer = BufferModule.Buffer;
+        }
+        
+        // Verify Buffer.from is now working
+        console.log('Buffer.from available in main.tsx:', typeof window.Buffer.from === 'function');
+        
+        // Test Buffer functionality
+        const testBuffer = window.Buffer.from('test');
+        console.log('Buffer.from test successful in main.tsx:', testBuffer instanceof Uint8Array);
+      } catch (e) {
+        console.error('Error initializing Buffer in main.tsx:', e);
+      }
     }
   }
-  
-  console.log('Buffer check in main.tsx:', !!window.Buffer);
-  console.log('Buffer.from check in main.tsx:', typeof window.Buffer.from === 'function');
-}
+})();
 
-// Only load React after Buffer is properly configured
+// Now we can safely import React and other dependencies
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'

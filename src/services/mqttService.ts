@@ -1,33 +1,44 @@
-
-import mqtt from 'mqtt';
-import { Buffer as BufferPolyfill } from 'buffer';
-
-// Ensure Buffer is available globally with complete implementation
-if (typeof window !== 'undefined') {
-  if (!window.Buffer || typeof window.Buffer.from !== 'function') {
-    console.log('Buffer or Buffer.from not available in MQTT service, setting it up');
-    // Assign the complete Buffer implementation
-    window.Buffer = BufferPolyfill;
+(function ensureBufferForMQTT() {
+  if (typeof window !== 'undefined') {
+    console.log('MQTT Service - checking Buffer before imports');
     
-    // Explicitly ensure that Buffer.from exists
-    if (typeof window.Buffer.from !== 'function') {
-      console.log('Adding Buffer.from method to window.Buffer');
-      window.Buffer.from = BufferPolyfill.from.bind(BufferPolyfill);
+    // If Buffer or Buffer.from is not available
+    if (!window.Buffer || typeof window.Buffer.from !== 'function') {
+      console.warn('Buffer or Buffer.from not available in MQTT service, fixing it');
+      
+      try {
+        // Try to use buffer from CDN first
+        if (typeof window.buffer !== 'undefined' && window.buffer.Buffer) {
+          window.Buffer = window.buffer.Buffer;
+        } else {
+          // Import from buffer module if necessary
+          const BufferModule = require('buffer');
+          window.Buffer = BufferModule.Buffer;
+        }
+        
+        // Make sure Buffer.from is a function
+        if (typeof window.Buffer.from !== 'function') {
+          throw new Error('Buffer.from is still not a function after initialization');
+        }
+      } catch (e) {
+        console.error('Failed to initialize Buffer properly in MQTT service:', e);
+      }
+    }
+    
+    // Verify Buffer.from is available
+    console.log('MQTT Service - Buffer.from available:', typeof window.Buffer.from === 'function');
+    
+    // Test Buffer.from functionality
+    try {
+      const testBuffer = window.Buffer.from('test');
+      console.log('Buffer.from test successful in MQTT service:', testBuffer instanceof Uint8Array);
+    } catch (e) {
+      console.error('Buffer.from test failed in MQTT service:', e);
     }
   }
-  
-  // Verify Buffer is properly set up
-  console.log('MQTT Service - Buffer available:', !!window.Buffer);
-  console.log('MQTT Service - Buffer.from available:', typeof window.Buffer.from === 'function');
-  
-  // Test Buffer.from functionality
-  try {
-    const testBuffer = window.Buffer.from('test');
-    console.log('Buffer.from test successful:', testBuffer);
-  } catch (e) {
-    console.error('Buffer.from test failed:', e);
-  }
-}
+})();
+
+import mqtt from 'mqtt';
 
 // Add process object for browser environment
 if (typeof window !== 'undefined' && !window.process) {
