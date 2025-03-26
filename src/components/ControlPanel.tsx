@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 import { saveConfiguration, loadConfiguration } from '@/services/configService';
+import MqttStatusIndicator from './MqttStatusIndicator';
 
 const ControlPanel: React.FC = () => {
   const { deviceState, deviceInfo, togglePower, setColor, setBrightness, activeDevice } = useWLED();
@@ -68,7 +69,10 @@ const ControlPanel: React.FC = () => {
   return (
     <div className="relative w-full max-w-5xl mx-auto p-2 sm:p-4">
       <header className="mb-2 sm:mb-4 flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-medium gradient-text">GlowControl</h1>
+        <div className="flex items-center gap-2">
+          <MqttStatusIndicator />
+          <h1 className="text-xl sm:text-2xl font-medium gradient-text">GlowControl</h1>
+        </div>
         
         <div className="flex items-center gap-2">
           {deviceState && (
