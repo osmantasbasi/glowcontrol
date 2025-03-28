@@ -6,49 +6,49 @@ interface SavedConfiguration {
 }
 
 export interface ConfigStorage {
-  [ipAddress: string]: SavedConfiguration;
+  [clientId: string]: SavedConfiguration;
 }
 
-export const saveConfiguration = (ipAddress: string, configuration: SavedConfiguration): void => {
+export const saveConfiguration = (clientId: string, configuration: SavedConfiguration): void => {
   try {
     // Get existing configurations
     const existingConfig = localStorage.getItem('wledConfigurations');
     const configs: ConfigStorage = existingConfig ? JSON.parse(existingConfig) : {};
     
-    // Update the configuration for this IP
-    configs[ipAddress] = configuration;
+    // Update the configuration for this client ID
+    configs[clientId] = configuration;
     
     // Save back to localStorage
     localStorage.setItem('wledConfigurations', JSON.stringify(configs));
-    console.log(`Configuration for ${ipAddress} saved successfully`);
+    console.log(`Configuration for ${clientId} saved successfully`);
   } catch (error) {
     console.error('Error saving configuration:', error);
   }
 };
 
-export const loadConfiguration = (ipAddress: string): SavedConfiguration | null => {
+export const loadConfiguration = (clientId: string): SavedConfiguration | null => {
   try {
     const existingConfig = localStorage.getItem('wledConfigurations');
     if (!existingConfig) return null;
     
     const configs: ConfigStorage = JSON.parse(existingConfig);
-    return configs[ipAddress] || null;
+    return configs[clientId] || null;
   } catch (error) {
     console.error('Error loading configuration:', error);
     return null;
   }
 };
 
-export const deleteConfiguration = (ipAddress: string): void => {
+export const deleteConfiguration = (clientId: string): void => {
   try {
     const existingConfig = localStorage.getItem('wledConfigurations');
     if (!existingConfig) return;
     
     const configs: ConfigStorage = JSON.parse(existingConfig);
-    if (configs[ipAddress]) {
-      delete configs[ipAddress];
+    if (configs[clientId]) {
+      delete configs[clientId];
       localStorage.setItem('wledConfigurations', JSON.stringify(configs));
-      console.log(`Configuration for ${ipAddress} deleted successfully`);
+      console.log(`Configuration for ${clientId} deleted successfully`);
     }
   } catch (error) {
     console.error('Error deleting configuration:', error);
