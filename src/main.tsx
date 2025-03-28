@@ -4,9 +4,9 @@ import App from './App.tsx'
 import './index.css'
 import { initMqttClient } from './services/mqttClient'
 
-// Initialize MQTT client
+// Initialize AWS IoT client
 initMqttClient().catch(error => {
-  console.error('Failed to initialize MQTT client:', error);
+  console.error('Failed to initialize AWS IoT client:', error);
 });
 
 createRoot(document.getElementById("root")!).render(<App />);
