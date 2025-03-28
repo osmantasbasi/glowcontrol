@@ -1,6 +1,5 @@
 
 import mqtt, { MqttClient, IClientOptions, IConnackPacket } from 'mqtt';
-import fs from 'fs';
 import { toast } from 'sonner';
 
 // MQTT connection status
@@ -59,21 +58,19 @@ export const initMqttClient = async (): Promise<void> => {
   try {
     updateConnectionStatus(MqttConnectionStatus.CONNECTING);
     
-    // MQTT.js options for secure connection
+    // In browser environments, we need to use WSS instead of TLS
+    // MQTT.js options for WebSocket connection
     const options: IClientOptions = {
       clientId: MQTT_CONFIG.clientId,
-      host: MQTT_CONFIG.host,
-      port: MQTT_CONFIG.port,
-      protocol: 'mqtts',
-      rejectUnauthorized: true,
+      clean: true,
       reconnectPeriod: MQTT_CONFIG.reconnectPeriod,
-      // Load certificates for TLS
-      key: fs.readFileSync('/certs/client-key.pem'),
-      cert: fs.readFileSync('/certs/client-cert.pem'),
-      ca: fs.readFileSync('/certs/ca-cert.pem')
+      connectTimeout: 30000, // 30 seconds
     };
 
-    const brokerUrl = `mqtts://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}`;
+    // We're running in a browser, so we need to use WebSockets
+    // The actual WebSocket connection will be established by the broker
+    // For AWS IoT Core, the URL format is typically wss://endpoint/mqtt
+    const brokerUrl = `wss://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}/mqtt`;
     console.log(`Connecting to MQTT broker at ${brokerUrl}`);
     
     mqttClient = mqtt.connect(brokerUrl, options);
