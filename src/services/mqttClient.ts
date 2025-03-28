@@ -1,7 +1,6 @@
+
 import mqtt, { MqttClient, IClientOptions, IConnackPacket } from 'mqtt';
 import { toast } from 'sonner';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // MQTT connection status
 export enum MqttConnectionStatus {
@@ -25,7 +24,19 @@ const MQTT_CONFIG = {
   clientId: `glowcontrol-${Math.random().toString(16).substring(2, 10)}`,
   baseTopic: '/client_id/api', // Base topic template
   reconnectPeriod: 5000, // 5 seconds
-  certsPath: '/certs/', // Path to the certificates
+};
+
+// Certificate content placeholders (would be loaded from server or configuration)
+const CERTIFICATES = {
+  clientKey: `-----BEGIN RSA PRIVATE KEY-----
+YOUR_CLIENT_KEY_CONTENT_HERE
+-----END RSA PRIVATE KEY-----`,
+  clientCert: `-----BEGIN CERTIFICATE-----
+YOUR_CLIENT_CERT_CONTENT_HERE
+-----END CERTIFICATE-----`,
+  caCert: `-----BEGIN CERTIFICATE-----
+YOUR_CA_CERT_CONTENT_HERE
+-----END CERTIFICATE-----`
 };
 
 // Store active clientId for topic construction
@@ -68,26 +79,6 @@ const updateConnectionStatus = (status: MqttConnectionStatus) => {
   statusListeners.forEach(listener => listener(status));
 };
 
-// Load certificates for TLS connection
-const loadCertificates = (): { key: Buffer, cert: Buffer, ca: Buffer } | null => {
-  try {
-    // Use absolute paths with path.resolve for reliability
-    const certPath = path.resolve(MQTT_CONFIG.certsPath);
-    
-    // Load certificates from filesystem
-    const key = fs.readFileSync(path.join(certPath, 'client-key.pem'));
-    const cert = fs.readFileSync(path.join(certPath, 'client-cert.pem'));
-    const ca = fs.readFileSync(path.join(certPath, 'ca-cert.pem'));
-    
-    console.log('Certificates loaded successfully');
-    return { key, cert, ca };
-  } catch (error) {
-    console.error('Failed to load certificates:', error);
-    toast.error(`Failed to load certificates: ${error instanceof Error ? error.message : String(error)}`);
-    return null;
-  }
-};
-
 // Initialize MQTT client
 export const initMqttClient = async (): Promise<void> => {
   if (mqttClient) {
@@ -98,29 +89,27 @@ export const initMqttClient = async (): Promise<void> => {
   try {
     updateConnectionStatus(MqttConnectionStatus.CONNECTING);
     
-    // Load certificates for TLS connection
-    const certificates = loadCertificates();
-    if (!certificates) {
-      throw new Error('Failed to load certificates');
-    }
+    // For browser environment, use WebSocket connection
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const brokerUrl = `${wsProtocol}${MQTT_CONFIG.host}:${MQTT_CONFIG.port}/mqtt`;
     
-    // MQTT.js options for TLS/SSL connection
+    console.log(`Connecting to MQTT broker at ${brokerUrl}`);
+    
+    // MQTT.js options for secure WebSocket connection
     const options: IClientOptions = {
       clientId: MQTT_CONFIG.clientId,
       clean: true,
       reconnectPeriod: MQTT_CONFIG.reconnectPeriod,
       connectTimeout: 30000, // 30 seconds
-      rejectUnauthorized: true, // Verify server certificate
-      // Add TLS options
-      key: certificates.key,
-      cert: certificates.cert,
-      ca: certificates.ca,
-      protocol: 'mqtts', // Use secure MQTT
+      rejectUnauthorized: true,
+      // If using certificates with WebSockets (some brokers support this)
+      // These would be provided as strings rather than file contents
+      ...(CERTIFICATES.clientKey && CERTIFICATES.clientCert && CERTIFICATES.caCert && {
+        key: CERTIFICATES.clientKey,
+        cert: CERTIFICATES.clientCert,
+        ca: CERTIFICATES.caCert
+      })
     };
-
-    // Use mqtts:// protocol for secure connection
-    const brokerUrl = `mqtts://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}`;
-    console.log(`Connecting to MQTT broker at ${brokerUrl}`);
     
     mqttClient = mqtt.connect(brokerUrl, options);
 
