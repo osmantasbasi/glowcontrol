@@ -3,10 +3,14 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { initMqttClient } from './services/mqttClient'
+import { Buffer } from 'buffer'
 
-// Initialize AWS IoT client
+// Make Buffer available globally
+window.Buffer = Buffer
+
+// Initialize MQTT client
 initMqttClient().catch(error => {
-  console.error('Failed to initialize AWS IoT client:', error);
+  console.error('Failed to initialize MQTT client:', error);
 });
 
 createRoot(document.getElementById("root")!).render(<App />);
