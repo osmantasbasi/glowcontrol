@@ -22,8 +22,26 @@ const MQTT_CONFIG = {
   host: 'amz.iot.mqtt',
   port: 8883,
   clientId: `glowcontrol-${Math.random().toString(16).substring(2, 10)}`,
-  topic: '/client_id/api',
+  baseTopic: '/client_id/api', // Base topic template
   reconnectPeriod: 5000, // 5 seconds
+};
+
+// Store active clientId for topic construction
+let activeClientId: string | null = null;
+
+// Get the actual topic to publish to based on active client ID
+export const getPublishTopic = (): string => {
+  if (!activeClientId) {
+    return MQTT_CONFIG.baseTopic; // Default if no client ID is set
+  }
+  return MQTT_CONFIG.baseTopic.replace('client_id', activeClientId);
+};
+
+// Set active client ID for topic construction
+export const setActiveClientId = (clientId: string): void => {
+  activeClientId = clientId;
+  console.log(`Active client ID set to: ${clientId}`);
+  console.log(`Publishing topic is now: ${getPublishTopic()}`);
 };
 
 // Callbacks for status changes
@@ -158,9 +176,12 @@ export const publishMessage = async (payload: Record<string, any>): Promise<bool
   }
 
   try {
+    const topic = getPublishTopic();
+    console.log(`Publishing message to topic: ${topic}`);
+    
     const stringPayload = JSON.stringify(payload);
     return new Promise<boolean>((resolve) => {
-      mqttClient!.publish(MQTT_CONFIG.topic, stringPayload, { qos: 1 }, (error) => {
+      mqttClient!.publish(topic, stringPayload, { qos: 1 }, (error) => {
         if (error) {
           console.error('Failed to publish message:', error);
           toast.error(`Failed to publish message: ${error.message}`);
