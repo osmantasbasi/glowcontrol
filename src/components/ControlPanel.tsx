@@ -4,12 +4,14 @@ import { useWLED } from '@/context/WLEDContext';
 import ColorPicker from './ColorPicker';
 import BrightnessSlider from './BrightnessSlider';
 import DeviceManager from './DeviceManager';
+import MqttStatusIndicator from './MqttStatusIndicator';
 import { Button } from '@/components/ui/button';
 import { Power, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 import { saveConfiguration, loadConfiguration } from '@/services/configService';
+import { publishMessage } from '@/services/mqttClient';
 
 const ControlPanel: React.FC = () => {
   const { deviceState, deviceInfo, togglePower, setColor, setBrightness, activeDevice } = useWLED();
@@ -31,6 +33,17 @@ const ControlPanel: React.FC = () => {
       }
     }
   }, [activeDevice]);
+
+  // Send device updates to MQTT
+  useEffect(() => {
+    if (deviceState && activeDevice) {
+      // Publish device state to MQTT
+      publishMessage({
+        clientId: activeDevice.ipAddress,
+        state: deviceState
+      });
+    }
+  }, [deviceState, activeDevice]);
 
   const handleColorChange = (color: {r: number, g: number, b: number}) => {
     setCurrentColor(color);
@@ -68,7 +81,10 @@ const ControlPanel: React.FC = () => {
   return (
     <div className="relative w-full max-w-5xl mx-auto p-2 sm:p-4">
       <header className="mb-2 sm:mb-4 flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-medium gradient-text">GlowControl</h1>
+        <div className="flex items-center gap-2">
+          <MqttStatusIndicator className="mr-2" />
+          <h1 className="text-xl sm:text-2xl font-medium gradient-text">GlowControl</h1>
+        </div>
         
         <div className="flex items-center gap-2">
           {deviceState && (
