@@ -1,6 +1,7 @@
-
 import mqtt, { MqttClient, IClientOptions, IConnackPacket } from 'mqtt';
 import { toast } from 'sonner';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // MQTT connection status
 export enum MqttConnectionStatus {
@@ -24,6 +25,7 @@ const MQTT_CONFIG = {
   clientId: `glowcontrol-${Math.random().toString(16).substring(2, 10)}`,
   baseTopic: '/client_id/api', // Base topic template
   reconnectPeriod: 5000, // 5 seconds
+  certsPath: '/certs/', // Path to the certificates
 };
 
 // Store active clientId for topic construction
@@ -66,6 +68,26 @@ const updateConnectionStatus = (status: MqttConnectionStatus) => {
   statusListeners.forEach(listener => listener(status));
 };
 
+// Load certificates for TLS connection
+const loadCertificates = (): { key: Buffer, cert: Buffer, ca: Buffer } | null => {
+  try {
+    // Use absolute paths with path.resolve for reliability
+    const certPath = path.resolve(MQTT_CONFIG.certsPath);
+    
+    // Load certificates from filesystem
+    const key = fs.readFileSync(path.join(certPath, 'client-key.pem'));
+    const cert = fs.readFileSync(path.join(certPath, 'client-cert.pem'));
+    const ca = fs.readFileSync(path.join(certPath, 'ca-cert.pem'));
+    
+    console.log('Certificates loaded successfully');
+    return { key, cert, ca };
+  } catch (error) {
+    console.error('Failed to load certificates:', error);
+    toast.error(`Failed to load certificates: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+};
+
 // Initialize MQTT client
 export const initMqttClient = async (): Promise<void> => {
   if (mqttClient) {
@@ -76,19 +98,28 @@ export const initMqttClient = async (): Promise<void> => {
   try {
     updateConnectionStatus(MqttConnectionStatus.CONNECTING);
     
-    // In browser environments, we need to use WSS instead of TLS
-    // MQTT.js options for WebSocket connection
+    // Load certificates for TLS connection
+    const certificates = loadCertificates();
+    if (!certificates) {
+      throw new Error('Failed to load certificates');
+    }
+    
+    // MQTT.js options for TLS/SSL connection
     const options: IClientOptions = {
       clientId: MQTT_CONFIG.clientId,
       clean: true,
       reconnectPeriod: MQTT_CONFIG.reconnectPeriod,
       connectTimeout: 30000, // 30 seconds
+      rejectUnauthorized: true, // Verify server certificate
+      // Add TLS options
+      key: certificates.key,
+      cert: certificates.cert,
+      ca: certificates.ca,
+      protocol: 'mqtts', // Use secure MQTT
     };
 
-    // We're running in a browser, so we need to use WebSockets
-    // The actual WebSocket connection will be established by the broker
-    // For AWS IoT Core, the URL format is typically wss://endpoint/mqtt
-    const brokerUrl = `wss://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}/mqtt`;
+    // Use mqtts:// protocol for secure connection
+    const brokerUrl = `mqtts://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}`;
     console.log(`Connecting to MQTT broker at ${brokerUrl}`);
     
     mqttClient = mqtt.connect(brokerUrl, options);
