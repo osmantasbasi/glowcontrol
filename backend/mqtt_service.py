@@ -65,6 +65,8 @@ def on_connect(client, userdata, flags, rc):
         mqtt_connected = True
         CONNECTION_STATUS["status"] = "connected"
         CONNECTION_STATUS["error"] = None
+        publish_message("Connected")
+        
     else:
         error_msg = f"Failed to connect to MQTT broker with result code {rc}"
         logger.error(error_msg)
