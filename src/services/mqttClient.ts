@@ -1,5 +1,4 @@
 
-import mqtt, { MqttClient, IClientOptions, IConnackPacket } from 'mqtt';
 import { toast } from 'sonner';
 
 // MQTT connection status
@@ -10,52 +9,12 @@ export enum MqttConnectionStatus {
   ERROR = 'error'
 }
 
-// MQTT client singleton and state
-let mqttClient: MqttClient | null = null;
-let connectionStatus: MqttConnectionStatus = MqttConnectionStatus.DISCONNECTED;
-let reconnectTimer: NodeJS.Timeout | null = null;
-const MAX_RECONNECT_DELAY = 60000; // 1 minute
-let reconnectAttempts = 0;
-
-// MQTT configuration
-const MQTT_CONFIG = {
-  host: 'amz.iot.mqtt',
-  port: 8883,
-  clientId: `glowcontrol-${Math.random().toString(16).substring(2, 10)}`,
-  baseTopic: '/client_id/api', // Base topic template
-  reconnectPeriod: 5000, // 5 seconds
-};
-
-// Certificate content placeholders (would be loaded from server or configuration)
-const CERTIFICATES = {
-  clientKey: `-----BEGIN RSA PRIVATE KEY-----
-YOUR_CLIENT_KEY_CONTENT_HERE
------END RSA PRIVATE KEY-----`,
-  clientCert: `-----BEGIN CERTIFICATE-----
-YOUR_CLIENT_CERT_CONTENT_HERE
------END CERTIFICATE-----`,
-  caCert: `-----BEGIN CERTIFICATE-----
-YOUR_CA_CERT_CONTENT_HERE
------END CERTIFICATE-----`
-};
+// Backend API URL
+const BACKEND_API_URL = 'http://localhost:5000';
 
 // Store active clientId for topic construction
 let activeClientId: string | null = null;
-
-// Get the actual topic to publish to based on active client ID
-export const getPublishTopic = (): string => {
-  if (!activeClientId) {
-    return MQTT_CONFIG.baseTopic; // Default if no client ID is set
-  }
-  return MQTT_CONFIG.baseTopic.replace('client_id', activeClientId);
-};
-
-// Set active client ID for topic construction
-export const setActiveClientId = (clientId: string): void => {
-  activeClientId = clientId;
-  console.log(`Active client ID set to: ${clientId}`);
-  console.log(`Publishing topic is now: ${getPublishTopic()}`);
-};
+let connectionStatus: MqttConnectionStatus = MqttConnectionStatus.DISCONNECTED;
 
 // Callbacks for status changes
 const statusListeners: Array<(status: MqttConnectionStatus) => void> = [];
@@ -79,139 +38,131 @@ const updateConnectionStatus = (status: MqttConnectionStatus) => {
   statusListeners.forEach(listener => listener(status));
 };
 
+// Get the publish topic
+export const getPublishTopic = (): string => {
+  if (!activeClientId) {
+    return '/client_id/api'; // Default if no client ID is set
+  }
+  return `/client_id/api`.replace('client_id', activeClientId);
+};
+
+// Set active client ID for topic construction
+export const setActiveClientId = async (clientId: string): Promise<void> => {
+  try {
+    activeClientId = clientId;
+    console.log(`Active client ID set to: ${clientId}`);
+    console.log(`Publishing topic is now: ${getPublishTopic()}`);
+    
+    // Notify the backend about the new active client ID
+    const response = await fetch(`${BACKEND_API_URL}/set-client`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ clientId }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to set active client ID on backend');
+    }
+    
+    console.log('Backend notified of active client ID');
+  } catch (error) {
+    console.error('Error setting active client ID:', error);
+    toast.error(`Error setting active client ID: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
 // Initialize MQTT client
 export const initMqttClient = async (): Promise<void> => {
-  if (mqttClient) {
-    console.log('MQTT client already initialized');
-    return;
-  }
-
   try {
     updateConnectionStatus(MqttConnectionStatus.CONNECTING);
+    console.log('Connecting to MQTT broker via backend service');
     
-    // For browser environment, use WebSocket connection
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const brokerUrl = `${wsProtocol}${MQTT_CONFIG.host}:${MQTT_CONFIG.port}/mqtt`;
+    const response = await fetch(`${BACKEND_API_URL}/connect`, {
+      method: 'POST',
+    });
     
-    console.log(`Connecting to MQTT broker at ${brokerUrl}`);
+    if (!response.ok) {
+      throw new Error('Failed to connect to MQTT broker');
+    }
     
-    // MQTT.js options for secure WebSocket connection
-    const options: IClientOptions = {
-      clientId: MQTT_CONFIG.clientId,
-      clean: true,
-      reconnectPeriod: MQTT_CONFIG.reconnectPeriod,
-      connectTimeout: 30000, // 30 seconds
-      rejectUnauthorized: true,
-      // If using certificates with WebSockets (some brokers support this)
-      // These would be provided as strings rather than file contents
-      ...(CERTIFICATES.clientKey && CERTIFICATES.clientCert && CERTIFICATES.caCert && {
-        key: CERTIFICATES.clientKey,
-        cert: CERTIFICATES.clientCert,
-        ca: CERTIFICATES.caCert
-      })
-    };
+    const data = await response.json();
     
-    mqttClient = mqtt.connect(brokerUrl, options);
-
-    // Set up event handlers
-    mqttClient.on('connect', (packet: IConnackPacket) => {
-      console.log('Connected to MQTT broker:', packet);
+    if (data.success) {
       updateConnectionStatus(MqttConnectionStatus.CONNECTED);
       toast.success('Connected to MQTT broker');
-      reconnectAttempts = 0;
+      console.log('Connected to MQTT broker via backend service');
       
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-    });
-
-    mqttClient.on('error', (error) => {
-      console.error('MQTT connection error:', error);
-      updateConnectionStatus(MqttConnectionStatus.ERROR);
-      toast.error(`MQTT error: ${error.message}`);
-    });
-
-    mqttClient.on('offline', () => {
-      console.log('MQTT client is offline');
-      updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
-      toast.error('MQTT broker connection lost');
-      scheduleReconnect();
-    });
-
-    mqttClient.on('disconnect', () => {
-      console.log('MQTT client disconnected');
-      updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
-    });
-
-    mqttClient.on('reconnect', () => {
-      console.log('Attempting to reconnect to MQTT broker');
-      updateConnectionStatus(MqttConnectionStatus.CONNECTING);
-    });
-
-    mqttClient.on('close', () => {
-      console.log('MQTT connection closed');
-      updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
-    });
-
+      // Start polling for status
+      startStatusPolling();
+    } else {
+      throw new Error(data.error || 'Failed to connect to MQTT broker');
+    }
   } catch (error) {
     console.error('Failed to initialize MQTT client:', error);
     updateConnectionStatus(MqttConnectionStatus.ERROR);
     toast.error(`Failed to initialize MQTT client: ${error instanceof Error ? error.message : String(error)}`);
-    scheduleReconnect();
   }
 };
 
-// Function to handle reconnection with exponential backoff
-const scheduleReconnect = () => {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-  }
+// Poll for connection status from the backend
+const startStatusPolling = () => {
+  const pollInterval = setInterval(async () => {
+    try {
+      const response = await fetch(`${BACKEND_API_URL}/status`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch status from backend');
+      }
+      
+      const data = await response.json();
+      
+      // Update the connection status
+      if (data.status === 'connected' && connectionStatus !== MqttConnectionStatus.CONNECTED) {
+        updateConnectionStatus(MqttConnectionStatus.CONNECTED);
+      } else if (data.status === 'connecting' && connectionStatus !== MqttConnectionStatus.CONNECTING) {
+        updateConnectionStatus(MqttConnectionStatus.CONNECTING);
+      } else if (data.status === 'disconnected' && connectionStatus !== MqttConnectionStatus.DISCONNECTED) {
+        updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
+      } else if (data.status === 'error' && connectionStatus !== MqttConnectionStatus.ERROR) {
+        updateConnectionStatus(MqttConnectionStatus.ERROR);
+      }
+    } catch (error) {
+      console.error('Error polling for status:', error);
+      clearInterval(pollInterval);
+    }
+  }, 5000); // Poll every 5 seconds
   
-  reconnectAttempts++;
-  const delay = Math.min(
-    MQTT_CONFIG.reconnectPeriod * Math.pow(2, reconnectAttempts - 1),
-    MAX_RECONNECT_DELAY
-  );
-  
-  console.log(`Scheduling reconnection in ${delay}ms (attempt ${reconnectAttempts})`);
-  
-  reconnectTimer = setTimeout(() => {
-    console.log('Attempting to reconnect to MQTT broker');
-    initMqttClient();
-  }, delay);
-};
-
-// Get current connection status
-export const getMqttConnectionStatus = (): MqttConnectionStatus => {
-  return connectionStatus;
+  // Return a cleanup function
+  return () => clearInterval(pollInterval);
 };
 
 // Publish a message to the MQTT topic
 export const publishMessage = async (payload: Record<string, any>): Promise<boolean> => {
-  if (!mqttClient || !mqttClient.connected) {
-    console.error('MQTT client not connected');
-    toast.error('Cannot publish: MQTT client not connected');
-    return false;
-  }
-
   try {
-    const topic = getPublishTopic();
-    console.log(`Publishing message to topic: ${topic}`);
+    console.log(`Publishing message to topic: ${getPublishTopic()}`);
     
-    const stringPayload = JSON.stringify(payload);
-    return new Promise<boolean>((resolve) => {
-      mqttClient!.publish(topic, stringPayload, { qos: 1 }, (error) => {
-        if (error) {
-          console.error('Failed to publish message:', error);
-          toast.error(`Failed to publish message: ${error.message}`);
-          resolve(false);
-        } else {
-          console.log('Message published successfully');
-          resolve(true);
-        }
-      });
+    const response = await fetch(`${BACKEND_API_URL}/publish`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
+    
+    if (!response.ok) {
+      throw new Error('Failed to publish message to backend');
+    }
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Message published successfully');
+      return true;
+    } else {
+      throw new Error(data.error || 'Failed to publish message');
+    }
   } catch (error) {
     console.error('Error publishing message:', error);
     toast.error(`Error publishing message: ${error instanceof Error ? error.message : String(error)}`);
@@ -220,28 +171,30 @@ export const publishMessage = async (payload: Record<string, any>): Promise<bool
 };
 
 // Clean up MQTT connection
-export const cleanupMqttClient = (): Promise<void> => {
-  return new Promise((resolve) => {
-    if (!mqttClient) {
-      resolve();
-      return;
-    }
-
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-
-    mqttClient.end(false, {}, () => {
-      mqttClient = null;
-      updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
-      console.log('MQTT client cleaned up');
-      resolve();
+export const cleanupMqttClient = async (): Promise<void> => {
+  try {
+    const response = await fetch(`${BACKEND_API_URL}/disconnect`, {
+      method: 'POST',
     });
-  });
+    
+    if (!response.ok) {
+      throw new Error('Failed to disconnect from MQTT broker');
+    }
+    
+    updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
+    console.log('MQTT client cleaned up');
+  } catch (error) {
+    console.error('Error cleaning up MQTT client:', error);
+    toast.error(`Error cleaning up MQTT client: ${error instanceof Error ? error.message : String(error)}`);
+  }
 };
 
 // Export current connection status for direct access
 export const isConnected = (): boolean => {
   return connectionStatus === MqttConnectionStatus.CONNECTED;
+};
+
+// Get current connection status
+export const getMqttConnectionStatus = (): MqttConnectionStatus => {
+  return connectionStatus;
 };
