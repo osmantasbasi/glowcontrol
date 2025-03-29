@@ -12,7 +12,7 @@ CORS(app)  # Enable CORS for all routes
 
 # MQTT Configuration
 MQTT_CONFIG = {
-    "host": "amz.iot.mqtt",
+    "host": "a2c3xy7mb2i4zn-ats.iot.eu-north-1.amazonaws.com",
     "port": 8883,
     "client_id": f"glowcontrol-python-{int(time.time())}",
     "base_topic": "/client_id/api",  # Base topic template
@@ -24,9 +24,9 @@ active_client_id = None
 # Paths to certificates
 CERT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs")
 CERTIFICATES = {
-    "client_key": os.path.join(CERT_DIR, "client.key"),
-    "client_cert": os.path.join(CERT_DIR, "client.crt"),
-    "ca_cert": os.path.join(CERT_DIR, "ca.crt"),
+    "client_key": os.path.join(CERT_DIR, "client-key.pem"),
+    "client_cert": os.path.join(CERT_DIR, "client-cert.pem"),
+    "ca_cert": os.path.join(CERT_DIR, "ca-cert.pem"),
 }
 
 # MQTT client instance
