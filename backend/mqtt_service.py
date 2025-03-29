@@ -1,18 +1,20 @@
+
 import paho.mqtt.client as mqtt
 import ssl
 import json
 import time
 import os
+import sys
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, origins="*")  # Enable CORS for all routes and all origins
 
 # MQTT Configuration
 MQTT_CONFIG = {
-    "host": "a2c3xy7mb2i4zn-ats.iot.eu-north-1.amazonaws.com",
-    "port": 8883,
+    "host": os.environ.get("MQTT_HOST", "a2c3xy7mb2i4zn-ats.iot.eu-north-1.amazonaws.com"),
+    "port": int(os.environ.get("MQTT_PORT", 8883)),
     "client_id": f"glowcontrol-python-{int(time.time())}",
     "base_topic": os.environ.get("MQTT_BASE_TOPIC", "/client_id/api"),  # Base topic template
 }
@@ -20,8 +22,10 @@ MQTT_CONFIG = {
 # Client ID for topic construction
 active_client_id = None
 
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Paths to certificates
-CERT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs")
+CERT_DIR = os.path.join(SCRIPT_DIR, "certs")
 CERTIFICATES = {
     "client_key": os.path.join(CERT_DIR, "client-key.pem"),
     "client_cert": os.path.join(CERT_DIR, "client-cert.pem"),
@@ -34,7 +38,8 @@ mqtt_connected = False
 
 # Connection status
 CONNECTION_STATUS = {
-    "status": "disconnected"
+    "status": "disconnected",
+    "error": None
 }
 
 # Get the actual topic to publish to based on active client ID
@@ -50,10 +55,13 @@ def on_connect(client, userdata, flags, rc):
         print(f"Connected to MQTT broker with result code {rc}")
         mqtt_connected = True
         CONNECTION_STATUS["status"] = "connected"
+        CONNECTION_STATUS["error"] = None
     else:
-        print(f"Failed to connect to MQTT broker with result code {rc}")
+        error_msg = f"Failed to connect to MQTT broker with result code {rc}"
+        print(error_msg)
         mqtt_connected = False
         CONNECTION_STATUS["status"] = "error"
+        CONNECTION_STATUS["error"] = error_msg
 
 def on_disconnect(client, userdata, rc):
     global mqtt_connected
@@ -67,22 +75,36 @@ def on_publish(client, userdata, mid):
 def on_log(client, userdata, level, buf):
     print(f"MQTT Log: {buf}")
 
+# Check if certificates exist and are readable
+def check_certificates():
+    missing_certs = []
+    for cert_type, cert_path in CERTIFICATES.items():
+        if not os.path.exists(cert_path):
+            missing_certs.append(f"{cert_type} at {cert_path}")
+        elif not os.access(cert_path, os.R_OK):
+            missing_certs.append(f"{cert_type} at {cert_path} (not readable)")
+    
+    return missing_certs
+
 # Initialize MQTT client
 def init_mqtt_client():
     global mqtt_client, mqtt_connected
     
     try:
         CONNECTION_STATUS["status"] = "connecting"
+        CONNECTION_STATUS["error"] = None
         
-        # Check if certificates exist
-        for cert_type, cert_path in CERTIFICATES.items():
-            if not os.path.exists(cert_path):
-                print(f"Certificate {cert_type} not found at {cert_path}")
-                CONNECTION_STATUS["status"] = "error"
-                return False
-                
+        # Check if certificates exist and are readable
+        missing_certs = check_certificates()
+        if missing_certs:
+            error_msg = f"Missing or unreadable certificates: {', '.join(missing_certs)}"
+            print(error_msg)
+            CONNECTION_STATUS["status"] = "error"
+            CONNECTION_STATUS["error"] = error_msg
+            return False
+        
         # Create new MQTT client
-        mqtt_client = mqtt.Client(client_id=MQTT_CONFIG["client_id"], clean_session=True)
+        mqtt_client = mqtt.Client(client_id=MQTT_CONFIG["client_id"], protocol=mqtt.MQTTv311)
         
         # Set up TLS
         mqtt_client.tls_set(
@@ -100,6 +122,7 @@ def init_mqtt_client():
         mqtt_client.on_log = on_log
         
         # Connect to broker
+        print(f"Connecting to MQTT broker at {MQTT_CONFIG['host']}:{MQTT_CONFIG['port']}")
         mqtt_client.connect(
             MQTT_CONFIG["host"],
             MQTT_CONFIG["port"],
@@ -112,20 +135,24 @@ def init_mqtt_client():
         print("MQTT client initialized successfully")
         return True
     except Exception as e:
-        print(f"Failed to initialize MQTT client: {str(e)}")
+        error_msg = f"Failed to initialize MQTT client: {str(e)}"
+        print(error_msg)
         CONNECTION_STATUS["status"] = "error"
+        CONNECTION_STATUS["error"] = error_msg
         mqtt_connected = False
         return False
 
 # Publish a message to MQTT
 def publish_message(payload):
     if not mqtt_client or not mqtt_connected:
-        print("MQTT client not connected")
-        return False
+        error_msg = "MQTT client not connected"
+        print(error_msg)
+        return False, error_msg
     
     try:
         topic = get_publish_topic()
         print(f"Publishing message to topic: {topic}")
+        print(f"Payload: {json.dumps(payload)}")
         
         result = mqtt_client.publish(
             topic, 
@@ -135,13 +162,15 @@ def publish_message(payload):
         
         if result.rc == mqtt.MQTT_ERR_SUCCESS:
             print("Message published successfully")
-            return True
+            return True, None
         else:
-            print(f"Failed to publish message: {result.rc}")
-            return False
+            error_msg = f"Failed to publish message: {result.rc}"
+            print(error_msg)
+            return False, error_msg
     except Exception as e:
-        print(f"Error publishing message: {str(e)}")
-        return False
+        error_msg = f"Error publishing message: {str(e)}"
+        print(error_msg)
+        return False, error_msg
 
 # Cleanup MQTT connection
 def cleanup_mqtt_client():
@@ -156,10 +185,13 @@ def cleanup_mqtt_client():
         mqtt_client = None
         mqtt_connected = False
         CONNECTION_STATUS["status"] = "disconnected"
+        CONNECTION_STATUS["error"] = None
         print("MQTT client cleaned up")
         return True
     except Exception as e:
-        print(f"Error cleaning up MQTT client: {str(e)}")
+        error_msg = f"Error cleaning up MQTT client: {str(e)}"
+        print(error_msg)
+        CONNECTION_STATUS["error"] = error_msg
         return False
 
 # Set active client ID for topic construction
@@ -175,6 +207,7 @@ def set_active_client_id(client_id):
 def get_status():
     return jsonify({
         "status": CONNECTION_STATUS["status"],
+        "error": CONNECTION_STATUS["error"],
         "connected": mqtt_connected,
         "active_client_id": active_client_id,
         "publish_topic": get_publish_topic() if active_client_id else None,
@@ -188,12 +221,12 @@ def get_status():
 @app.route('/connect', methods=['POST'])
 def connect():
     success = init_mqtt_client()
-    return jsonify({"success": success, "status": CONNECTION_STATUS["status"]})
+    return jsonify({"success": success, "status": CONNECTION_STATUS["status"], "error": CONNECTION_STATUS["error"]})
 
 @app.route('/disconnect', methods=['POST'])
 def disconnect():
     success = cleanup_mqtt_client()
-    return jsonify({"success": success, "status": CONNECTION_STATUS["status"]})
+    return jsonify({"success": success, "status": CONNECTION_STATUS["status"], "error": CONNECTION_STATUS["error"]})
 
 @app.route('/set-client', methods=['POST'])
 def set_client():
@@ -210,11 +243,27 @@ def publish():
     if not data:
         return jsonify({"success": False, "error": "Payload is required"}), 400
     
-    success = publish_message(data)
-    return jsonify({"success": success})
+    success, error = publish_message(data)
+    return jsonify({"success": success, "error": error})
+
+@app.route('/', methods=['GET'])
+def root():
+    return jsonify({
+        "service": "MQTT Bridge",
+        "status": CONNECTION_STATUS["status"],
+        "endpoints": [
+            {"method": "GET", "path": "/status", "description": "Get current connection status"},
+            {"method": "POST", "path": "/connect", "description": "Connect to MQTT broker"},
+            {"method": "POST", "path": "/disconnect", "description": "Disconnect from MQTT broker"},
+            {"method": "POST", "path": "/set-client", "description": "Set active client ID"},
+            {"method": "POST", "path": "/publish", "description": "Publish message to MQTT broker"}
+        ]
+    })
 
 if __name__ == '__main__':
+    print("=" * 50)
     print(f"Starting MQTT Service on port 5000")
+    print("=" * 50)
     print(f"MQTT Host: {MQTT_CONFIG['host']}")
     print(f"MQTT Port: {MQTT_CONFIG['port']}")
     print(f"Certificates directory: {CERT_DIR}")
@@ -222,7 +271,16 @@ if __name__ == '__main__':
     print(f"Client Cert: {CERTIFICATES['client_cert']}")
     print(f"Client Key: {CERTIFICATES['client_key']}")
     
+    # Check certificates before starting
+    missing_certs = check_certificates()
+    if missing_certs:
+        print("WARNING: Missing or unreadable certificates:")
+        for cert in missing_certs:
+            print(f"  - {cert}")
+        print("\nPlease ensure all certificates are in place and readable.")
+    
     # Initialize the MQTT client on startup
     init_mqtt_client()
+    
     # Run the Flask app
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True, port=5000)

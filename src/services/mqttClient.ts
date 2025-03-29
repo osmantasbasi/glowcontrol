@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 
 // MQTT connection status
@@ -63,7 +64,8 @@ export const setActiveClientId = async (clientId: string): Promise<void> => {
     });
     
     if (!response.ok) {
-      throw new Error('Failed to set active client ID on backend');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to set active client ID on backend');
     }
     
     console.log('Backend notified of active client ID');
@@ -88,7 +90,8 @@ export const initMqttClient = async (): Promise<void> => {
     });
     
     if (!response.ok) {
-      throw new Error('Failed to connect to MQTT broker');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to connect to MQTT broker');
     }
     
     const data = await response.json();
@@ -110,7 +113,7 @@ export const initMqttClient = async (): Promise<void> => {
     
     // Display a more helpful error message
     if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('network'))) {
-      toast.error('Backend server appears to be offline. Please ensure the backend is running.');
+      toast.error('Backend server appears to be offline. Please ensure the backend is running at: ' + BACKEND_API_URL);
       console.error('MQTT backend server appears to be offline. Please check if the Python backend is running at:', BACKEND_API_URL);
     }
   }
@@ -118,7 +121,13 @@ export const initMqttClient = async (): Promise<void> => {
 
 // Poll for connection status from the backend
 const startStatusPolling = () => {
-  const pollInterval = setInterval(async () => {
+  // Clear any existing polling interval
+  if (window._mqttStatusPollingInterval) {
+    clearInterval(window._mqttStatusPollingInterval);
+  }
+  
+  // Create new polling interval
+  window._mqttStatusPollingInterval = setInterval(async () => {
     try {
       const response = await fetch(`${BACKEND_API_URL}/status`);
       
@@ -137,21 +146,41 @@ const startStatusPolling = () => {
         updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
       } else if (data.status === 'error' && connectionStatus !== MqttConnectionStatus.ERROR) {
         updateConnectionStatus(MqttConnectionStatus.ERROR);
+        if (data.error) {
+          console.error('MQTT connection error:', data.error);
+        }
       }
     } catch (error) {
       console.error('Error polling for status:', error);
-      clearInterval(pollInterval);
+      updateConnectionStatus(MqttConnectionStatus.ERROR);
+      
+      // Stop polling if we can't reach the backend
+      clearInterval(window._mqttStatusPollingInterval);
+      window._mqttStatusPollingInterval = undefined;
     }
   }, 5000); // Poll every 5 seconds
   
   // Return a cleanup function
-  return () => clearInterval(pollInterval);
+  return () => {
+    if (window._mqttStatusPollingInterval) {
+      clearInterval(window._mqttStatusPollingInterval);
+      window._mqttStatusPollingInterval = undefined;
+    }
+  };
 };
+
+// Declare the polling interval on the window object
+declare global {
+  interface Window {
+    _mqttStatusPollingInterval?: number;
+  }
+}
 
 // Publish a message to the MQTT topic
 export const publishMessage = async (payload: Record<string, any>): Promise<boolean> => {
   try {
     console.log(`Publishing message to topic: ${getPublishTopic()}`);
+    console.log('Payload:', payload);
     
     const response = await fetch(`${BACKEND_API_URL}/publish`, {
       method: 'POST',
@@ -162,7 +191,8 @@ export const publishMessage = async (payload: Record<string, any>): Promise<bool
     });
     
     if (!response.ok) {
-      throw new Error('Failed to publish message to backend');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to publish message to backend');
     }
     
     const data = await response.json();
@@ -188,11 +218,18 @@ export const cleanupMqttClient = async (): Promise<void> => {
     });
     
     if (!response.ok) {
-      throw new Error('Failed to disconnect from MQTT broker');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to disconnect from MQTT broker');
     }
     
     updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
     console.log('MQTT client cleaned up');
+    
+    // Stop polling when disconnected
+    if (window._mqttStatusPollingInterval) {
+      clearInterval(window._mqttStatusPollingInterval);
+      window._mqttStatusPollingInterval = undefined;
+    }
   } catch (error) {
     console.error('Error cleaning up MQTT client:', error);
     toast.error(`Error cleaning up MQTT client: ${error instanceof Error ? error.message : String(error)}`);
