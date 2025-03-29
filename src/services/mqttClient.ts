@@ -1,4 +1,3 @@
-
 import { toast } from 'sonner';
 
 // MQTT connection status
@@ -9,8 +8,9 @@ export enum MqttConnectionStatus {
   ERROR = 'error'
 }
 
-// Backend API URL
-const BACKEND_API_URL = 'http://localhost:5000';
+// Backend API URL - Make this configurable
+// The frontend deployment needs to specify the actual backend URL
+const BACKEND_API_URL = import.meta.env.VITE_MQTT_BACKEND_URL || 'http://localhost:5000';
 
 // Store active clientId for topic construction
 let activeClientId: string | null = null;
@@ -78,9 +78,13 @@ export const initMqttClient = async (): Promise<void> => {
   try {
     updateConnectionStatus(MqttConnectionStatus.CONNECTING);
     console.log('Connecting to MQTT broker via backend service');
+    console.log(`Using backend API URL: ${BACKEND_API_URL}`);
     
     const response = await fetch(`${BACKEND_API_URL}/connect`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
     
     if (!response.ok) {
@@ -103,6 +107,12 @@ export const initMqttClient = async (): Promise<void> => {
     console.error('Failed to initialize MQTT client:', error);
     updateConnectionStatus(MqttConnectionStatus.ERROR);
     toast.error(`Failed to initialize MQTT client: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // Display a more helpful error message
+    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('network'))) {
+      toast.error('Backend server appears to be offline. Please ensure the backend is running.');
+      console.error('MQTT backend server appears to be offline. Please check if the Python backend is running at:', BACKEND_API_URL);
+    }
   }
 };
 

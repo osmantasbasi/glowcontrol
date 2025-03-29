@@ -1,4 +1,3 @@
-
 import paho.mqtt.client as mqtt
 import ssl
 import json
@@ -12,10 +11,10 @@ CORS(app)  # Enable CORS for all routes
 
 # MQTT Configuration
 MQTT_CONFIG = {
-    "host": "amz.iot.mqtt",
-    "port": 8883,
+    "host": os.environ.get("MQTT_HOST", "amz.iot.mqtt"),
+    "port": int(os.environ.get("MQTT_PORT", 8883)),
     "client_id": f"glowcontrol-python-{int(time.time())}",
-    "base_topic": "/client_id/api",  # Base topic template
+    "base_topic": os.environ.get("MQTT_BASE_TOPIC", "/client_id/api"),  # Base topic template
 }
 
 # Client ID for topic construction
@@ -24,9 +23,9 @@ active_client_id = None
 # Paths to certificates
 CERT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs")
 CERTIFICATES = {
-    "client_key": os.path.join(CERT_DIR, "client.key"),
-    "client_cert": os.path.join(CERT_DIR, "client.crt"),
-    "ca_cert": os.path.join(CERT_DIR, "ca.crt"),
+    "client_key": os.environ.get("MQTT_CLIENT_KEY", os.path.join(CERT_DIR, "client.key")),
+    "client_cert": os.environ.get("MQTT_CLIENT_CERT", os.path.join(CERT_DIR, "client.crt")),
+    "ca_cert": os.environ.get("MQTT_CA_CERT", os.path.join(CERT_DIR, "ca.crt")),
 }
 
 # MQTT client instance
@@ -75,6 +74,13 @@ def init_mqtt_client():
     try:
         CONNECTION_STATUS["status"] = "connecting"
         
+        # Check if certificates exist
+        for cert_type, cert_path in CERTIFICATES.items():
+            if not os.path.exists(cert_path):
+                print(f"Certificate {cert_type} not found at {cert_path}")
+                CONNECTION_STATUS["status"] = "error"
+                return False
+                
         # Create new MQTT client
         mqtt_client = mqtt.Client(client_id=MQTT_CONFIG["client_id"], clean_session=True)
         
@@ -171,7 +177,12 @@ def get_status():
         "status": CONNECTION_STATUS["status"],
         "connected": mqtt_connected,
         "active_client_id": active_client_id,
-        "publish_topic": get_publish_topic() if active_client_id else None
+        "publish_topic": get_publish_topic() if active_client_id else None,
+        "config": {
+            "host": MQTT_CONFIG["host"],
+            "port": MQTT_CONFIG["port"],
+            "base_topic": MQTT_CONFIG["base_topic"]
+        }
     })
 
 @app.route('/connect', methods=['POST'])
@@ -203,6 +214,14 @@ def publish():
     return jsonify({"success": success})
 
 if __name__ == '__main__':
+    print(f"Starting MQTT Service on port 5000")
+    print(f"MQTT Host: {MQTT_CONFIG['host']}")
+    print(f"MQTT Port: {MQTT_CONFIG['port']}")
+    print(f"Certificates directory: {CERT_DIR}")
+    print(f"CA Cert: {CERTIFICATES['ca_cert']}")
+    print(f"Client Cert: {CERTIFICATES['client_cert']}")
+    print(f"Client Key: {CERTIFICATES['client_key']}")
+    
     # Initialize the MQTT client on startup
     init_mqtt_client()
     # Run the Flask app
