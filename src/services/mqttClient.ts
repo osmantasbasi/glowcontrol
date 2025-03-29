@@ -126,7 +126,7 @@ const startStatusPolling = () => {
     clearInterval(window._mqttStatusPollingInterval);
   }
   
-  // Create new polling interval
+  // Create new polling interval - Fix the type issue by using NodeJS.Timeout
   window._mqttStatusPollingInterval = setInterval(async () => {
     try {
       const response = await fetch(`${BACKEND_API_URL}/status`);
@@ -172,7 +172,7 @@ const startStatusPolling = () => {
 // Declare the polling interval on the window object
 declare global {
   interface Window {
-    _mqttStatusPollingInterval?: number;
+    _mqttStatusPollingInterval?: NodeJS.Timeout;  // Fixed: Changed from number to NodeJS.Timeout
   }
 }
 

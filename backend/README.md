@@ -50,6 +50,7 @@ Set the environment variable `VITE_MQTT_BACKEND_URL` to the URL where your backe
 
 - `GET /` - Service information and available endpoints
 - `GET /status` - Get the current connection status
+- `GET /health` - Quick health check
 - `POST /connect` - Initialize and connect the MQTT client
 - `POST /disconnect` - Disconnect and cleanup the MQTT client
 - `POST /set-client` - Set the active client ID for topic construction
@@ -88,4 +89,25 @@ If you're experiencing connection issues:
    VITE_MQTT_BACKEND_URL=http://localhost:5000
    ```
 
-6. Check the backend logs for detailed error messages.
+6. Test the server with curl:
+   ```bash
+   curl http://localhost:5000/health
+   ```
+
+7. Check for CORS issues - make sure your browser allows requests to the backend:
+   ```bash
+   curl -X OPTIONS -H "Origin: http://your-frontend-url" http://localhost:5000/status
+   ```
+
+8. Check if port 5000 is already in use by another process:
+   ```bash
+   # On Linux/Mac
+   lsof -i :5000
+   
+   # On Windows
+   netstat -ano | findstr :5000
+   ```
+
+9. Check the backend logs for detailed error messages.
+
+10. Ensure your network allows connections to port 5000 (check firewalls, etc).
