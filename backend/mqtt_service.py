@@ -225,4 +225,4 @@ if __name__ == '__main__':
     # Initialize the MQTT client on startup
     init_mqtt_client()
     # Run the Flask app
-    app.run(host='http://localhost', port=5000, debug=True)
+    app.run(debug=True)
