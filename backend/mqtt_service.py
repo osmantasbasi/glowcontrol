@@ -1,4 +1,3 @@
-
 import paho.mqtt.client as mqtt
 import ssl
 import json
@@ -214,9 +213,19 @@ def set_active_client_id(client_id):
     return True
 
 # API Routes
+@app.route('/connect', methods=['POST'])
+def connect():
+    logger.info("📡 Received frontend connection request")
+    success = init_mqtt_client()
+    logger.info(f"🔌 Backend connection result: {success}")
+    response = {"success": success, "status": CONNECTION_STATUS["status"], "error": CONNECTION_STATUS["error"]}
+    logger.info(f"📤 Sending response to frontend: {response}")
+    return jsonify(response)
+
 @app.route('/status', methods=['GET'])
 def get_status():
-    return jsonify({
+    logger.info("📊 Status check requested")
+    status_response = {
         "status": CONNECTION_STATUS["status"],
         "error": CONNECTION_STATUS["error"],
         "connected": mqtt_connected,
@@ -227,14 +236,9 @@ def get_status():
             "port": MQTT_CONFIG["port"],
             "base_topic": MQTT_CONFIG["base_topic"]
         }
-    })
-
-@app.route('/connect', methods=['POST'])
-def connect():
-    logger.info("Received connect request")
-    success = init_mqtt_client()
-    logger.info(f"Connect result: {success}")
-    return jsonify({"success": success, "status": CONNECTION_STATUS["status"], "error": CONNECTION_STATUS["error"]})
+    }
+    logger.info(f"📤 Sending status: {status_response}")
+    return jsonify(status_response)
 
 @app.route('/disconnect', methods=['POST'])
 def disconnect():

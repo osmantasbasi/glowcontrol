@@ -1,4 +1,3 @@
-
 import { toast } from 'sonner';
 
 // MQTT connection status
@@ -79,8 +78,8 @@ export const setActiveClientId = async (clientId: string): Promise<void> => {
 export const initMqttClient = async (): Promise<void> => {
   try {
     updateConnectionStatus(MqttConnectionStatus.CONNECTING);
-    console.log('Connecting to MQTT broker via backend service');
-    console.log(`Using backend API URL: ${BACKEND_API_URL}`);
+    console.info('🔄 Connecting to MQTT broker via backend service');
+    console.info(`🌐 Using backend API URL: ${BACKEND_API_URL}`);
     
     const response = await fetch(`${BACKEND_API_URL}/connect`, {
       method: 'POST',
@@ -97,24 +96,25 @@ export const initMqttClient = async (): Promise<void> => {
     const data = await response.json();
     
     if (data.success) {
+      console.info('✅ Connected to MQTT broker via backend service');
+      console.info('📡 MQTT Connection Details:', data);
       updateConnectionStatus(MqttConnectionStatus.CONNECTED);
       toast.success('Connected to MQTT broker');
-      console.log('Connected to MQTT broker via backend service');
       
-      // Start polling for status
+      // Start polling for status with more detailed logging
       startStatusPolling();
     } else {
       throw new Error(data.error || 'Failed to connect to MQTT broker');
     }
   } catch (error) {
-    console.error('Failed to initialize MQTT client:', error);
+    console.error('❌ Failed to initialize MQTT client:', error);
     updateConnectionStatus(MqttConnectionStatus.ERROR);
     toast.error(`Failed to initialize MQTT client: ${error instanceof Error ? error.message : String(error)}`);
     
-    // Display a more helpful error message
     if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('network'))) {
-      toast.error('Backend server appears to be offline. Please ensure the backend is running at: ' + BACKEND_API_URL);
-      console.error('MQTT backend server appears to be offline. Please check if the Python backend is running at:', BACKEND_API_URL);
+      const errorMessage = 'Backend server appears to be offline';
+      console.error(`🔴 ${errorMessage}. Please check if the Python backend is running at:`, BACKEND_API_URL);
+      toast.error(`${errorMessage}. Please ensure the backend is running at: ${BACKEND_API_URL}`);
     }
   }
 };
@@ -129,6 +129,7 @@ const startStatusPolling = () => {
   // Create new polling interval - Fix the type issue by using NodeJS.Timeout
   window._mqttStatusPollingInterval = setInterval(async () => {
     try {
+      console.debug('🔄 Polling MQTT status...');
       const response = await fetch(`${BACKEND_API_URL}/status`);
       
       if (!response.ok) {
@@ -136,25 +137,29 @@ const startStatusPolling = () => {
       }
       
       const data = await response.json();
+      console.debug('📊 MQTT Status Update:', data);
       
-      // Update the connection status
+      // Update the connection status with logging
       if (data.status === 'connected' && connectionStatus !== MqttConnectionStatus.CONNECTED) {
+        console.info('✅ MQTT Connection Active');
         updateConnectionStatus(MqttConnectionStatus.CONNECTED);
       } else if (data.status === 'connecting' && connectionStatus !== MqttConnectionStatus.CONNECTING) {
+        console.info('🔄 MQTT Connecting...');
         updateConnectionStatus(MqttConnectionStatus.CONNECTING);
       } else if (data.status === 'disconnected' && connectionStatus !== MqttConnectionStatus.DISCONNECTED) {
+        console.info('⚪ MQTT Disconnected');
         updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
       } else if (data.status === 'error' && connectionStatus !== MqttConnectionStatus.ERROR) {
+        console.error('❌ MQTT Connection Error');
         updateConnectionStatus(MqttConnectionStatus.ERROR);
         if (data.error) {
-          console.error('MQTT connection error:', data.error);
+          console.error('🔴 MQTT Error Details:', data.error);
         }
       }
     } catch (error) {
-      console.error('Error polling for status:', error);
+      console.error('❌ Error polling for status:', error);
       updateConnectionStatus(MqttConnectionStatus.ERROR);
       
-      // Stop polling if we can't reach the backend
       clearInterval(window._mqttStatusPollingInterval);
       window._mqttStatusPollingInterval = undefined;
     }
