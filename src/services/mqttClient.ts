@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 
 // MQTT connection status
@@ -5,7 +6,8 @@ export enum MqttConnectionStatus {
   DISCONNECTED = 'disconnected',
   CONNECTING = 'connecting',
   CONNECTED = 'connected',
-  ERROR = 'error'
+  ERROR = 'error',
+  MOCK = 'mock' // Add a new status for mock mode
 }
 
 // Backend API URL Options
@@ -40,15 +42,45 @@ const getBackendUrl = () => {
   return localhostUrl;
 };
 
+// Check if we should use mock mode
+const useMockMode = () => {
+  // Allow forcing mock mode via URL parameter
+  if (typeof window !== 'undefined') {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('mockMqtt')) {
+      return true;
+    }
+  }
+
+  // Use mock if in development and environment variable is set
+  if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_MQTT === 'true') {
+    return true;
+  }
+  
+  return false;
+};
+
 // Backend API URL - Made more configurable with fallbacks
 const BACKEND_API_URL = getBackendUrl();
-console.info(`🌐 MQTT Backend URL configured as: ${BACKEND_API_URL}`);
+const MOCK_MODE = useMockMode();
+
+if (MOCK_MODE) {
+  console.info('🔶 MQTT Mock Mode enabled - no backend connection required');
+} else {
+  console.info(`🌐 MQTT Backend URL configured as: ${BACKEND_API_URL}`);
+}
 
 // Store active clientId for topic construction
 let activeClientId: string | null = null;
 let connectionStatus: MqttConnectionStatus = MqttConnectionStatus.DISCONNECTED;
 let connectionRetryCount = 0;
 const MAX_RETRY_ATTEMPTS = 3;
+
+// Mock data storage
+const mockState = {
+  devices: {},
+  messages: []
+};
 
 // Callbacks for status changes
 const statusListeners: Array<(status: MqttConnectionStatus) => void> = [];
@@ -82,6 +114,13 @@ export const getPublishTopic = (): string => {
 
 // Set active client ID for topic construction
 export const setActiveClientId = async (clientId: string): Promise<void> => {
+  if (MOCK_MODE) {
+    activeClientId = clientId;
+    console.log(`🔶 Mock: Active client ID set to: ${clientId}`);
+    console.log(`🔶 Mock: Publishing topic is now: ${getPublishTopic()}`);
+    return;
+  }
+
   try {
     activeClientId = clientId;
     console.log(`Active client ID set to: ${clientId}`);
@@ -110,6 +149,15 @@ export const setActiveClientId = async (clientId: string): Promise<void> => {
 
 // Initialize MQTT client with retry mechanism
 export const initMqttClient = async (retryCount = 0): Promise<void> => {
+  // If in mock mode, set status to MOCK and return immediately
+  if (MOCK_MODE) {
+    console.info('🔶 Initializing MQTT mock service');
+    updateConnectionStatus(MqttConnectionStatus.MOCK);
+    console.info('✅ MQTT mock service initialized successfully');
+    toast.success('Connected to MQTT mock service');
+    return;
+  }
+
   // Update internal retry count
   connectionRetryCount = retryCount;
   
@@ -175,6 +223,23 @@ export const initMqttClient = async (retryCount = 0): Promise<void> => {
         // Max retries reached
         toast.error(`${backendError}. Please ensure the backend is running at: ${BACKEND_API_URL}`);
         console.error(`🛑 Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) reached. Giving up.`);
+        
+        // Suggest mock mode in development
+        if (import.meta.env.DEV) {
+          console.info('💡 Tip: Add ?mockMqtt=true to the URL to enable mock mode during development');
+          toast('Tip: Add ?mockMqtt=true to the URL to enable mock mode', {
+            description: 'This will allow you to develop without the backend running',
+            action: {
+              label: 'Enable Mock',
+              onClick: () => {
+                // Create a new URL with the mockMqtt parameter
+                const url = new URL(window.location.href);
+                url.searchParams.set('mockMqtt', 'true');
+                window.location.href = url.toString();
+              }
+            }
+          });
+        }
       }
     } else {
       // For other errors
@@ -185,6 +250,9 @@ export const initMqttClient = async (retryCount = 0): Promise<void> => {
 
 // Poll for connection status from the backend
 const startStatusPolling = () => {
+  // Skip polling in mock mode
+  if (MOCK_MODE) return () => {};
+
   // Clear any existing polling interval
   if (window._mqttStatusPollingInterval) {
     clearInterval(window._mqttStatusPollingInterval);
@@ -266,6 +334,23 @@ declare global {
 
 // Publish a message to the MQTT topic
 export const publishMessage = async (payload: Record<string, any>): Promise<boolean> => {
+  // Mock mode publishing
+  if (MOCK_MODE) {
+    console.log(`🔶 Mock: Publishing message to topic: ${getPublishTopic()}`);
+    console.log('🔶 Mock: Payload:', payload);
+    
+    // Store message in mock state
+    mockState.messages.push({
+      topic: getPublishTopic(),
+      payload,
+      timestamp: new Date()
+    });
+    
+    // Log success
+    console.log('✅ Mock: Message published successfully');
+    return true;
+  }
+
   try {
     console.log(`Publishing message to topic: ${getPublishTopic()}`);
     console.log('Payload:', payload);
@@ -304,6 +389,14 @@ export const publishMessage = async (payload: Record<string, any>): Promise<bool
 
 // Clean up MQTT connection
 export const cleanupMqttClient = async (): Promise<void> => {
+  // In mock mode, just update the status
+  if (MOCK_MODE) {
+    console.info('🔶 Mock: Cleaning up MQTT mock service');
+    updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
+    console.log('✅ Mock: MQTT mock service disconnected');
+    return;
+  }
+
   try {
     console.info('🧹 Cleaning up MQTT client connection...');
     
@@ -336,6 +429,8 @@ export const cleanupMqttClient = async (): Promise<void> => {
 
 // Export current connection status for direct access
 export const isConnected = (): boolean => {
+  // In mock mode, always return true
+  if (MOCK_MODE) return true;
   return connectionStatus === MqttConnectionStatus.CONNECTED;
 };
 
@@ -343,3 +438,4 @@ export const isConnected = (): boolean => {
 export const getMqttConnectionStatus = (): MqttConnectionStatus => {
   return connectionStatus;
 };
+
