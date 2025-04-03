@@ -8,13 +8,47 @@ export enum MqttConnectionStatus {
   ERROR = 'error'
 }
 
-// Backend API URL - Make this configurable
-// The frontend deployment needs to specify the actual backend URL
-const BACKEND_API_URL = import.meta.env.VITE_MQTT_BACKEND_URL || 'http://localhost:5000';
+// Backend API URL Options
+// 1. Use environment variable VITE_MQTT_BACKEND_URL if set
+// 2. Try localhost:5000 as fallback
+// 3. If in demo mode, try the window origin (same domain) as last resort
+const getBackendUrl = () => {
+  // Primary: Use environment variable if available
+  const envUrl = import.meta.env.VITE_MQTT_BACKEND_URL;
+  if (envUrl) return envUrl;
+  
+  // Fallback: Use localhost in development
+  const localhostUrl = 'http://localhost:5000';
+  
+  // Last resort: If in browser, try same origin for demo/preview mode
+  // This assumes backend might be proxied or hosted at the same origin in production
+  if (typeof window !== 'undefined') {
+    // Extract origin (protocol + host) from current window location
+    const windowOrigin = window.location.origin;
+    
+    // In development we can test with localhost
+    if (import.meta.env.DEV) {
+      console.info('🧪 Development mode detected, using localhost backend URL:', localhostUrl);
+      return localhostUrl;
+    }
+    
+    // In production/preview, try same origin
+    console.info('🔍 Production mode detected, trying same-origin backend URL');
+    return `${windowOrigin}/api/mqtt`;
+  }
+  
+  return localhostUrl;
+};
+
+// Backend API URL - Made more configurable with fallbacks
+const BACKEND_API_URL = getBackendUrl();
+console.info(`🌐 MQTT Backend URL configured as: ${BACKEND_API_URL}`);
 
 // Store active clientId for topic construction
 let activeClientId: string | null = null;
 let connectionStatus: MqttConnectionStatus = MqttConnectionStatus.DISCONNECTED;
+let connectionRetryCount = 0;
+const MAX_RETRY_ATTEMPTS = 3;
 
 // Callbacks for status changes
 const statusListeners: Array<(status: MqttConnectionStatus) => void> = [];
@@ -74,19 +108,26 @@ export const setActiveClientId = async (clientId: string): Promise<void> => {
   }
 };
 
-// Initialize MQTT client
-export const initMqttClient = async (): Promise<void> => {
+// Initialize MQTT client with retry mechanism
+export const initMqttClient = async (retryCount = 0): Promise<void> => {
+  // Update internal retry count
+  connectionRetryCount = retryCount;
+  
   try {
     updateConnectionStatus(MqttConnectionStatus.CONNECTING);
-    console.info('🔄 Connecting to MQTT broker via backend service');
+    console.info(`🔄 Connecting to MQTT broker via backend service (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS + 1})`);
     console.info(`🌐 Using backend API URL: ${BACKEND_API_URL}`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     
     const response = await fetch(`${BACKEND_API_URL}/connect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -101,20 +142,43 @@ export const initMqttClient = async (): Promise<void> => {
       updateConnectionStatus(MqttConnectionStatus.CONNECTED);
       toast.success('Connected to MQTT broker');
       
+      // Reset retry count on successful connection
+      connectionRetryCount = 0;
+      
       // Start polling for status with more detailed logging
       startStatusPolling();
     } else {
       throw new Error(data.error || 'Failed to connect to MQTT broker');
     }
   } catch (error) {
-    console.error('❌ Failed to initialize MQTT client:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Failed to initialize MQTT client: ${errorMessage}`, error);
     updateConnectionStatus(MqttConnectionStatus.ERROR);
-    toast.error(`Failed to initialize MQTT client: ${error instanceof Error ? error.message : String(error)}`);
     
-    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('network'))) {
-      const errorMessage = 'Backend server appears to be offline';
-      console.error(`🔴 ${errorMessage}. Please check if the Python backend is running at:`, BACKEND_API_URL);
-      toast.error(`${errorMessage}. Please ensure the backend is running at: ${BACKEND_API_URL}`);
+    // Handle network errors with more detailed messages
+    if (error instanceof TypeError && (errorMessage === 'Failed to fetch' || errorMessage.includes('network'))) {
+      const backendError = 'MQTT backend server appears to be offline';
+      console.error(`🔴 ${backendError}. Please check if the Python backend is running at:`, BACKEND_API_URL);
+      
+      if (retryCount < MAX_RETRY_ATTEMPTS) {
+        const nextRetry = retryCount + 1;
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff with max 10s
+        
+        console.info(`🔄 Connection attempt failed. Retrying in ${delay/1000}s (attempt ${nextRetry}/${MAX_RETRY_ATTEMPTS})...`);
+        toast.error(`${backendError}. Retrying in ${delay/1000}s...`);
+        
+        // Retry connection after delay
+        setTimeout(() => {
+          initMqttClient(nextRetry);
+        }, delay);
+      } else {
+        // Max retries reached
+        toast.error(`${backendError}. Please ensure the backend is running at: ${BACKEND_API_URL}`);
+        console.error(`🛑 Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) reached. Giving up.`);
+      }
+    } else {
+      // For other errors
+      toast.error(`Failed to initialize MQTT client: ${errorMessage}`);
     }
   }
 };
@@ -126,11 +190,17 @@ const startStatusPolling = () => {
     clearInterval(window._mqttStatusPollingInterval);
   }
   
-  // Create new polling interval - Fix the type issue by using NodeJS.Timeout
+  // Create new polling interval
   window._mqttStatusPollingInterval = setInterval(async () => {
     try {
       console.debug('🔄 Polling MQTT status...');
-      const response = await fetch(`${BACKEND_API_URL}/status`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+      
+      const response = await fetch(`${BACKEND_API_URL}/status`, {
+        signal: controller.signal
+      }).finally(() => clearTimeout(timeoutId));
       
       if (!response.ok) {
         throw new Error('Failed to fetch status from backend');
@@ -160,8 +230,21 @@ const startStatusPolling = () => {
       console.error('❌ Error polling for status:', error);
       updateConnectionStatus(MqttConnectionStatus.ERROR);
       
-      clearInterval(window._mqttStatusPollingInterval);
-      window._mqttStatusPollingInterval = undefined;
+      // No need to clear interval here - keep trying to reconnect
+      // Only clear if we're sure the backend is unreachable
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.error('🔴 Backend appears to be offline during status polling');
+        clearInterval(window._mqttStatusPollingInterval);
+        window._mqttStatusPollingInterval = undefined;
+        
+        // Attempt to reconnect after brief delay
+        setTimeout(() => {
+          if (connectionStatus !== MqttConnectionStatus.CONNECTED) {
+            console.info('🔄 Attempting to reconnect to backend...');
+            initMqttClient(0); // Start fresh reconnection attempt
+          }
+        }, 5000);
+      }
     }
   }, 5000); // Poll every 5 seconds
   
@@ -177,7 +260,7 @@ const startStatusPolling = () => {
 // Declare the polling interval on the window object
 declare global {
   interface Window {
-    _mqttStatusPollingInterval?: NodeJS.Timeout;  // Fixed: Changed from number to NodeJS.Timeout
+    _mqttStatusPollingInterval?: NodeJS.Timeout;
   }
 }
 
@@ -187,13 +270,17 @@ export const publishMessage = async (payload: Record<string, any>): Promise<bool
     console.log(`Publishing message to topic: ${getPublishTopic()}`);
     console.log('Payload:', payload);
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     const response = await fetch(`${BACKEND_API_URL}/publish`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -203,13 +290,13 @@ export const publishMessage = async (payload: Record<string, any>): Promise<bool
     const data = await response.json();
     
     if (data.success) {
-      console.log('Message published successfully');
+      console.log('✅ Message published successfully');
       return true;
     } else {
       throw new Error(data.error || 'Failed to publish message');
     }
   } catch (error) {
-    console.error('Error publishing message:', error);
+    console.error('❌ Error publishing message:', error);
     toast.error(`Error publishing message: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
@@ -218,9 +305,15 @@ export const publishMessage = async (payload: Record<string, any>): Promise<bool
 // Clean up MQTT connection
 export const cleanupMqttClient = async (): Promise<void> => {
   try {
+    console.info('🧹 Cleaning up MQTT client connection...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+    
     const response = await fetch(`${BACKEND_API_URL}/disconnect`, {
       method: 'POST',
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -228,7 +321,7 @@ export const cleanupMqttClient = async (): Promise<void> => {
     }
     
     updateConnectionStatus(MqttConnectionStatus.DISCONNECTED);
-    console.log('MQTT client cleaned up');
+    console.log('✅ MQTT client cleaned up successfully');
     
     // Stop polling when disconnected
     if (window._mqttStatusPollingInterval) {
@@ -236,7 +329,7 @@ export const cleanupMqttClient = async (): Promise<void> => {
       window._mqttStatusPollingInterval = undefined;
     }
   } catch (error) {
-    console.error('Error cleaning up MQTT client:', error);
+    console.error('❌ Error cleaning up MQTT client:', error);
     toast.error(`Error cleaning up MQTT client: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
